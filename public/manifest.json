@@ -1,0 +1,41 @@
+{
+  "name": "E - Project Guru Digital",
+  "short_name": "E-Project",
+  "description": "Aplikasi E - Project Guru Digital lengkap (Presensi, Jadwal, Nilai, Jurnal, Asisten AI Kurikulum) Offline & Online untuk HP, Tablet, dan Laptop.",
+  "start_url": "./",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "scope": "./",
+  "lang": "id",
+  "dir": "ltr",
+  "orientation": "any",
+  "categories": ["education", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "./pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

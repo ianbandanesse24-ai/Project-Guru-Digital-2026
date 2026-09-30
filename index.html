@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script>
+      // Filter benign Vite development websocket reconnection messages and false AIS error warnings
+      (function() {
+        function isViteMessage(args) {
+          try {
+            if (!args) return false;
+            var list = Array.isArray(args) || args.length !== undefined ? args : [args];
+            for (var i = 0; i < list.length; i++) {
+              var item = list[i];
+              var str = '';
+              if (item instanceof Error) {
+                str = (item.message || '') + ' ' + (item.stack || '');
+              } else if (typeof item === 'object' && item !== null) {
+                try {
+                  str = (item.message || '') + ' ' + (item.reason || '') + ' ' + JSON.stringify(item);
+                } catch(e) {
+                  str = String(item);
+                }
+              } else {
+                str = String(item || '');
+              }
+              var lower = str.toLowerCase().trim();
+              if (
+                lower === '[vite]' ||
+                lower.indexOf('[vite]') !== -1 ||
+                lower.indexOf('vite:') !== -1 ||
+                (lower.indexOf('vite') !== -1 && (
+                  lower.indexOf('connect') !== -1 ||
+                  lower.indexOf('websocket') !== -1 ||
+                  lower.indexOf('hmr') !== -1 ||
+                  lower.indexOf('failed') !== -1 ||
+                  lower.indexOf('reconnect') !== -1
+                )) ||
+                lower.indexOf('websocket') !== -1 ||
+                lower.indexOf('ws://') !== -1 ||
+                lower.indexOf('wss://') !== -1 ||
+                lower.indexOf('hmr') !== -1 ||
+                (lower.indexOf('failed to fetch') !== -1 && lower.indexOf('vite') !== -1)
+              ) {
+                return true;
+              }
+            }
+          } catch(e) {}
+          return false;
+        }
+
+        var origError = console.error;
+        var origWarn = console.warn;
+        var origLog = console.log;
+        var origInfo = console.info;
+        var origDebug = console.debug;
+
+        console.error = function() {
+          if (isViteMessage(arguments)) return;
+          origError.apply(console, arguments);
+        };
+        console.warn = function() {
+          if (isViteMessage(arguments)) return;
+          origWarn.apply(console, arguments);
+        };
+        console.log = function() {
+          if (isViteMessage(arguments)) return;
+          origLog.apply(console, arguments);
+        };
+        console.info = function() {
+          if (isViteMessage(arguments)) return;
+          origInfo.apply(console, arguments);
+        };
+        console.debug = function() {
+          if (isViteMessage(arguments)) return;
+          if (origDebug) origDebug.apply(console, arguments);
+        };
+
+        window.addEventListener('unhandledrejection', function(event) {
+          var reason = event && event.reason;
+          if (isViteMessage([reason])) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        });
+
+        window.addEventListener('error', function(event) {
+          var msg = (event && (event.message || '')) || '';
+          if (isViteMessage([msg, event.error])) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+
+        var prevOnError = window.onerror;
+        window.onerror = function(msg, url, line, col, error) {
+          if (isViteMessage([msg, error])) {
+            return true; // suppresses the error
+          }
+          if (typeof prevOnError === 'function') {
+            return prevOnError.apply(this, arguments);
+          }
+          return false;
+        };
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // 1. Auto-redirect to trailing slash on GitHub Pages directory URLs
+      // Ensures relative assets (./assets/...) resolve to the repository folder, avoiding blank white screen
+      (function() {
+        var l = window.location;
+        if (!l.pathname.endsWith('/')) {
+          var segments = l.pathname.split('/');
+          var last = segments[segments.length - 1];
+          if (last && last.indexOf('.') === -1) {
+            l.replace(l.protocol + '//' + l.host + l.pathname + '/' + l.search + l.hash);
+          }
+        }
+      })();
+    </script>
+    <script>
+      // Global PWA Prompt interceptor: captures beforeinstallprompt as early as possible
+      window.__pwaDeferredPrompt = null;
+      window.__pwaIsInstalled = Boolean(
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+        (window.navigator && window.navigator.standalone === true)
+      );
+
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        window.__pwaDeferredPrompt = e;
+        window.dispatchEvent(new CustomEvent('pwa_prompt_ready', { detail: e }));
+        window.dispatchEvent(new CustomEvent('agk_pwa_installable'));
+        console.log('[PWA] Native install prompt siap digunakan');
+      });
+
+      window.addEventListener('appinstalled', function() {
+        window.__pwaDeferredPrompt = null;
+        window.__pwaIsInstalled = true;
+        window.dispatchEvent(new CustomEvent('pwa_app_installed'));
+        console.log('[PWA] Aplikasi berhasil dipasang!');
+      });
+    </script>
+    <title>E - Project Guru Digital</title>
+    <meta name="description" content="Aplikasi E - Project Guru Digital lengkap dengan manajemen absensi, jadwal, agenda, jurnal, guru wali, penilaian otomatis, asisten AI kurikulum Deep Learning & Merdeka (SD-SMA), sinkronisasi Supabase, serta otorisasi admin & client bertingkat." />
+    <meta property="og:title" content="E - Project Guru Digital" />
+    <meta property="og:description" content="Aplikasi E - Project Guru Digital lengkap dengan manajemen absensi, jadwal, agenda, jurnal, guru wali, penilaian otomatis, asisten AI kurikulum Deep Learning & Merdeka (SD-SMA), sinkronisasi Supabase, serta otorisasi admin & client bertingkat." />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="E - Project Guru Digital" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="./favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;0,6..72,700;1,6..72,400&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"
+      crossorigin="anonymous"
+    />
+    <script>
+      // Single Page Apps for GitHub Pages redirect receiver
+      // MIT License
+      // https://github.com/rafgraph/spa-github-pages
+      (function(l) {
+        if (l.search && l.search[1] === '/' ) {
+          var decoded = l.search.slice(1).split('&').map(function(s) { 
+            return s.replace(/~and~/g, '&');
+          }).join('?');
+          window.history.replaceState(null, null,
+              l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      }(window.location));
+    </script>
+  </head>
+  <body class="bg-slate-50 text-slate-900 antialiased selection:bg-blue-600 selection:text-white">
+    <div id="root">
+      <!-- Anti-White Screen Initial Loader: Automatically replaced once React mounts -->
+      <div id="initial-loader" style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f172a; color: #ffffff; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; box-sizing: border-box; text-align: center;">
+        <div style="width: 58px; height: 58px; border-radius: 16px; background: linear-gradient(135deg, #2563eb, #4f46e5); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.5); margin-bottom: 20px;">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+            <path d="M6 6h10"/>
+            <path d="M6 10h10"/>
+          </svg>
+        </div>
+        <h1 style="font-size: 19px; font-weight: 800; letter-spacing: -0.025em; margin: 0 0 8px 0; color: #ffffff;">
+          E - Project Guru Digital
+        </h1>
+        <p style="font-size: 12px; color: #94a3b8; margin: 0 0 24px 0; max-width: 320px; line-height: 1.5;">
+          Memuat sistem administrasi & perangkat ajar...
+        </p>
+        <div style="width: 140px; height: 4px; background: #334155; border-radius: 9999px; overflow: hidden; position: relative;">
+          <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: #38bdf8; border-radius: 9999px; animation: loader-slide 1.2s infinite ease-in-out;"></div>
+        </div>
+        <div id="loader-fail-msg" style="display: none; margin-top: 24px; font-size: 12px; color: #cbd5e1; max-width: 340px;">
+          <p style="margin: 0 0 10px 0;">Jika tampilan tidak berganti dalam beberapa detik:</p>
+          <button onclick="window.location.reload()" style="background: #2563eb; color: #ffffff; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 11px; cursor: pointer;">
+            Muat Ulang Halaman
+          </button>
+        </div>
+        <style>
+          @keyframes loader-slide {
+            0% { left: -50%; width: 50%; }
+            50% { left: 25%; width: 70%; }
+            100% { left: 100%; width: 50%; }
+          }
+        </style>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Anti-White Screen Watchdog
+      setTimeout(function() {
+        var failMsg = document.getElementById('loader-fail-msg');
+        if (failMsg && document.getElementById('initial-loader')) {
+          failMsg.style.display = 'block';
+        }
+      }, 5000);
+    </script>
+  </body>
+</html>
+
