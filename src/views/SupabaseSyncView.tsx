@@ -248,7 +248,7 @@ export const SupabaseSyncView: React.FC = () => {
               )}
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
-              Sinkronkan seluruh data administrasi guru—presensi, jadwal, agenda, jurnal mengajar, penilaian rapor, alokasi CP/TP, hingga modul ajar AI secara langsung ke database <strong>Supabase (PostgreSQL)</strong>.
+              Sinkronkan seluruh data administrasi guru—presensi, jadwal, agenda, jurnal mengajar, penilaian rapor, alokasi CP/TP, hingga modul ajar secara langsung ke database <strong>Supabase (PostgreSQL)</strong>.
             </p>
 
             {/* Quick Status Chip */}
@@ -599,11 +599,11 @@ export const SupabaseSyncView: React.FC = () => {
           </div>
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
             <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold">
-              <span>Modul Ajar AI</span>
+              <span>Modul Ajar & RPM</span>
               <Sparkles className="w-3.5 h-3.5 text-pink-400" />
             </div>
             <div className="text-lg font-bold text-white mt-1">{aiDocCount}</div>
-            <div className="text-[10px] text-pink-400 mt-0.5">Dokumen AI</div>
+            <div className="text-[10px] text-pink-400 mt-0.5">Dokumen Perangkat</div>
           </div>
         </div>
       </div>

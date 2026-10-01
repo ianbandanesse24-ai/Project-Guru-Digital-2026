@@ -100,7 +100,7 @@ export const AdminApiKeyManager: React.FC = () => {
 
   const handleSaveAndSync = async () => {
     if (!apiKeyInput.trim()) {
-      setFeedback({ text: 'Masukkan API Key Google AI Studio Anda.', type: 'error' });
+      setFeedback({ text: 'Masukkan API Key Google Cloud Engine Anda.', type: 'error' });
       return;
     }
 
@@ -119,7 +119,7 @@ export const AdminApiKeyManager: React.FC = () => {
         const data = await res.json();
         if (data.success) {
           setFeedback({
-            text: 'API Key Google AI Studio Berhasil Diverifikasi dan Tersinkronisasi!',
+            text: 'API Key Google Cloud Berhasil Diverifikasi dan Tersinkronisasi!',
             type: 'success',
           });
           setTestResult({
@@ -139,8 +139,8 @@ export const AdminApiKeyManager: React.FC = () => {
             userEmail: DEFAULT_ADMIN.email,
             userName: DEFAULT_ADMIN.name,
             userRole: 'admin',
-            action: 'Pembaruan API Key Google AI Studio',
-            details: `Sinkronisasi API Key Google AI Studio sukses (${data.latencyMs}ms, Model: ${data.modelUsed}).`,
+            action: 'Pembaruan API Key Google Cloud Engine',
+            details: `Sinkronisasi API Key Google Cloud sukses (${data.latencyMs}ms, Model: ${data.modelUsed}).`,
             status: 'success',
           });
           return;
@@ -157,7 +157,7 @@ export const AdminApiKeyManager: React.FC = () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [{ parts: [{ text: 'Halo AMD AI' }] }],
+              contents: [{ parts: [{ text: 'Halo Sistem AMD' }] }],
             }),
           }
         );
@@ -168,12 +168,12 @@ export const AdminApiKeyManager: React.FC = () => {
           localStorage.setItem('agk_client_gemini_key', apiKeyInput.trim());
 
           setFeedback({
-            text: 'API Key Google AI Studio Berhasil Diverifikasi dan Tersimpan di Browser (Mode GitHub Pages)!',
+            text: 'API Key Google Cloud Berhasil Diverifikasi dan Tersimpan di Browser (Mode GitHub Pages)!',
             type: 'success',
           });
           setTestResult({
             success: true,
-            message: 'Koneksi langsung ke Google AI Studio terverifikasi aktif!',
+            message: 'Koneksi langsung ke Server Cloud terverifikasi aktif!',
             reply: replyText,
             latencyMs: Date.now() - startTime,
             modelUsed: 'gemini-2.5-flash',
@@ -188,12 +188,12 @@ export const AdminApiKeyManager: React.FC = () => {
             userName: DEFAULT_ADMIN.name,
             userRole: 'admin',
             action: 'Update API Key Gemini (Klien)',
-            details: 'Administrator menyimpan API Key Google AI Studio secara lokal di browser.',
+            details: 'Administrator menyimpan API Key Google Cloud secara lokal di browser.',
             status: 'success',
           });
         } else {
           const errBody = await clientRes.json().catch(() => ({}));
-          const errDetail = errBody?.error?.message || 'API Key ditolak oleh Google AI Studio.';
+          const errDetail = errBody?.error?.message || 'API Key ditolak oleh Server Google.';
           setFeedback({
             text: `Verifikasi gagal: ${errDetail}`,
             type: 'error',
@@ -257,7 +257,7 @@ export const AdminApiKeyManager: React.FC = () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [{ parts: [{ text: 'Tes koneksi sistem AMD AI' }] }],
+              contents: [{ parts: [{ text: 'Tes koneksi sistem AMD' }] }],
             }),
           }
         );
@@ -267,7 +267,7 @@ export const AdminApiKeyManager: React.FC = () => {
           const replyText = clientData?.candidates?.[0]?.content?.parts?.[0]?.text || 'OK';
           setTestResult({
             success: true,
-            message: 'Koneksi ke Google AI Studio berhasil (Mode Langsung Klien)!',
+            message: 'Koneksi ke Server Cloud berhasil (Mode Langsung Klien)!',
             reply: replyText,
             latencyMs: Date.now() - startTime,
             modelUsed: 'gemini-2.5-flash',
@@ -277,7 +277,7 @@ export const AdminApiKeyManager: React.FC = () => {
           const errData = await clientRes.json().catch(() => ({}));
           setTestResult({
             success: false,
-            message: errData?.error?.message || 'Gagal terhubung ke Google AI Studio.',
+            message: errData?.error?.message || 'Gagal terhubung ke Server Cloud.',
           });
         }
       } catch (clientErr: any) {
@@ -311,7 +311,7 @@ export const AdminApiKeyManager: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header Card: Manajemen API Key AMD AI */}
+      {/* Header Card: Manajemen API Key AMD */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center space-x-3.5">
@@ -321,14 +321,14 @@ export const AdminApiKeyManager: React.FC = () => {
             <div>
               <div className="flex items-center space-x-2">
                 <h2 className="text-base font-extrabold text-slate-900">
-                  Manajemen API Key AMD AI Core
+                  Manajemen API Key AMD Core
                 </h2>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-xs">
-                  AMD AI
+                  AMD Core
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5 max-w-2xl">
-                Konfigurasi kunci API resmi AMD AI Engine (Google AI Studio) untuk pemrosesan pembuatan perangkat ajar kurikulum secara otomatis.
+                Konfigurasi kunci API resmi AMD Engine (Google Cloud Engine) untuk pemrosesan pembuatan perangkat ajar kurikulum secara otomatis.
               </p>
             </div>
           </div>
@@ -344,7 +344,7 @@ export const AdminApiKeyManager: React.FC = () => {
               <div className="px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center space-x-1.5 shadow-xs">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>AI Studio Tersinkronisasi ({keyStatus.preferredModel || 'Gemini'})</span>
+                <span>Server Cloud Tersinkronisasi ({keyStatus.preferredModel || 'Gemini'})</span>
               </div>
             ) : (
               <div className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold flex items-center space-x-1.5">
@@ -402,7 +402,7 @@ export const AdminApiKeyManager: React.FC = () => {
               {/* Input Form */}
               <div className="space-y-1.5">
                 <label className="block text-xs font-semibold text-slate-700">
-                  Google AI Studio Gemini API Key
+                  Google Cloud Gemini API Key
                 </label>
                 <div className="relative">
                   <input
@@ -517,7 +517,7 @@ export const AdminApiKeyManager: React.FC = () => {
             <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2.5 shadow-sm">
               <h4 className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
                 <Cpu className="w-4 h-4 text-blue-600" />
-                <span>Spesifikasi & Model AI yang Tersedia</span>
+                <span>Spesifikasi & Model Sistem yang Tersedia</span>
               </h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                 <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-0.5">
@@ -556,7 +556,7 @@ export const AdminApiKeyManager: React.FC = () => {
               </div>
 
               <p className="text-xs text-slate-600 leading-relaxed">
-                Google AI Studio menyediakan akses API resmi Gemini tanpa dipungut biaya untuk keperluan edukasi. Ikuti 3 langkah berikut:
+                Google Cloud menyediakan akses API resmi Gemini tanpa dipungut biaya untuk keperluan edukasi. Ikuti 3 langkah berikut:
               </p>
 
               <div className="space-y-2.5 text-xs">
@@ -565,10 +565,10 @@ export const AdminApiKeyManager: React.FC = () => {
                     <span className="w-4 h-4 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
                       1
                     </span>
-                    <span className="font-bold text-slate-800">Buka Google AI Studio</span>
+                    <span className="font-bold text-slate-800">Buka Portal Google Studio</span>
                   </div>
                   <p className="text-[11px] text-slate-500 pl-6">
-                    Masuk dengan akun Google Anda ke portal pengembang Google AI Studio.
+                    Masuk dengan akun Google Anda ke portal pengembang Google Studio.
                   </p>
                   <div className="pl-6 pt-1">
                     <a

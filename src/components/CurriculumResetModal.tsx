@@ -123,7 +123,7 @@ export const CurriculumResetModal: React.FC<CurriculumResetModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                Pembersihan dan reset 24 jam hanya berlaku pada kurikulum dan perangkat ajar AI. Data administrasi guru, absensi, dan nilai tetap aman.
+                Pembersihan dan reset 24 jam hanya berlaku pada kurikulum dan perangkat ajar. Data administrasi guru, absensi, dan nilai tetap aman.
               </p>
             </div>
           </div>
@@ -197,7 +197,7 @@ export const CurriculumResetModal: React.FC<CurriculumResetModalProps> = ({
             </div>
 
             <p className="text-[11px] text-slate-600 leading-relaxed">
-              Penghapusan dan reset data 24 jam <strong>hanya berlaku pada kurikulum dan perangkat pembelajaran</strong> (dokumen AI: RPM Deep Learning, Modul Ajar, ATP, PROTA, PROSEM, LKPD, KKTP, Asesmen, dan draf CP). Data administrasi mengajar, absensi, nilai, profil sekolah, dan akun pengguna <strong>tidak akan pernah terhapus</strong>.
+              Penghapusan dan reset data 24 jam <strong>hanya berlaku pada kurikulum dan perangkat pembelajaran</strong> (dokumen: RPM Deep Learning, Modul Ajar, ATP, PROTA, PROSEM, LKPD, KKTP, Asesmen, dan draf CP). Data administrasi mengajar, absensi, nilai, profil sekolah, dan akun pengguna <strong>tidak akan pernah terhapus</strong>.
             </p>
           </div>
 
@@ -222,7 +222,7 @@ export const CurriculumResetModal: React.FC<CurriculumResetModalProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600">
-                  Mengosongkan dokumen AI perangkat ajar (RPM, Modul Ajar, LKPD, KKTP, ATP) dan mereset Analisis CP ke kondisi awal. Administrasi guru, jurnal, absensi, dan nilai tetap aman.
+                  Mengosongkan dokumen perangkat ajar (RPM, Modul Ajar, LKPD, KKTP, ATP) dan mereset Analisis CP ke kondisi awal. Administrasi guru, jurnal, absensi, dan nilai tetap aman.
                 </p>
               </div>
               <button
@@ -232,7 +232,7 @@ export const CurriculumResetModal: React.FC<CurriculumResetModalProps> = ({
                     type: 'all',
                     title: 'Reset Kurikulum & Perangkat Pembelajaran',
                     description:
-                      'Tindakan ini akan mengosongkan seluruh data dokumen AI perangkat pembelajaran dan analisis CP. Data administrasi guru (jurnal, agenda, jadwal, absensi, nilai), biodata siswa, profil sekolah, dan akun pengguna dijamin TETAP AMAN.',
+                      'Tindakan ini akan mengosongkan seluruh data dokumen perangkat pembelajaran dan analisis CP. Data administrasi guru (jurnal, agenda, jadwal, absensi, nilai), biodata siswa, profil sekolah, dan akun pengguna dijamin TETAP AMAN.',
                   })
                 }
                 disabled={isResetting}
@@ -245,15 +245,15 @@ export const CurriculumResetModal: React.FC<CurriculumResetModalProps> = ({
 
             {/* Granular Sub-resets */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Option 2: Dokumen Perangkat & AI Saja */}
+              {/* Option 2: Dokumen Perangkat Saja */}
               <div className="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition flex flex-col justify-between space-y-2.5">
                 <div>
                   <div className="flex items-center space-x-1.5 font-bold text-slate-900 text-xs">
                     <FileText className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Dokumen AI & RPM Saja</span>
+                    <span>Dokumen RPM & Modul Saja</span>
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Hapus seluruh arsip Modul Ajar, RPM Deep Learning, ATP, PROTA, PROSEM, LKPD, KKTP & Asesmen AI.
+                    Hapus seluruh arsip Modul Ajar, RPM Deep Learning, ATP, PROTA, PROSEM, LKPD, KKTP & Asesmen.
                   </p>
                 </div>
                 <button
@@ -261,15 +261,15 @@ export const CurriculumResetModal: React.FC<CurriculumResetModalProps> = ({
                   onClick={() =>
                     setConfirmTarget({
                       type: 'teaching',
-                      title: 'Reset Dokumen Perangkat Ajar & AI Saja',
+                      title: 'Reset Dokumen Perangkat Ajar Saja',
                       description:
-                        'Apakah Anda yakin ingin mengosongkan seluruh riwayat modul ajar, RPM, dan dokumen perangkat yang digenerate AI? Data lainnya tidak akan disentuh.',
+                        'Apakah Anda yakin ingin mengosongkan seluruh riwayat modul ajar, RPM, dan dokumen perangkat yang disusun? Data lainnya tidak akan disentuh.',
                     })
                   }
                   className="w-full py-1.5 px-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] flex items-center justify-center space-x-1 transition"
                 >
                   <RefreshCw className="w-3 h-3 text-slate-600" />
-                  <span>Reset Dokumen Perangkat AI</span>
+                  <span>Reset Dokumen Perangkat</span>
                 </button>
               </div>
 

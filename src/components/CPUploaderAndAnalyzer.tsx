@@ -1333,7 +1333,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
-                {customDescription || 'Menu upload dokumen resmi Capaian Pembelajaran (CP) format PDF, Word (.docx), Excel (.xlsx), atau salin teks. Analisis AI mendalam berjalan dengan progres 0 - 100% dan otomatis tersingkronisasi ke seluruh 9 perangkat ajar.'}
+                {customDescription || 'Menu upload dokumen resmi Capaian Pembelajaran (CP) format PDF, Word (.docx), Excel (.xlsx), atau salin teks. Analisis mendalam otomatis berjalan dengan progres 0 - 100% dan otomatis tersinkronisasi ke seluruh 9 perangkat ajar.'}
               </p>
             </div>
           </div>
@@ -1669,7 +1669,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                 )}
               </button>
               <p className="text-[10px] text-slate-500 text-center mt-2">
-                AI akan mendeteksi otomatis <span className="text-slate-300">Jenjang, Fase, Kelas, Mapel, Elemen CP, Alokasi JP</span>, dan <span className="text-slate-300">Distribusi Materi Sem 1 & 2</span> langsung dari dokumen.
+                Sistem akan mendeteksi otomatis <span className="text-slate-300">Jenjang, Fase, Kelas, Mapel, Elemen CP, Alokasi JP</span>, dan <span className="text-slate-300">Distribusi Materi Sem 1 & 2</span> langsung dari dokumen.
               </p>
             </div>
           </div>
@@ -2144,7 +2144,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                 <h3 className="text-base font-extrabold text-white">Belum Ada Dokumen CP Dianalisis</h3>
                 <p className="text-xs text-slate-400">
                   {isAdmin
-                    ? 'Unggah file CP resmi Anda di kolom sebelah kiri untuk memulai analisis mendalam berbasis AMD AI dan menjadikannya master acuan seluruh perangkat ajar.'
+                    ? 'Unggah file CP resmi Anda di kolom sebelah kiri untuk memulai analisis mendalam berbasis AMD Engine dan menjadikannya master acuan seluruh perangkat ajar.'
                     : 'Administrator belum mengunggah berkas CP resmi acuan. Silakan hubungi Administrator untuk sinkronisasi kurikulum.'}
                 </p>
               </div>

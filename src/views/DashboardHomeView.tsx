@@ -670,7 +670,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Kurikulum & AI ({aiShortcuts.length})
+            Kurikulum & Perangkat ({aiShortcuts.length})
           </button>
           <button
             id="tab-filter-admin"

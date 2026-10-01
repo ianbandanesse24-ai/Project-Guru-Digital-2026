@@ -190,54 +190,54 @@ export default function App() {
         return { label: 'Cetak Laporan Lengkap', category: 'Administrasi' };
       case 'profil_guru_mapel':
       case 'profil_guru':
-        return { label: 'Profil Guru Mata Pelajaran', category: 'AI Kurikulum' };
+        return { label: 'Profil Guru Mata Pelajaran', category: 'Kurikulum & Perangkat' };
       case 'kalender_pendidikan':
       case 'upload_kalender':
       case 'analisis_alokasi_waktu':
       case 'alokasi_waktu':
       case 'ai_analisis_alokasi_waktu':
-        return { label: 'Upload Kaldik & Analisis Alokasi Waktu', category: 'AI Kurikulum' };
+        return { label: 'Upload Kaldik & Analisis Alokasi Waktu', category: 'Kurikulum & Perangkat' };
       case 'parameter_kurikulum':
       case 'parameter_belajar':
       case 'analisis_cp_distribusi':
       case 'cp_distribusi':
       case 'pembagian_materi':
       case 'deep_learning':
-        return { label: 'Parameter Kurikulum & Bab TP', category: 'AI Kurikulum' };
+        return { label: 'Parameter Kurikulum & Bab TP', category: 'Kurikulum & Perangkat' };
       case 'ai_bundle':
       case 'bundle':
-        return { label: '📦 Bundel 1 Perangkat Ajar Lengkap', category: 'AI Kurikulum' };
+        return { label: '📦 Bundel 1 Perangkat Ajar Lengkap', category: 'Kurikulum & Perangkat' };
       case 'ai_analisis_cp':
       case 'analisis_cp':
       case 'cp':
-        return { label: '1. Analisis CP Terbaru', category: 'AI Kurikulum' };
+        return { label: '1. Analisis CP Terbaru', category: 'Kurikulum & Perangkat' };
       case 'ai_tp':
       case 'tp':
-        return { label: '2. Tujuan Pembelajaran (TP)', category: 'AI Kurikulum' };
+        return { label: '2. Tujuan Pembelajaran (TP)', category: 'Kurikulum & Perangkat' };
       case 'ai_atp':
       case 'atp':
-        return { label: '3. Alur TP (ATP)', category: 'AI Kurikulum' };
+        return { label: '3. Alur TP (ATP)', category: 'Kurikulum & Perangkat' };
       case 'ai_prota':
       case 'prota':
-        return { label: '4. Program Tahunan (PROTA)', category: 'AI Kurikulum' };
+        return { label: '4. Program Tahunan (PROTA)', category: 'Kurikulum & Perangkat' };
       case 'ai_prosem':
       case 'prosem':
-        return { label: '5. Program Semester (PROSEM)', category: 'AI Kurikulum' };
+        return { label: '5. Program Semester (PROSEM)', category: 'Kurikulum & Perangkat' };
       case 'ai_kktp':
       case 'kktp':
-        return { label: '6. Kriteria Ketuntasan (KKTP)', category: 'AI Kurikulum' };
+        return { label: '6. Kriteria Ketuntasan (KKTP)', category: 'Kurikulum & Perangkat' };
       case 'ai_modul_ajar':
       case 'rpm':
       case 'modul_ajar':
-        return { label: '7. RPM (Rencana Pelaksanaan Modul)', category: 'AI Kurikulum' };
+        return { label: '7. RPM (Rencana Pelaksanaan Modul)', category: 'Kurikulum & Perangkat' };
       case 'ai_lkpd':
       case 'lkpd':
-        return { label: '8. Lembar Kerja Siswa (LKPD)', category: 'AI Kurikulum' };
+        return { label: '8. Lembar Kerja Siswa (LKPD)', category: 'Kurikulum & Perangkat' };
       case 'ai_rubrik_penilaian':
       case 'ai_asesmen':
       case 'rubrik':
       case 'rubrik_penilaian':
-        return { label: '9. Rubrik Penilaian Terpadu', category: 'AI Kurikulum' };
+        return { label: '9. Rubrik Penilaian Terpadu', category: 'Kurikulum & Perangkat' };
       case 'admin_dashboard':
       case 'admin_activity_logs':
         return { label: 'Log Audit & Dashboard', category: 'Admin Panel' };
@@ -248,10 +248,10 @@ export default function App() {
       case 'admin_api_key':
       case 'admin_gemini_key':
       case 'admin_api_config':
-        return { label: 'Manajemen API Key AMD AI', category: 'Admin Panel' };
+        return { label: 'Manajemen API Key AMD', category: 'Admin Panel' };
       case 'admin_tokens':
       case 'admin_token_management':
-        return { label: 'Manajemen Kuota Token AI', category: 'Admin Panel' };
+        return { label: 'Manajemen Kuota Token Sistem', category: 'Admin Panel' };
       case 'admin_access':
       case 'admin_user_approval':
         return { label: 'Otorisasi Akun Guru', category: 'Admin Panel' };
@@ -618,7 +618,7 @@ export default function App() {
                 id="btn-ai-token-quota"
                 onClick={() => setShowTokenModal(true)}
                 className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-colors duration-150 cursor-pointer"
-                title="Status Token & Kuota AI (Klik untuk melihat rincian & voucher)"
+                title="Status Token & Kuota Sistem (Klik untuk melihat rincian & voucher)"
               >
                 <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                 <span className="text-[11px] font-semibold text-slate-700">

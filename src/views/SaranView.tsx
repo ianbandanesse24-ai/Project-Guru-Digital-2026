@@ -16,7 +16,7 @@ interface UserFeedback {
   senderName: string;
   senderEmail: string;
   school: string;
-  category: 'Fitur Baru' | 'Kurikulum Deep Learning' | 'Format Cetak Laporan' | 'Asisten AI' | 'Lainnya';
+  category: 'Fitur Baru' | 'Kurikulum Deep Learning' | 'Format Cetak Laporan' | 'Penyusun Perangkat' | 'Lainnya';
   message: string;
   createdAt: string;
   likes: number;
@@ -34,7 +34,7 @@ export const SaranView: React.FC<SaranViewProps> = ({ currentUser }) => {
       senderEmail: 'aspianmadimu22@guru.sma.belajar.id',
       school: 'SMA Negeri 1',
       category: 'Kurikulum Deep Learning',
-      message: 'Perangkat ajar AI sangat membantu penyusunan modul mindful dan meaningful. Mohon pertahankan format cetak Word & PDF yang rapi dengan kop dinas.',
+      message: 'Penyusunan perangkat ajar otomatis sangat membantu pembuatan modul mindful dan meaningful. Mohon pertahankan format cetak Word & PDF yang rapi dengan kop dinas.',
       createdAt: '2025-08-20 14:30',
       likes: 12,
     },
@@ -142,7 +142,7 @@ export const SaranView: React.FC<SaranViewProps> = ({ currentUser }) => {
               >
                 <option value="Kurikulum Deep Learning">Kurikulum Deep Learning</option>
                 <option value="Format Cetak Laporan">Format Cetak Laporan (Excel/Word/PDF)</option>
-                <option value="Asisten AI">Asisten AI Generator</option>
+                <option value="Penyusun Perangkat">Penyusunan Perangkat Ajar Otomatis</option>
                 <option value="Fitur Baru">Usulan Fitur Baru</option>
                 <option value="Lainnya">Lain-lain</option>
               </select>

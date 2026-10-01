@@ -265,7 +265,7 @@ export const INITIAL_TOKEN_VOUCHERS: TokenVoucher[] = [
     isRedeemed: false,
     createdAt: '2026-08-25 00:00',
     createdBy: 'Sistem Master',
-    description: 'Bonus Kuota Tambahan 20 Klik AI Kurikulum Merdeka',
+    description: 'Bonus Kuota Tambahan 20 Klik Kurikulum Merdeka',
   },
   {
     id: 'vouch-2',
@@ -274,7 +274,7 @@ export const INITIAL_TOKEN_VOUCHERS: TokenVoucher[] = [
     isRedeemed: false,
     createdAt: '2026-08-25 00:00',
     createdBy: 'Sistem Master',
-    description: 'Bonus Kuota Tambahan 10 Klik AI Modul & Perangkat',
+    description: 'Bonus Kuota Tambahan 10 Klik Modul & Perangkat',
   },
   {
     id: 'vouch-3',
@@ -283,7 +283,7 @@ export const INITIAL_TOKEN_VOUCHERS: TokenVoucher[] = [
     isRedeemed: false,
     createdAt: '2026-08-25 00:00',
     createdBy: 'Sistem Master',
-    description: 'Voucher Spesial Guru Inspiratif +20 Klik AI',
+    description: 'Voucher Spesial Guru Inspiratif +20 Klik',
   },
 ];
 
@@ -2479,7 +2479,7 @@ export class StorageService {
    */
   static consumeAIToken(
     targetUser?: UserAccount | null,
-    featureName: string = 'Generasi Dokumen AI',
+    featureName: string = 'Generasi Dokumen',
     estimatedTokens: number = 2500
   ): { success: boolean; status: TokenQuotaStatus; message: string; tokensConsumed: number; tokensSavedByCaching: number } {
     const user = targetUser !== undefined ? targetUser : this.getCurrentUser();
@@ -2489,7 +2489,7 @@ export class StorageService {
       return {
         success: false,
         status: this.getTokenQuotaStatus(null),
-        message: 'Silakan login terlebih dahulu untuk menggunakan fitur AI.',
+        message: 'Silakan login terlebih dahulu untuk menggunakan fitur ini.',
         tokensConsumed: 0,
         tokensSavedByCaching: 0,
       };

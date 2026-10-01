@@ -1106,7 +1106,7 @@ export const CustomFormatSelector: React.FC<CustomFormatSelectorProps> = ({
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
               {isRPM
-                ? 'Unggah dokumen format resmi sekolah Anda (.docx, .pdf, scan foto) atau tuliskan sistematika sekolah agar AI menyusun RPM sesuai acuan sekolah Anda.'
+                ? 'Unggah dokumen format resmi sekolah Anda (.docx, .pdf, scan foto) atau tuliskan sistematika sekolah agar sistem menyusun RPM sesuai acuan sekolah Anda.'
                 : `Pilih templat ${docTypeName} acuan sekolah, gunakan templat tersimpan milik guru, atau unggah file format (.docx/.pdf).`}
             </p>
           </div>
@@ -1548,7 +1548,7 @@ export const CustomFormatSelector: React.FC<CustomFormatSelectorProps> = ({
               }
               placeholder={
                 isRPM
-                  ? 'Tuliskan urutan bab, nama tabel, atau sistematika format dari sekolah Anda. AI akan menggunakannya sebagai acuan utama penyusunan RPM...'
+                  ? 'Tuliskan urutan bab, nama tabel, atau sistematika format dari sekolah Anda. Sistem akan menggunakannya sebagai acuan utama penyusunan RPM...'
                   : 'Tuliskan urutan bab, judul komponen, tabel, atau petunjuk format sekolah...'
               }
               className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 text-xs font-mono leading-relaxed"
@@ -1597,7 +1597,7 @@ export const CustomFormatSelector: React.FC<CustomFormatSelectorProps> = ({
                 </div>
               ) : (
                 <div className="text-center py-8 text-slate-500">
-                  Berkas format &quot;{value.formatFile.name}&quot; terlampir dan siap dijadikan acuan penyusunan oleh AI.
+                  Berkas format &quot;{value.formatFile.name}&quot; terlampir dan siap dijadikan acuan penyusunan oleh sistem.
                 </div>
               )}
             </div>

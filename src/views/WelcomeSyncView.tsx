@@ -51,7 +51,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
   const slides = [
     { id: 'welcome', label: '1. Sambutan & Apresiasi', shortLabel: 'Sambutan' },
     { id: 'sync_status', label: '2. Status Sinkronisasi CP Terbaru', shortLabel: 'Sinkronisasi CP' },
-    { id: 'ai_generators', label: '3. Asisten AI Deep Learning', shortLabel: 'Generator AI' },
+    { id: 'ai_generators', label: '3. Asisten Penyusun Deep Learning', shortLabel: 'Penyusun Perangkat' },
     { id: 'admin_modules', label: '4. Administrasi & Siap Pakai', shortLabel: 'Mulai Bekerja' },
   ];
 
@@ -248,7 +248,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
                       Konfirmasi Sinkronisasi Sukses
                     </span>
                     <span className="text-[11px] text-emerald-300 font-semibold">
-                      Terhubung ke Database AI &amp; Parameter Kurikulum
+                      Terhubung ke Database &amp; Parameter Kurikulum
                     </span>
                   </div>
                   <h3 className="text-base sm:text-lg font-black text-white">
@@ -382,7 +382,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
               </div>
               <span className="inline-flex items-center space-x-1.5 text-[11px] font-extrabold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                 <AMDLogo size="xs" />
-                <span>Powered by AMD AI</span>
+                <span>Powered by AMD Engine</span>
               </span>
             </div>
 
@@ -480,7 +480,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
                   className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-md transition transform active:scale-95"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Susun RPM / Modul Ajar AI</span>
+                  <span>Susun RPM / Modul Ajar</span>
                 </button>
 
                 <button
@@ -633,7 +633,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
                 className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center space-x-1.5"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Gunakan CP Ini di AI Generator</span>
+                <span>Gunakan CP Ini untuk Susun Perangkat</span>
               </button>
             </div>
           </div>

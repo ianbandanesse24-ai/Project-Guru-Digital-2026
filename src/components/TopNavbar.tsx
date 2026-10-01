@@ -79,7 +79,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
     },
     {
       id: 'kurikulum_ai',
-      label: 'Kurikulum & Perangkat AI',
+      label: 'Kurikulum & Perangkat Ajar',
       icon: Sparkles,
       items: [
         { id: 'profil_guru_mapel', label: 'Profil Guru Mata Pelajaran', badge: 'Acuan' },
@@ -90,8 +90,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         { id: 'ai_prota', label: '4. Program Tahunan (PROTA)' },
         { id: 'ai_prosem', label: '5. Program Semester (PROSEM)' },
         { id: 'ai_kktp', label: '6. Kriteria Ketuntasan (KKTP)' },
-        { id: 'ai_modul_ajar', label: '7. RPM / Modul Ajar AI', badge: 'AI' },
-        { id: 'ai_lkpd', label: '8. LKPD Generator AI', badge: 'AI' },
+        { id: 'ai_modul_ajar', label: '7. RPM / Modul Ajar', badge: 'RPM' },
+        { id: 'ai_lkpd', label: '8. LKPD Generator', badge: 'LKPD' },
         { id: 'ai_rubrik_penilaian', label: '9. Rubrik Penilaian Terpadu' },
       ],
     },
@@ -113,8 +113,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       icon: ShieldCheck,
       items: [
         { id: 'admin_dashboard', label: 'Dashboard & Log Audit' },
-        { id: 'admin_api_key', label: 'Manajemen API Key AMD AI', badge: 'AMD' },
-        { id: 'admin_tokens', label: 'Manajemen Token & Kuota AI' },
+        { id: 'admin_api_key', label: 'Manajemen API Key AMD', badge: 'AMD' },
+        { id: 'admin_tokens', label: 'Manajemen Token & Kuota Sistem' },
         { id: 'admin_access', label: 'Otorisasi Akun Guru' },
         { id: 'admin_sync', label: 'Sinkronisasi Supabase & GitHub', badge: 'Auto' },
         { id: 'upload_cp_master', label: 'Upload CP Master' },
@@ -135,7 +135,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         {/* AMD Brand Badge */}
         <div className="flex items-center space-x-1.5 px-2 py-1 mr-1 rounded-lg bg-slate-900 border border-slate-800 shadow-xs">
           <AMDLogo size="xs" />
-          <span className="text-[11px] font-bold text-emerald-400">AMD AI</span>
+          <span className="text-[11px] font-bold text-emerald-400">AMD Digital</span>
         </div>
 
         {/* Direct Dashboard Link */}

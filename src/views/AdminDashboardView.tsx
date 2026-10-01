@@ -76,11 +76,11 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const handleManualCurriculumReset = (type: 'all' | 'curriculum' | 'teaching') => {
     let confirmMsg = '';
     if (type === 'all') {
-      confirmMsg = 'Apakah Anda yakin ingin mereset seluruh data kurikulum dan perangkat pembelajaran (Analisis CP, distribusi TP, kaldik standar, dan dokumen AI perangkat)? Data administrasi (jurnal, agenda, jadwal, absensi, nilai), biodata siswa, profil sekolah, dan akun pengguna dijamin TETAP AMAN.';
+      confirmMsg = 'Apakah Anda yakin ingin mereset seluruh data kurikulum dan perangkat pembelajaran (Analisis CP, distribusi TP, kaldik standar, dan dokumen perangkat)? Data administrasi (jurnal, agenda, jadwal, absensi, nilai), biodata siswa, profil sekolah, dan akun pengguna dijamin TETAP AMAN.';
     } else if (type === 'curriculum') {
       confirmMsg = 'Apakah Anda yakin ingin mereset data Analisis CP, distribusi materi, dan kalender pendidikan ke standar awal?';
     } else {
-      confirmMsg = 'Apakah Anda yakin ingin mengosongkan seluruh arsip dokumen Modul Ajar, RPM, dan dokumen AI perangkat pembelajaran?';
+      confirmMsg = 'Apakah Anda yakin ingin mengosongkan seluruh arsip dokumen Modul Ajar, RPM, dan dokumen perangkat pembelajaran?';
     }
 
     if (!window.confirm(confirmMsg)) return;
@@ -99,12 +99,12 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
 
   const handleManualCleanup = (mode: 'expired' | 'all') => {
     if (mode === 'all') {
-      if (!window.confirm('PERINGATAN: Apakah Anda yakin ingin mengosongkan SELURUH data arsip & riwayat AI Kurikulum sekarang? Data sementara ini akan dihapus dari penyimpanan.')) {
+      if (!window.confirm('PERINGATAN: Apakah Anda yakin ingin mengosongkan SELURUH data arsip & riwayat kurikulum sekarang? Data sementara ini akan dihapus dari penyimpanan.')) {
         return;
       }
       const res = StorageService.clearAllAIDocuments();
       setRetentionStats(StorageService.getAIDocsRetentionStats());
-      alert(`✓ Berhasil mengosongkan seluruh riwayat dokumen AI (${res.clearedCount} dokumen dihapus).`);
+      alert(`✓ Berhasil mengosongkan seluruh riwayat dokumen (${res.clearedCount} dokumen dihapus).`);
     } else {
       const res = StorageService.cleanExpiredAIDocuments();
       setRetentionStats(StorageService.getAIDocsRetentionStats());
@@ -284,7 +284,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         userEmail: DEFAULT_ADMIN.email,
         userName: DEFAULT_ADMIN.name,
         userRole: 'admin',
-        action: 'AI Analisis CP Master Baru',
+        action: 'Analisis CP Master Baru',
         details: `Melakukan ekstraksi elemen & TP dari berkas ${cpFileName || 'CP'} (${cpSubject} ${cpLevel}).`,
         status: 'success',
       });
@@ -416,7 +416,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   };
 
   const handleSetLimit = (userId: string, userName: string, currentLimit: number = 35) => {
-    const input = prompt(`Masukkan batas kuota generate AI bulanan baru untuk ${userName} (Default 35 kali / 500.000 token):`, currentLimit.toString());
+    const input = prompt(`Masukkan batas kuota generate sistem bulanan baru untuk ${userName} (Default 35 kali / 500.000 token):`, currentLimit.toString());
     if (input !== null) {
       const parsed = parseInt(input, 10);
       if (!isNaN(parsed) && parsed >= 1) {
@@ -450,7 +450,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
       const newV = StorageService.createTokenVoucher(
         newVoucherCode.trim().toUpperCase(),
         newVoucherClicks || 20,
-        newVoucherDesc.trim() || 'Voucher Bonus AI oleh Admin'
+        newVoucherDesc.trim() || 'Voucher Bonus Sistem oleh Admin'
       );
       setTokenVouchers(StorageService.getTokenVouchers());
       setNewVoucherCode('');
@@ -494,7 +494,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Kelola otorisasi akun guru client, pantau riwayat audit log real-time, manajemen token AI, dan sinkronisasi database.
+              Kelola otorisasi akun guru client, pantau riwayat audit log real-time, manajemen token sistem, dan sinkronisasi database.
             </p>
           </div>
         </div>
@@ -522,7 +522,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Token & Kuota AI</span>
+              <span>Token & Kuota Sistem</span>
             </button>
             <button
               onClick={() => setSubTab('access')}
@@ -779,7 +779,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Users className="w-4 h-4 text-indigo-400" />
-                  Daftar & Kontrol Kuota Token AI dan Masa Aktif 1 Tahun Setiap Guru
+                  Daftar & Kontrol Kuota Token Sistem dan Masa Aktif 1 Tahun Setiap Guru
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Batas 35x generate (500k token/bulan), reset berkala per tanggal izin admin, dan perpanjangan lisensi 1 tahun.
@@ -984,7 +984,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               <div className="border-b border-slate-800 pb-3">
                 <h4 className="text-sm font-bold text-white flex items-center gap-2">
                   <Gift className="w-4 h-4 text-amber-400" />
-                  Buat Voucher Token AI Baru
+                  Buat Voucher Token Sistem Baru
                 </h4>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Generate voucher kode untuk dibagikan kepada guru atau peserta pelatihan.
@@ -1001,7 +1001,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                       type="text"
                       value={newVoucherCode}
                       onChange={(e) => setNewVoucherCode(e.target.value.toUpperCase())}
-                      placeholder="Contoh: PELATIHAN-AI-50"
+                      placeholder="Contoh: PELATIHAN-GURU-50"
                       className="flex-1 px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-mono uppercase text-xs focus:outline-none focus:border-indigo-500"
                     />
                     <button
@@ -1019,7 +1019,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">
-                    Jumlah Bonus Klik AI
+                    Jumlah Bonus Klik Generate
                   </label>
                   <div className="grid grid-cols-4 gap-2">
                     {[10, 20, 50, 100].map((count) => (
@@ -1334,11 +1334,11 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* 1. Konfigurasi Kuota & Token AI Guru (Harian 20k & Bulanan) */}
+            {/* 1. Konfigurasi Kuota & Token Guru (Harian 20k & Bulanan) */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
               <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
                 <Sparkles className="w-4 h-4 text-amber-400" />
-                <h4 className="text-sm font-bold text-white">Default Kuota & Batas AI Guru (20.000 Token/Hari)</h4>
+                <h4 className="text-sm font-bold text-white">Default Kuota & Batas Sistem Guru (20.000 Token/Hari)</h4>
               </div>
 
               <div className="space-y-3 text-xs">
@@ -1346,7 +1346,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                 <div className="p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-xl space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="block text-emerald-300 font-bold">
-                      Batas Token AI Harian per Akun (Reset 00:00 WIB)
+                      Batas Token Harian per Akun (Reset 00:00 WIB)
                     </label>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
                       Standar: 20.000 / Hari
@@ -1371,7 +1371,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
 
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    Batas Default Generate AI Bulanan per Guru
+                    Batas Default Generate Bulanan per Guru
                   </label>
                   <div className="flex items-center space-x-2">
                     <input
@@ -1465,7 +1465,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                   <div>
                     <div className="font-semibold text-white flex items-center gap-1.5">
                       <Zap className="w-3.5 h-3.5 text-amber-400" />
-                      Fitur Context Caching (Gemini AI)
+                      Fitur Context Caching (Gemini Engine)
                     </div>
                     <div className="text-[11px] text-slate-400">
                       Cache context kurikulum & prompt untuk hemat token hingga 75%
@@ -1529,26 +1529,26 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               </div>
             </div>
 
-            {/* 3. Mesin AI & Model Generator */}
+            {/* 3. Mesin Generator & Model */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
               <div className="flex items-center space-x-2 border-b border-slate-800 pb-3">
                 <AMDLogo size="xs" />
-                <h4 className="text-sm font-bold text-white">Mesin AMD AI & Standar Format Kurikulum</h4>
+                <h4 className="text-sm font-bold text-white">Mesin AMD & Standar Format Kurikulum</h4>
               </div>
 
               <div className="space-y-3 text-xs">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    Model Utama AMD AI Core (Google AI Studio)
+                    Model Utama AMD Core (Google Cloud)
                   </label>
                   <select
                     value={adminSettings.preferredModel || 'gemini-3.8-flash'}
                     onChange={(e) => handleUpdateSetting('preferredModel', e.target.value)}
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl text-white font-semibold focus:outline-none focus:border-emerald-500"
                   >
-                    <option value="gemini-3.8-flash">AMD AI 3.8 Flash (Direkomendasikan - Paling Cepat & Presisi)</option>
-                    <option value="gemini-3.7-flash">AMD AI 3.7 Flash</option>
-                    <option value="gemini-2.5-flash">AMD AI 2.5 Flash</option>
+                    <option value="gemini-3.8-flash">AMD 3.8 Flash (Direkomendasikan - Paling Cepat & Presisi)</option>
+                    <option value="gemini-3.7-flash">AMD 3.7 Flash</option>
+                    <option value="gemini-2.5-flash">AMD 2.5 Flash</option>
                   </select>
                 </div>
 
@@ -1607,7 +1607,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               </div>
             </div>
 
-            {/* 5. Kebijakan Retensi & Penyimpanan Permanen Data AI Kurikulum */}
+            {/* 5. Kebijakan Retensi & Penyimpanan Permanen Data Kurikulum */}
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4 md:col-span-2">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center space-x-2">
@@ -1667,7 +1667,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                       className="w-full py-1.5 px-3 bg-rose-950/60 hover:bg-rose-900 text-rose-200 rounded-lg text-[11px] font-semibold transition flex items-center justify-center space-x-1.5 border border-rose-800/60"
                     >
                       <Trash2 className="w-3 h-3 text-rose-400" />
-                      <span>Kosongkan Seluruh Arsip Dokumen AI</span>
+                      <span>Kosongkan Seluruh Arsip Dokumen</span>
                     </button>
                   </div>
                 </div>
@@ -1739,7 +1739,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                         onClick={() => handleManualCurriculumReset('teaching')}
                         className="py-1 px-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-semibold transition"
                       >
-                        Reset Dokumen AI (RPM)
+                        Reset Dokumen Perangkat (RPM)
                       </button>
                       <button
                         type="button"

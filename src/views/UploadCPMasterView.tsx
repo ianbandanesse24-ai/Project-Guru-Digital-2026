@@ -1071,7 +1071,7 @@ ${sem2.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.2.${i+1}`} 
                   </button>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed max-w-4xl">
-                  Administrator dapat mengunggah dokumen regulasi Capaian Pembelajaran (CP) Kemdikbudristek (Capaian Pembelajaran No. 020 Tahun 2026 atau SK Sekolah). AI akan mengekstrak elemen, memilah kompetensi Bloom HOTS, merumuskan TP, membagi materi Semester 1 & 2, serta <strong>secara otomatis menyinkronkan seluruh 9 perangkat kurikulum</strong> (Analisis CP, TP, ATP, PROTA, PROSEM, KKTP, RPM Deep Learning, LKPD, dan Rubrik Penilaian).
+                  Administrator dapat mengunggah dokumen regulasi Capaian Pembelajaran (CP) Kemdikbudristek (Capaian Pembelajaran No. 020 Tahun 2026 atau SK Sekolah). Sistem akan mengekstrak elemen, memilah kompetensi Bloom HOTS, merumuskan TP, membagi materi Semester 1 & 2, serta <strong>secara otomatis menyinkronkan seluruh 9 perangkat kurikulum</strong> (Analisis CP, TP, ATP, PROTA, PROSEM, KKTP, RPM Deep Learning, LKPD, dan Rubrik Penilaian).
                 </p>
               </div>
 

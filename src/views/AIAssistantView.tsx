@@ -288,12 +288,12 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
   };
 
   const handleClearAllHistory = () => {
-    if (!window.confirm('PERINGATAN: Apakah Anda yakin ingin mengosongkan seluruh riwayat dokumen AI Kurikulum sekarang?')) {
+    if (!window.confirm('PERINGATAN: Apakah Anda yakin ingin mengosongkan seluruh riwayat dokumen kurikulum sekarang?')) {
       return;
     }
     const res = StorageService.clearAllAIDocuments();
     refreshAiHistory();
-    alert(`Seluruh riwayat dokumen AI (${res.clearedCount} dokumen) telah dikosongkan.`);
+    alert(`Seluruh riwayat dokumen (${res.clearedCount} dokumen) telah dikosongkan.`);
   };
 
   // Sync docType when initialDocType changes from sidebar
@@ -888,8 +888,8 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
       userEmail: user?.email || 'guru@belajar.id',
       userName: user?.name || 'Guru Pengampu',
       userRole: user?.role || 'guru',
-      action: `Generate AI Perangkat Ajar (${docTypeUpper})`,
-      details: `Menghasilkan dokumen ${newDoc.title} dengan Kurikulum Deep Learning (Sisa kuota AI: ${consumeRes.status.remaining} klik).`,
+      action: `Penyusunan Perangkat Ajar (${docTypeUpper})`,
+      details: `Menghasilkan dokumen ${newDoc.title} dengan Kurikulum Deep Learning (Sisa kuota: ${consumeRes.status.remaining} klik).`,
       status: 'success',
     });
 
@@ -971,14 +971,14 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
             <div>
               <div className="flex items-center space-x-2">
                 <h1 className="text-lg font-bold text-slate-900">
-                  Asisten AMD AI Kurikulum Deep Learning
+                  Asisten Penyusun Kurikulum Deep Learning
                 </h1>
                 <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   AMD Engine SD - SMA
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Generator otomatis Perangkat Ajar Kurikulum Deep Learning & Kalender Pendidikan berbasis AMD AI.
+                Generator otomatis Perangkat Ajar Kurikulum Deep Learning & Kalender Pendidikan berbasis AMD Engine.
               </p>
             </div>
           </div>
@@ -1014,7 +1014,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
               </button>
             </div>
 
-            {/* Riwayat Dokumen AI & 24h Auto-Purge Status */}
+            {/* Riwayat Dokumen & 24h Auto-Purge Status */}
             <button
               type="button"
               onClick={() => {
@@ -1022,10 +1022,10 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                 setShowHistoryModal(true);
               }}
               className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-semibold text-xs flex items-center space-x-1.5 transition shadow-sm"
-              title="Lihat riwayat dokumen AI sementara (otomatis dikosongkan setiap 24 jam)"
+              title="Lihat riwayat dokumen sementara (otomatis dikosongkan setiap 24 jam)"
             >
               <History className="w-3.5 h-3.5 text-amber-700" />
-              <span>Arsip AI (24 Jam)</span>
+              <span>Arsip Dokumen (24 Jam)</span>
               {aiDocs.length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-600 text-white">
                   {aiDocs.length}
@@ -2226,7 +2226,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                         ? `✓ ${selectedTPIds.length} TP Ditandai Profil Guru`
                         : useManualTP
                           ? 'TP Mandiri'
-                          : 'Otomatis AI'}
+                          : 'Otomatis Sistem'}
                     </span>
                   </div>
 
@@ -2246,7 +2246,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                     >
                       <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                       <div>
-                        <div className="leading-tight">Rumusan Otomatis AI</div>
+                        <div className="leading-tight">Rumusan Otomatis</div>
                         <div className="text-[10px] font-normal opacity-80 mt-0.5">
                           Standar CP & HOTS
                         </div>
@@ -2685,7 +2685,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
               {loading ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>AI Menyusun Dokumen Kurikulum...</span>
+                  <span>Menyusun Dokumen Kurikulum...</span>
                 </>
               ) : (
                 <>

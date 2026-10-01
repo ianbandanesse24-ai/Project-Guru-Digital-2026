@@ -405,7 +405,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
 
       const result = await response.json();
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Gagal memproses pembagian materi dengan AI.');
+        throw new Error(result.error || 'Gagal memproses pembagian materi dengan sistem.');
       }
 
       const data = result.data;
@@ -458,7 +458,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
         setPlans(updatedPlans);
         setSelectedPlanId(newPlan.id);
 
-        showNotif('Analisis CP & Pembagian Materi Semester 1 & 2 Berhasil Dibuat oleh AI!', 'success');
+        showNotif('Analisis CP & Pembagian Materi Semester 1 & 2 Berhasil Disusun Otomatis!', 'success');
       }
     } catch (err: any) {
       console.error(err);
@@ -1260,7 +1260,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
             </h1>
           </div>
           <p className="text-xs text-slate-300 ml-10">
-            Formulir manual & AI generator untuk Nama Guru, Mapel, Jumlah TP, Jumlah Jam (JP), serta Pembagian Materi Capaian Pembelajaran secara presisi untuk Semester 1 (Ganjil) dan Semester 2 (Genap).
+            Formulir manual & generator otomatis untuk Nama Guru, Mapel, Jumlah TP, Jumlah Jam (JP), serta Pembagian Materi Capaian Pembelajaran secara presisi untuk Semester 1 (Ganjil) dan Semester 2 (Genap).
           </p>
         </div>
 
@@ -1584,9 +1584,9 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
               />
             </div>
 
-            {/* Catatan / Custom Prompt AI */}
+            {/* Catatan / Custom Prompt */}
             <div>
-              <label className="block text-slate-300 font-bold mb-1">Catatan Tambahan untuk AI (Opsional)</label>
+              <label className="block text-slate-300 font-bold mb-1">Catatan Tambahan untuk Format (Opsional)</label>
               <input
                 type="text"
                 placeholder="Contoh: Fokus pada praktikum lab dan kontekstual daerah pesisir..."
@@ -1605,7 +1605,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
               compact={true}
             />
 
-            {/* AI Generator Button */}
+            {/* Generator Button */}
             <button
               type="button"
               onClick={handleRunAIAnalysis}
@@ -1620,7 +1620,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
               ) : (
                 <>
                   <AMDLogo size="xs" />
-                  <span>Analisis & Bagikan Materi (AMD AI)</span>
+                  <span>Analisis & Bagikan Materi (Otomatis)</span>
                 </>
               )}
             </button>

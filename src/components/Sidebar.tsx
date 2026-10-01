@@ -221,14 +221,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'admin_api_key',
-      label: 'Manajemen API Key AMD AI',
+      label: 'Manajemen API Key AMD',
       icon: Key,
-      badge: 'AMD AI',
-      desc: 'Pengaturan Kunci API AMD AI',
+      badge: 'AMD',
+      desc: 'Pengaturan Kunci API Layanan AMD',
     },
     {
       id: 'admin_tokens',
-      label: 'Manajemen Token & Kuota AI',
+      label: 'Manajemen Token & Kuota Sistem',
       icon: Sparkles,
       badge: '20/Hari',
     },
@@ -273,7 +273,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 truncate">
-                E - PROJECT AI
+                E - PROJECT GURU
               </h2>
               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 font-mono">
                 2025/2026

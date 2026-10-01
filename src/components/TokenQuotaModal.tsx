@@ -101,7 +101,7 @@ export const TokenQuotaModal: React.FC<TokenQuotaModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
-                Status Kuota AMD AI & Lisensi
+                Status Kuota Sistem & Lisensi
                 {quotaStatus.isAdmin && (
                   <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
                     Super Admin

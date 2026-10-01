@@ -106,7 +106,7 @@ export const AMDLogo: React.FC<AMDLogoProps> = ({
             AMD
           </span>
           <span className="text-[10px] text-slate-500 font-medium">
-            AI Assistant
+            Kurikulum Engine
           </span>
         </div>
       )}
