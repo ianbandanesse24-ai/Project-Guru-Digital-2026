@@ -2088,11 +2088,10 @@ async function startServer() {
   try {
     let vite: any;
     if (process.env.NODE_ENV !== 'production') {
-      const isHmrDisabled = process.env.DISABLE_HMR === 'true';
       vite = await createViteServer({
         server: {
           middlewareMode: true,
-          hmr: isHmrDisabled ? false : undefined,
+          hmr: false,
         },
         appType: 'spa',
       });
@@ -2108,16 +2107,6 @@ async function startServer() {
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`Server E - Project Guru Digital running on http://localhost:${PORT}`);
     });
-
-    if (vite && vite.ws && process.env.DISABLE_HMR !== 'true') {
-      server.on('upgrade', (req, socket, head) => {
-        try {
-          vite.ws.handleUpgrade(req, socket, head);
-        } catch (e) {
-          console.error('Vite WS upgrade error:', e);
-        }
-      });
-    }
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);
