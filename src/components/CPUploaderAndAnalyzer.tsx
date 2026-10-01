@@ -93,7 +93,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
   // Perangkat Generator Modal States
   const [showPerangkatModal, setShowPerangkatModal] = useState<boolean>(false);
   const [selectedDocType, setSelectedDocType] = useState<string>('modul_ajar');
-  const [selectedDocSemester, setSelectedDocSemester] = useState<'Ganjil' | 'Genap'>('Ganjil');
+  const [selectedDocSemester, setSelectedDocSemester] = useState<'Semester 1' | 'Semester 2' | '1 Tahun'>('Semester 1');
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedLearningModel, setSelectedLearningModel] = useState<string>('Problem-Based Learning (PBL)');
   const [generatedDocContent, setGeneratedDocContent] = useState<string>('');
@@ -831,10 +831,17 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
     triggerGenerateDoc(docType, selectedDocSemester);
   };
 
-  const triggerGenerateDoc = (docType: string, sem: 'Ganjil' | 'Genap') => {
+  const triggerGenerateDoc = (
+    docType: string,
+    sem: 'Semester 1' | 'Semester 2' | '1 Tahun' | 'Ganjil' | 'Genap' = selectedDocSemester
+  ) => {
     setIsGeneratingDoc(true);
     setTimeout(() => {
-      const semMaterials = sem === 'Ganjil' ? (masterData?.materialsSem1 || []) : (masterData?.materialsSem2 || []);
+      const semMaterials = sem === 'Semester 1' || sem === 'Ganjil'
+        ? (masterData?.materialsSem1 || [])
+        : sem === 'Semester 2' || sem === 'Genap'
+        ? (masterData?.materialsSem2 || [])
+        : [...(masterData?.materialsSem1 || []), ...(masterData?.materialsSem2 || [])];
       const defaultTopic = selectedTopic || (semMaterials.length > 0 ? semMaterials[0].essentialMaterial : `Materi Pokok ${masterData?.subject || subject}`);
       const currentMat = semMaterials.find(m => m.essentialMaterial === defaultTopic) || semMaterials[0] || null;
       const jpPerW = masterData?.jpPerWeek || 2;
@@ -889,7 +896,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
           level: activeLvl,
           grade: Number(activeGrd),
           subject: activeSubj,
-          semester: sem,
+          semester: sem === 'Semester 2' || sem === 'Genap' ? 'Genap' : sem === '1 Tahun' ? '1 Tahun' : 'Ganjil',
           content: doc,
           createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
           updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
@@ -2214,8 +2221,8 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 mb-1">Semester</label>
-                    <div className="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                      {(['Ganjil', 'Genap'] as const).map((sem) => (
+                    <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                      {(['Semester 1', 'Semester 2', '1 Tahun'] as const).map((sem) => (
                         <button
                           key={sem}
                           type="button"
@@ -2223,7 +2230,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                             setSelectedDocSemester(sem);
                             triggerGenerateDoc(selectedDocType, sem);
                           }}
-                          className={`py-1.5 rounded-lg text-xs font-bold transition ${
+                          className={`py-1.5 px-1 rounded-lg text-[11px] font-bold transition text-center ${
                             selectedDocSemester === sem
                               ? 'bg-indigo-600 text-white shadow'
                               : 'text-slate-400 hover:text-white'
@@ -2257,7 +2264,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                 {/* Topic Selector from CP Distribution */}
                 <div className="space-y-1 text-xs">
                   <label className="block text-[10px] font-bold text-slate-400">
-                    Fokus Topik / Materi Pembelajaran:
+                    Fokus Topik / Materi Pembelajaran ({selectedDocSemester}):
                   </label>
                   <select
                     value={selectedTopic}
@@ -2267,8 +2274,13 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                     }}
                     className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
                   >
-                    <option value="">Semua Materi / Otomatis dari CP</option>
-                    {(selectedDocSemester === 'Ganjil' ? masterData?.materialsSem1 : masterData?.materialsSem2)?.map((m, idx) => (
+                    <option value="">Semua Materi / Otomatis dari CP ({selectedDocSemester})</option>
+                    {(selectedDocSemester === 'Semester 1'
+                      ? masterData?.materialsSem1
+                      : selectedDocSemester === 'Semester 2'
+                      ? masterData?.materialsSem2
+                      : [...(masterData?.materialsSem1 || []), ...(masterData?.materialsSem2 || [])]
+                    )?.map((m, idx) => (
                       <option key={idx} value={m.essentialMaterial}>
                         TP {idx + 1}: {m.essentialMaterial} ({m.allocatedHours} JP)
                       </option>

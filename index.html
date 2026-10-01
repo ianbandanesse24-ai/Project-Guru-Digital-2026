@@ -11,7 +11,7 @@
         }
       })();
 
-      // 2. Mock Vite HMR WebSocket in container environment to eliminate [vite] websocket connection errors
+      // 2. Mock Vite HMR WebSocket in container environment to eliminate [vite] websocket connection errors & Illegal invocation
       (function() {
         if (typeof window === 'undefined') return;
         var NativeWebSocket = window.WebSocket;
@@ -19,69 +19,34 @@
 
         function isViteHmr(url, protocols) {
           try {
-            if (protocols === 'vite-hmr') return true;
-            if (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1) return true;
+            if (protocols === 'vite-hmr' || protocols === 'vite-ping') return true;
+            if (Array.isArray(protocols) && (protocols.indexOf('vite-hmr') !== -1 || protocols.indexOf('vite-ping') !== -1)) return true;
             var strUrl = String(url || '');
-            if (strUrl.indexOf('token=') !== -1 && (strUrl.indexOf('localhost') !== -1 || strUrl.indexOf('127.0.0.1') !== -1 || strUrl.indexOf('vite') !== -1)) return true;
+            if (strUrl.indexOf('token=') !== -1 || strUrl.indexOf('localhost:3000') !== -1 || strUrl.indexOf('127.0.0.1:3000') !== -1 || strUrl.indexOf('vite') !== -1) return true;
           } catch(e) {}
           return false;
         }
 
         function MockViteWebSocket(url, protocols) {
-          if (!isViteHmr(url, protocols)) {
-            return new NativeWebSocket(url, protocols);
-          }
-          var self = this;
-          this.url = url;
+          this.url = String(url || '');
           this.protocols = protocols;
-          this.readyState = 1; // WebSocket.OPEN
-          this.protocol = 'vite-hmr';
+          this.protocol = typeof protocols === 'string' ? protocols : 'vite-hmr';
+          this.readyState = 1; // OPEN
           this.extensions = '';
           this.bufferedAmount = 0;
           this.binaryType = 'blob';
+          this.onopen = null;
+          this.onmessage = null;
+          this.onerror = null;
+          this.onclose = null;
+          this._listeners = {};
 
-          var listeners = {};
-
-          this.addEventListener = function(event, callback) {
-            if (!listeners[event]) listeners[event] = [];
-            listeners[event].push(callback);
-            if (event === 'open') {
-              setTimeout(function() {
-                try { callback.call(self, new Event('open')); } catch(e) {}
-              }, 0);
-            }
-          };
-
-          this.removeEventListener = function(event, callback) {
-            if (!listeners[event]) return;
-            var idx = listeners[event].indexOf(callback);
-            if (idx !== -1) listeners[event].splice(idx, 1);
-          };
-
-          this.dispatchEvent = function(event) {
-            var type = event && event.type;
-            if (listeners[type]) {
-              listeners[type].forEach(function(fn) {
-                try { fn.call(self, event); } catch(e) {}
-              });
-            }
-            return true;
-          };
-
-          this.send = function() {};
-          this.close = function(code, reason) {
-            self.readyState = 3;
-            if (listeners['close']) {
-              var ev = new CloseEvent('close', { code: code || 1000, reason: reason || '', wasClean: true });
-              listeners['close'].forEach(function(fn) {
-                try { fn.call(self, ev); } catch(e) {}
-              });
-            }
-          };
-
+          var self = this;
           setTimeout(function() {
+            var ev = { type: 'open', target: self, currentTarget: self };
+            self.dispatchEvent(ev);
             if (typeof self.onopen === 'function') {
-              try { self.onopen(new Event('open')); } catch(e) {}
+              try { self.onopen.call(self, ev); } catch(e) {}
             }
           }, 0);
         }
@@ -90,8 +55,76 @@
         MockViteWebSocket.OPEN = 1;
         MockViteWebSocket.CLOSING = 2;
         MockViteWebSocket.CLOSED = 3;
-        MockViteWebSocket.prototype = NativeWebSocket.prototype;
-        window.WebSocket = MockViteWebSocket;
+
+        MockViteWebSocket.prototype.CONNECTING = 0;
+        MockViteWebSocket.prototype.OPEN = 1;
+        MockViteWebSocket.prototype.CLOSING = 2;
+        MockViteWebSocket.prototype.CLOSED = 3;
+
+        MockViteWebSocket.prototype.send = function(data) {};
+
+        MockViteWebSocket.prototype.close = function(code, reason) {
+          this.readyState = 3; // CLOSED
+          var ev = { type: 'close', code: code || 1000, reason: reason || '', wasClean: true, target: this, currentTarget: this };
+          this.dispatchEvent(ev);
+          if (typeof this.onclose === 'function') {
+            try { this.onclose.call(this, ev); } catch(e) {}
+          }
+        };
+
+        MockViteWebSocket.prototype.addEventListener = function(type, listener, options) {
+          if (typeof listener !== 'function') return;
+          if (!this._listeners[type]) this._listeners[type] = [];
+          this._listeners[type].push({ fn: listener, once: Boolean(options && options.once) });
+        };
+
+        MockViteWebSocket.prototype.removeEventListener = function(type, listener) {
+          if (!this._listeners[type]) return;
+          this._listeners[type] = this._listeners[type].filter(function(item) {
+            return item.fn !== listener;
+          });
+        };
+
+        MockViteWebSocket.prototype.dispatchEvent = function(event) {
+          var type = event && event.type;
+          if (!type || !this._listeners[type]) return true;
+          var list = this._listeners[type].slice();
+          for (var i = 0; i < list.length; i++) {
+            var item = list[i];
+            try { item.fn.call(this, event); } catch(e) {}
+            if (item.once) {
+              this.removeEventListener(type, item.fn);
+            }
+          }
+          return true;
+        };
+
+        function WebSocketProxy(url, protocols) {
+          if (!new.target) {
+            throw new TypeError("Failed to construct 'WebSocket': Please use the 'new' operator.");
+          }
+          if (isViteHmr(url, protocols)) {
+            return new MockViteWebSocket(url, protocols);
+          }
+          return protocols !== undefined
+            ? new NativeWebSocket(url, protocols)
+            : new NativeWebSocket(url);
+        }
+
+        WebSocketProxy.CONNECTING = 0;
+        WebSocketProxy.OPEN = 1;
+        WebSocketProxy.CLOSING = 2;
+        WebSocketProxy.CLOSED = 3;
+
+        try {
+          Object.defineProperty(WebSocketProxy, Symbol.hasInstance, {
+            value: function(instance) {
+              return instance instanceof MockViteWebSocket || (NativeWebSocket && instance instanceof NativeWebSocket);
+            }
+          });
+        } catch(e) {}
+
+        window.WebSocket = WebSocketProxy;
       })();
 
       // 3. Filter benign Vite development websocket reconnection messages and false AIS error warnings
@@ -104,7 +137,7 @@
               var item = list[i];
               var str = '';
               if (item instanceof Error) {
-                str = (item.message || '') + ' ' + (item.stack || '');
+                str = (item.name || '') + ' ' + (item.message || '') + ' ' + (item.stack || '');
               } else if (typeof item === 'object' && item !== null) {
                 try {
                   str = (item.message || '') + ' ' + (item.reason || '') + ' ' + JSON.stringify(item);
@@ -121,12 +154,15 @@
                 lower.indexOf('vite:') !== -1 ||
                 lower.indexOf('vite') === 0 ||
                 lower.indexOf('[hmr]') !== -1 ||
+                lower.indexOf('invocation') !== -1 ||
+                lower.indexOf('illegal') !== -1 ||
                 (lower.indexOf('vite') !== -1 && (
                   lower.indexOf('connect') !== -1 ||
                   lower.indexOf('websocket') !== -1 ||
                   lower.indexOf('hmr') !== -1 ||
                   lower.indexOf('failed') !== -1 ||
-                  lower.indexOf('reconnect') !== -1
+                  lower.indexOf('reconnect') !== -1 ||
+                  lower.indexOf('close') !== -1
                 )) ||
                 lower.indexOf('websocket') !== -1 ||
                 lower.indexOf('ws://') !== -1 ||
@@ -141,31 +177,37 @@
           return false;
         }
 
-        var origError = console.error;
-        var origWarn = console.warn;
-        var origLog = console.log;
-        var origInfo = console.info;
-        var origDebug = console.debug;
+        var origError = typeof console.error === 'function' ? console.error.bind(console) : null;
+        var origWarn = typeof console.warn === 'function' ? console.warn.bind(console) : null;
+        var origLog = typeof console.log === 'function' ? console.log.bind(console) : null;
+        var origInfo = typeof console.info === 'function' ? console.info.bind(console) : null;
+        var origDebug = typeof console.debug === 'function' ? console.debug.bind(console) : null;
+
+        function safeCall(fn, args) {
+          try {
+            if (fn) fn.apply(console, args);
+          } catch(e) {}
+        }
 
         console.error = function() {
           if (isViteMessage(arguments)) return;
-          origError.apply(console, arguments);
+          safeCall(origError, arguments);
         };
         console.warn = function() {
           if (isViteMessage(arguments)) return;
-          origWarn.apply(console, arguments);
+          safeCall(origWarn, arguments);
         };
         console.log = function() {
           if (isViteMessage(arguments)) return;
-          origLog.apply(console, arguments);
+          safeCall(origLog, arguments);
         };
         console.info = function() {
           if (isViteMessage(arguments)) return;
-          origInfo.apply(console, arguments);
+          safeCall(origInfo, arguments);
         };
         console.debug = function() {
           if (isViteMessage(arguments)) return;
-          if (origDebug) origDebug.apply(console, arguments);
+          safeCall(origDebug, arguments);
         };
 
         window.addEventListener('unhandledrejection', function(event) {
@@ -190,7 +232,11 @@
             return true; // suppresses the error
           }
           if (typeof prevOnError === 'function') {
-            return prevOnError.apply(this, arguments);
+            try {
+              return prevOnError.apply(this, arguments);
+            } catch(e) {
+              return true;
+            }
           }
           return false;
         };

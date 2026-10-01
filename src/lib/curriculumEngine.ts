@@ -74,12 +74,27 @@ export function generateExpertCurriculumDocument(
   const level = params.level || syncedContext.level || 'SMA';
   const grade = params.grade || syncedContext.grade || (level === 'SD' ? 4 : level === 'SMP' ? 7 : 10);
   const phase = params.phase || syncedContext.phase || (grade === 10 ? 'Fase E' : Number(grade) > 10 ? 'Fase F' : Number(grade) >= 7 ? 'Fase D' : Number(grade) >= 4 ? 'Fase B/C' : 'Fase A');
-  const semester = params.semester || 'Ganjil';
+  const rawSemester = String(params.semester || 'Ganjil').trim();
+  const isFullYear = rawSemester === '1 Tahun' || rawSemester.toLowerCase().includes('tahun') || rawSemester.toLowerCase().includes('all') || rawSemester.toLowerCase().includes('semua');
+  const isSem2Only = !isFullYear && (rawSemester === 'Semester 2' || rawSemester.toLowerCase().includes('genap') || rawSemester === '2');
+  const isSem1Only = !isFullYear && !isSem2Only;
+
+  const resolvedSemesterLabel = isFullYear
+    ? '1 Tahun Penuh (Semester 1 & 2)'
+    : isSem2Only
+    ? 'Semester 2 (Genap)'
+    : 'Semester 1 (Ganjil)';
+
+  const semester = resolvedSemesterLabel;
   
   const distributionData = params.distributionData || syncedContext.activeMaster;
   const sem1Materials = (distributionData?.materialsSem1 && distributionData.materialsSem1.length > 0) ? distributionData.materialsSem1 : syncedContext.sem1Materials;
   const sem2Materials = (distributionData?.materialsSem2 && distributionData.materialsSem2.length > 0) ? distributionData.materialsSem2 : syncedContext.sem2Materials;
-  const activeMaterials = semester === 'Ganjil' || semester === '1' ? sem1Materials : sem2Materials;
+  const activeMaterials = isFullYear
+    ? (sem1Materials.length > 0 || sem2Materials.length > 0 ? [...sem1Materials, ...sem2Materials] : [])
+    : isSem2Only
+    ? sem2Materials
+    : sem1Materials;
   const matchedMaterial = params.topic ? activeMaterials.find(m => 
     (m.essentialMaterial && (m.essentialMaterial.trim().toLowerCase() === params.topic.trim().toLowerCase() || params.topic.toLowerCase().includes(m.essentialMaterial.toLowerCase()) || m.essentialMaterial.toLowerCase().includes(params.topic.toLowerCase()))) ||
     (m.tpName && (m.tpName.toLowerCase().includes(params.topic.toLowerCase()) || params.topic.toLowerCase().includes(m.tpName.toLowerCase())))
@@ -223,6 +238,67 @@ export function generateExpertCurriculumDocument(
       const totalYearJP = finalSem1JP + finalSem2JP;
       const totalTPCount = sem1RowIndex + sem2RowIndex;
 
+      let sectionETables = '';
+      if (isSem1Only) {
+        sectionETables = `#### 1. Distribusi Capaian Pembelajaran & Materi Semester 1 (Ganjil)
+| No | Kode TP | Elemen CP & Rumusan Tujuan Pembelajaran (TP) | Ruang Lingkup Materi Pokok | Alokasi Waktu | Jml Pertemuan | Strategi Asesmen & Model Deep Learning |
+| :-: | :---: | :--- | :--- | :-: | :-: | :--- |
+${sem1Rows}
+| - | - | *Cadangan Alokasi Jam & Evaluasi Formatif/Sumatif Tengah & Akhir Semester* | Penguatan, ASTS & ASAS Ganjil | **6 JP** | 2 Pertemuan | Asesmen Sumatif & Umpan Balik |
+| **TOTAL** | | **Total Alokasi Beban KBM Semester 1 (Ganjil)** | | **${finalSem1JP + 6} JP** | **${finalSem1Meetings + 2} Pertemuan** | **100% Selaras Kaldik & Kurikulum** |
+
+#### 2. Rekapitulasi Alokasi Waktu Semester 1 (Ganjil)
+| Komponen Distribusi Kurikulum | Semester 1 (Ganjil) | Keterangan & Rujukan |
+| :--- | :---: | :--- |
+| **Jumlah Tujuan Pembelajaran (TP)** | ${sem1Materials.length > 0 ? sem1Materials.length : 3} TP | Pemetaan Master CP & Modul Semester 1 |
+| **Alokasi Jam Tatap Muka Efektif** | ${finalSem1JP} JP | KBM Berdiferensiasi & Deep Learning |
+| **Alokasi Jam Cadangan & Sumatif** | 6 JP | ASTS, ASAS Ganjil & Penguatan |
+| **Total Jam Pelajaran (JP)** | **${finalSem1JP + 6} JP** | Beban Standar Semester Ganjil |
+| **Beban Tatap Muka per Minggu** | ${jpPerWk} JP / Minggu | Matriks Jadwal Mingguan Sekolah |
+| **Estimasi Pekan Efektif KBM (RBE)** | ~18 Pekan | Sinkronisasi Kalender Pendidikan |`;
+      } else if (isSem2Only) {
+        sectionETables = `#### 1. Distribusi Capaian Pembelajaran & Materi Semester 2 (Genap)
+| No | Kode TP | Elemen CP & Rumusan Tujuan Pembelajaran (TP) | Ruang Lingkup Materi Pokok | Alokasi Waktu | Jml Pertemuan | Strategi Asesmen & Model Deep Learning |
+| :-: | :---: | :--- | :--- | :-: | :-: | :--- |
+${sem2Rows}
+| - | - | *Cadangan Alokasi Jam & Evaluasi Formatif/Sumatif Akhir Tahun Pelajaran* | Penguatan, ASAS Genap & Kenaikan | **6 JP** | 2 Pertemuan | Asesmen Sumatif & Pameran Hasil |
+| **TOTAL** | | **Total Alokasi Beban KBM Semester 2 (Genap)** | | **${finalSem2JP + 6} JP** | **${finalSem2Meetings + 2} Pertemuan** | **100% Selaras Kaldik & Kurikulum** |
+
+#### 2. Rekapitulasi Alokasi Waktu Semester 2 (Genap)
+| Komponen Distribusi Kurikulum | Semester 2 (Genap) | Keterangan & Rujukan |
+| :--- | :---: | :--- |
+| **Jumlah Tujuan Pembelajaran (TP)** | ${sem2Materials.length > 0 ? sem2Materials.length : 3} TP | Pemetaan Master CP & Modul Semester 2 |
+| **Alokasi Jam Tatap Muka Efektif** | ${finalSem2JP} JP | KBM Berdiferensiasi & Deep Learning |
+| **Alokasi Jam Cadangan & Sumatif** | 6 JP | ASAS Genap & Pameran Hasil Belajar |
+| **Total Jam Pelajaran (JP)** | **${finalSem2JP + 6} JP** | Beban Standar Semester Genap |
+| **Beban Tatap Muka per Minggu** | ${jpPerWk} JP / Minggu | Matriks Jadwal Mingguan Sekolah |
+| **Estimasi Pekan Efektif KBM (RBE)** | ~18 Pekan | Sinkronisasi Kalender Pendidikan |`;
+      } else {
+        sectionETables = `#### 1. Distribusi Capaian Pembelajaran & Materi Semester 1 (Ganjil)
+| No | Kode TP | Elemen CP & Rumusan Tujuan Pembelajaran (TP) | Ruang Lingkup Materi Pokok | Alokasi Waktu | Jml Pertemuan | Strategi Asesmen & Model Deep Learning |
+| :-: | :---: | :--- | :--- | :-: | :-: | :--- |
+${sem1Rows}
+| - | - | *Cadangan Alokasi Jam & Evaluasi Formatif/Sumatif Tengah & Akhir Semester* | Penguatan, ASTS & ASAS Ganjil | **6 JP** | 2 Pertemuan | Asesmen Sumatif & Umpan Balik |
+| **TOTAL** | | **Total Alokasi Beban KBM Semester 1 (Ganjil)** | | **${finalSem1JP + 6} JP** | **${finalSem1Meetings + 2} Pertemuan** | **100% Selaras Kaldik & Kurikulum** |
+
+#### 2. Distribusi Capaian Pembelajaran & Materi Semester 2 (Genap)
+| No | Kode TP | Elemen CP & Rumusan Tujuan Pembelajaran (TP) | Ruang Lingkup Materi Pokok | Alokasi Waktu | Jml Pertemuan | Strategi Asesmen & Model Deep Learning |
+| :-: | :---: | :--- | :--- | :-: | :-: | :--- |
+${sem2Rows}
+| - | - | *Cadangan Alokasi Jam & Evaluasi Formatif/Sumatif Akhir Tahun Pelajaran* | Penguatan, ASAS Genap & Kenaikan | **6 JP** | 2 Pertemuan | Asesmen Sumatif & Pameran Hasil |
+| **TOTAL** | | **Total Alokasi Beban KBM Semester 2 (Genap)** | | **${finalSem2JP + 6} JP** | **${finalSem2Meetings + 2} Pertemuan** | **100% Selaras Kaldik & Kurikulum** |
+
+#### 3. Rekapitulasi Matriks Distribusi Alokasi Waktu CP 1 Tahun Pelajaran
+| Komponen Distribusi Kurikulum | Semester 1 (Ganjil) | Semester 2 (Genap) | Total 1 Tahun Pelajaran | Keterangan & Rujukan |
+| :--- | :---: | :---: | :---: | :--- |
+| **Jumlah Tujuan Pembelajaran (TP)** | ${sem1Materials.length > 0 ? sem1Materials.length : 3} TP | ${sem2Materials.length > 0 ? sem2Materials.length : 3} TP | **${totalTPCount} TP** | Pemetaan Master CP & Modul |
+| **Alokasi Jam Tatap Muka Efektif** | ${finalSem1JP} JP | ${finalSem2JP} JP | **${finalSem1JP + finalSem2JP} JP** | KBM Berdiferensiasi & Deep Learning |
+| **Alokasi Jam Cadangan & Sumatif** | 6 JP | 6 JP | **12 JP** | ASTS, ASAS, & Evaluasi Mutu |
+| **Total Jam Pelajaran (JP)** | **${finalSem1JP + 6} JP** | **${finalSem2JP + 6} JP** | **${totalYearJP + 12} JP** | Beban Standar Kurikulum Merdeka |
+| **Beban Tatap Muka per Minggu** | ${jpPerWk} JP / Minggu | ${jpPerWk} JP / Minggu | **${jpPerWk} JP / Minggu** | Matriks Jadwal Mingguan Sekolah |
+| **Estimasi Pekan Efektif KBM (RBE)** | ~18 Pekan | ~18 Pekan | **~36 Pekan Efektif** | Sinkronisasi Kalender Pendidikan |`;
+      }
+
       return `# ANALISIS CAPAIAN PEMBELAJARAN (CP) & DISTRIBUSI MATERI PER SEMESTER
 ## PENDEKATAN DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
 
@@ -235,8 +311,8 @@ export function generateExpertCurriculumDocument(
 | **Mata Pelajaran** | **${subject}** |
 | **Fase / Kelas** | **${phase} / Kelas ${grade}** |
 | **Jenjang** | **${level}** |
-| **Semester** | **Semester Ganjil & Genap (1 Tahun Penuh)** |
-| **Alokasi Waktu Total** | **${totalYearJP} JP / Tahun (${jpPerWk} JP / Minggu)** |
+| **Semester** | **${resolvedSemesterLabel}** |
+| **Alokasi Waktu Total** | **${isFullYear ? `${totalYearJP + 12} JP / Tahun (${jpPerWk} JP / Minggu)` : isSem2Only ? `${finalSem2JP + 6} JP / Semester 2 (${jpPerWk} JP / Minggu)` : `${finalSem1JP + 6} JP / Semester 1 (${jpPerWk} JP / Minggu)`}** |
 | **Tahun Pelajaran** | ${resolvedAcademicYear} |
 | **Penyusun / Guru** | ${teacherName} (NIP. ${teacherNip}) |
 | **Kepala Sekolah** | ${headmasterName} (NIP. ${headmasterNip}) |
@@ -268,7 +344,7 @@ export function generateExpertCurriculumDocument(
 |         [ INTEGRASI 3 PILAR DEEP LEARNING: MINDFUL ➔ MEANINGFUL ➔ JOYFUL ]                        |
 |                                  │                                                                |
 |                                  ▼                                                                |
-|         [ FORMULASI TUJUAN PEMBELAJARAN (TP) ABCD & PEMETAAN DISTRIBUSI SEMESTER 1 & 2 ]          |
+|         [ FORMULASI TUJUAN PEMBELAJARAN (TP) ABCD & PEMETAAN DISTRIBUSI ${isFullYear ? 'SEMESTER 1 & 2' : isSem2Only ? 'SEMESTER 2' : 'SEMESTER 1'} ]          |
 +---------------------------------------------------------------------------------------------------+
 \`\`\`
 
@@ -283,31 +359,9 @@ export function generateExpertCurriculumDocument(
 
 ---
 
-### E. HASIL DISTRIBUSI CAPAIAN PEMBELAJARAN (CP) PER SEMESTER
+### E. HASIL DISTRIBUSI CAPAIAN PEMBELAJARAN (CP) ${isFullYear ? '1 TAHUN PELAJARAN' : isSem2Only ? 'SEMESTER 2' : 'SEMESTER 1'}
 
-#### 1. Distribusi Capaian Pembelajaran & Materi Semester 1 (Ganjil)
-| No | Kode TP | Elemen CP & Rumusan Tujuan Pembelajaran (TP) | Ruang Lingkup Materi Pokok | Alokasi Waktu | Jml Pertemuan | Strategi Asesmen & Model Deep Learning |
-| :-: | :---: | :--- | :--- | :-: | :-: | :--- |
-${sem1Rows}
-| - | - | *Cadangan Alokasi Jam & Evaluasi Formatif/Sumatif Tengah & Akhir Semester* | Penguatan, ASTS & ASAS Ganjil | **6 JP** | 2 Pertemuan | Asesmen Sumatif & Umpan Balik |
-| **TOTAL** | | **Total Alokasi Beban KBM Semester 1 (Ganjil)** | | **${finalSem1JP + 6} JP** | **${finalSem1Meetings + 2} Pertemuan** | **100% Selaras Kaldik & Kurikulum** |
-
-#### 2. Distribusi Capaian Pembelajaran & Materi Semester 2 (Genap)
-| No | Kode TP | Elemen CP & Rumusan Tujuan Pembelajaran (TP) | Ruang Lingkup Materi Pokok | Alokasi Waktu | Jml Pertemuan | Strategi Asesmen & Model Deep Learning |
-| :-: | :---: | :--- | :--- | :-: | :-: | :--- |
-${sem2Rows}
-| - | - | *Cadangan Alokasi Jam & Evaluasi Formatif/Sumatif Akhir Tahun Pelajaran* | Penguatan, ASAS Genap & Kenaikan | **6 JP** | 2 Pertemuan | Asesmen Sumatif & Pameran Hasil |
-| **TOTAL** | | **Total Alokasi Beban KBM Semester 2 (Genap)** | | **${finalSem2JP + 6} JP** | **${finalSem2Meetings + 2} Pertemuan** | **100% Selaras Kaldik & Kurikulum** |
-
-#### 3. Rekapitulasi Matriks Distribusi Alokasi Waktu CP 1 Tahun Pelajaran
-| Komponen Distribusi Kurikulum | Semester 1 (Ganjil) | Semester 2 (Genap) | Total 1 Tahun Pelajaran | Keterangan & Rujukan |
-| :--- | :---: | :---: | :---: | :--- |
-| **Jumlah Tujuan Pembelajaran (TP)** | ${sem1Materials.length > 0 ? sem1Materials.length : 3} TP | ${sem2Materials.length > 0 ? sem2Materials.length : 3} TP | **${totalTPCount} TP** | Pemetaan Master CP & Modul |
-| **Alokasi Jam Tatap Muka Efektif** | ${finalSem1JP} JP | ${finalSem2JP} JP | **${finalSem1JP + finalSem2JP} JP** | KBM Berdiferensiasi & Deep Learning |
-| **Alokasi Jam Cadangan & Sumatif** | 6 JP | 6 JP | **12 JP** | ASTS, ASAS, & Evaluasi Mutu |
-| **Total Jam Pelajaran (JP)** | **${finalSem1JP + 6} JP** | **${finalSem2JP + 6} JP** | **${totalYearJP + 12} JP** | Beban Standar Kurikulum Merdeka |
-| **Beban Tatap Muka per Minggu** | ${jpPerWk} JP / Minggu | ${jpPerWk} JP / Minggu | **${jpPerWk} JP / Minggu** | Matriks Jadwal Mingguan Sekolah |
-| **Estimasi Pekan Efektif KBM (RBE)** | ~18 Pekan | ~18 Pekan | **~36 Pekan Efektif** | Sinkronisasi Kalender Pendidikan |
+${sectionETables}
 
 ---
 
@@ -345,8 +399,21 @@ ${sem2Rows}
     }
 
     case 'tp': {
-      const semesterNumber = semester === 'Genap' || semester === '2' ? 2 : 1;
-      const materialsForTP = activeMaterials.length > 0 ? activeMaterials : [...sem1Materials, ...sem2Materials];
+      const semesterNumber = isSem2Only ? 2 : 1;
+      const defaultSem1TPMats = [
+        { essentialMaterial: `Hakikat ${subject}, Konsep Dasar, dan Pengukurannya`, allocatedHours: 18, tpCount: 3, semester: 1 },
+        { essentialMaterial: `Energi, Perubahan Sistem, dan Aplikasinya`, allocatedHours: 18, tpCount: 2, semester: 1 },
+      ];
+      const defaultSem2TPMats = [
+        { essentialMaterial: `Gejala Fenomena Lingkungan dan Pemanasan Global`, allocatedHours: 18, tpCount: 3, semester: 2 },
+        { essentialMaterial: `Aksi Nyata Mitigasi Perubahan Iklim`, allocatedHours: 18, tpCount: 2, semester: 2 },
+      ];
+      const materialsForTP = isSem1Only
+        ? (sem1Materials.length > 0 ? sem1Materials : defaultSem1TPMats)
+        : isSem2Only
+        ? (sem2Materials.length > 0 ? sem2Materials : defaultSem2TPMats)
+        : (activeMaterials.length > 0 ? activeMaterials : [...sem1Materials, ...sem2Materials]);
+
       const tpRows = materialsForTP.length > 0
         ? materialsForTP.flatMap((mat, mIdx) => {
             const babNum = mIdx + 1;
@@ -399,8 +466,8 @@ ${sem2Rows}
 | **TP.${grade}.2** | ^ | Peserta didik (**A**) mampu **menerapkan dan memecahkan** (**B**) permasalahan studi kasus nyata berbasis ${topic} melalui penyelidikan inkuiri kelompok terbimbing (**C**) dengan akurasi dan kolaborasi aktif (**D**). | **2. Meaningful Learning** *(Inkuiri Kritis & Relevansi)* | Menerapkan (C3), Memecahkan (C4) | Bergotong Royong, Bernalar Kritis | Kolaborasi inkuiri mempermudah penyelesaian masalah kompleks dan menghasilkan presisi solusi. |
 | **TP.${grade}.3** | ^ | Peserta didik (**A**) mampu **mengevaluasi dan mengkreasikan** (**B**) solusi inovatif terkait ${topic} melalui proyek karya kreatif dan pameran hasil belajar (**C**) secara estetis, komunikatif, dan penuh kegembiraan (**D**). | **3. Joyful Learning** *(Kreasi Solutif & Gelar Karya)* | Mengevaluasi (C5), Mengkreasikan (C6) | Kreatif, Komunikatif, Kebinekaan | Pengetahuan yang mendalam terwujud saat siswa mampu menghasilkan karya inovatif yang dirayakan bersama. |`;
 
-      const inquiryHooks = activeMaterials.length > 0
-        ? activeMaterials.map((mat, idx) => {
+      const inquiryHooks = materialsForTP.length > 0
+        ? materialsForTP.map((mat, idx) => {
             const bName = mat.essentialMaterial || mat.tpName || `Bab ${idx + 1}`;
             return `${idx + 1}. *Bagaimanakah penerapan prinsip **${bName}** dapat menyelesaikan permasalahan kontekstual di lingkungan sekitar secara berkesadaran dan bermakna?*`;
           }).join('\n')
@@ -417,9 +484,9 @@ ${sem2Rows}
 ### A. IDENTITAS PERANGKAT
 * **Mata Pelajaran:** ${subject}
 * **Fase / Kelas:** ${phase} / Kelas ${grade} (${level})
-* **Semester:** Semester ${semester}
+* **Semester:** ${resolvedSemesterLabel}
 * **Tahun Pelajaran:** ${resolvedAcademicYear}
-* **Cakupan Materi:** ${activeMaterials.length > 0 ? `Seluruh Materi Pokok Semester ${semester} (${activeMaterials.length} Bab - Tersinkronisasi Otomatis dari Profil Guru)` : topic}
+* **Cakupan Materi:** ${materialsForTP.length > 0 ? `Materi Pokok ${resolvedSemesterLabel} (${materialsForTP.length} Bab - Tersinkronisasi Otomatis dari Profil Guru & Distribusi CP)` : topic}
 * **Guru Pengampu:** ${teacherName}
 * **NIP Guru:** ${teacherNip}
 
@@ -505,6 +572,65 @@ NIP. ${teacherNip}
 
       // If user explicitly picked Kronologis format
       if (isCustomKronologis) {
+        let kronologisTahapan = '';
+        if (isSem1Only) {
+          kronologisTahapan = `### A. TAHAP 1: PENGUASAAN KONSEP DASAR & IDENTIFIKASI FENOMENA (SEMESTER 1)
+* **Fokus Kompetensi:** Mengidentifikasi karakteristik esensial, istilah ilmiah, dan struktur fundamental ${subject}.
+* **Alur TP:** 
+  1. Mengamati fenomena kontekstual di lingkungan sekitar dan merumuskan hipotesis awal.
+  2. Menemukan keteraturan pola dan kaidah keilmuan melalui inkuiri terbimbing.
+* **Alokasi Jam:** ${Math.round((activeMaterials.length > 0 ? activeMaterials.reduce((acc: number, m: any) => acc + (Number(m.allocatedHours) || 18), 0) : 54) * 0.4)} JP
+
+### B. TAHAP 2: APLIKASI & INVESTIGASI MASALAH KONTEKSTUAL (SEMESTER 1)
+* **Fokus Kompetensi:** Menerapkan konsep ke dalam pemecahan masalah praktis, eksperimen terukur, dan telaah kasus kritis.
+* **Alur TP:**
+  1. Merancang langkah penyelidikan mandiri dan membedakan variabel penelitian.
+  2. Mengumpulkan data empiris, mengolah data dengan notasi ilmiah, dan menyimpulkan hasil investigasi.
+* **Alokasi Jam:** ${Math.round((activeMaterials.length > 0 ? activeMaterials.reduce((acc: number, m: any) => acc + (Number(m.allocatedHours) || 18), 0) : 54) * 0.6)} JP`;
+        } else if (isSem2Only) {
+          kronologisTahapan = `### A. TAHAP 1: EKSPERIMEN & ANALISIS SISTEM LANJUTAN (SEMESTER 2)
+* **Fokus Kompetensi:** Mengintegrasikan pemahaman konseptual tingkat lanjut, mengevaluasi sistem terpadu, dan kolaborasi tim.
+* **Alur TP:**
+  1. Menganalisis isu global dan keterkaitan sains-teknologi-masyarakat.
+  2. Memvalidasi hipotesis melalui uji perbandingan dan pemodelan solutif.
+* **Alokasi Jam:** ${Math.round((activeMaterials.length > 0 ? activeMaterials.reduce((acc: number, m: any) => acc + (Number(m.allocatedHours) || 18), 0) : 54) * 0.4)} JP
+
+### B. TAHAP 2: KREASI INOVASI, GELAR KARYA & REFLEKSI KOMPREHENSIF (SEMESTER 2)
+* **Fokus Kompetensi:** Merancang prototipe inovatif, memamerkan portofolio hasil karya, dan melakukan metakognisi.
+* **Alur TP:**
+  1. Menciptakan solusi produk/gagasan kreatif ramah lingkungan berkelanjutan.
+  2. Mengomunikasikan hasil karya secara lisan dan tulisan di depan publik.
+* **Alokasi Jam:** ${Math.round((activeMaterials.length > 0 ? activeMaterials.reduce((acc: number, m: any) => acc + (Number(m.allocatedHours) || 18), 0) : 54) * 0.6)} JP`;
+        } else {
+          kronologisTahapan = `### A. TAHAP 1: PENGUASAAN KONSEP DASAR & IDENTIFIKASI FENOMENA (SEMESTER GANJIL)
+* **Fokus Kompetensi:** Mengidentifikasi karakteristik esensial, istilah ilmiah, dan struktur fundamental ${subject}.
+* **Alur TP:** 
+  1. Mengamati fenomena kontekstual di lingkungan sekitar dan merumuskan hipotesis awal.
+  2. Menemukan keteraturan pola dan kaidah keilmuan melalui inkuiri terbimbing.
+* **Alokasi Jam:** ${Math.round((sem1Materials.length > 0 ? sem1Materials.reduce((acc: number, m: any) => acc + (Number(m.allocatedHours) || 18), 0) : 54) * 0.4)} JP
+
+### B. TAHAP 2: APLIKASI & INVESTIGASI MASALAH KONTEKSTUAL (SEMESTER GANJIL)
+* **Fokus Kompetensi:** Menerapkan konsep ke dalam pemecahan masalah praktis, eksperimen terukur, dan telaah kasus kritis.
+* **Alur TP:**
+  1. Merancang langkah penyelidikan mandiri dan membedakan variabel penelitian.
+  2. Mengumpulkan data empiris, mengolah data dengan notasi ilmiah, dan menyimpulkan hasil investigasi.
+* **Alokasi Jam:** ${Math.round((sem1Materials.length > 0 ? sem1Materials.reduce((acc: number, m: any) => acc + (Number(m.allocatedHours) || 18), 0) : 54) * 0.6)} JP
+
+### C. TAHAP 3: EKSPERIMEN & ANALISIS SISTEM LANJUTAN (SEMESTER GENAP)
+* **Fokus Kompetensi:** Mengintegrasikan pemahaman konseptual tingkat lanjut, mengevaluasi sistem terpadu, dan kolaborasi tim.
+* **Alur TP:**
+  1. Menganalisis isu global dan keterkaitan sains-teknologi-masyarakat.
+  2. Memvalidasi hipotesis melalui uji perbandingan dan pemodelan solutif.
+* **Alokasi Jam:** ${Math.round((sem2Materials.length > 0 ? sem2Materials.reduce((acc: number, m: any) => acc + (Number(m.allocatedHours) || 18), 0) : 54) * 0.4)} JP
+
+### D. TAHAP 4: KREASI INOVASI, GELAR KARYA & REFLEKSI KOMPREHENSIF (SEMESTER GENAP)
+* **Fokus Kompetensi:** Merancang prototipe inovatif, memamerkan portofolio hasil karya, dan melakukan metakognisi.
+* **Alur TP:**
+  1. Menciptakan solusi produk/gagasan kreatif ramah lingkungan berkelanjutan.
+  2. Mengomunikasikan hasil karya secara lisan dan tulisan di depan publik.
+* **Alokasi Jam:** ${Math.round((sem2Materials.length > 0 ? sem2Materials.reduce((acc: number, m: any) => acc + (Number(m.allocatedHours) || 18), 0) : 54) * 0.6)} JP`;
+        }
+
         return `# ALUR TUJUAN PEMBELAJARAN (ATP) - FORMAT KRONOLOGIS TAHAPAN
 ## KURIKULUM MERDEKA — TAHAPAN LOGIS DARI KONKRET KE ABSTRAK
 ### TAHUN PELAJARAN ${resolvedAcademicYear}
@@ -515,36 +641,12 @@ NIP. ${teacherNip}
 | Komponen | Keterangan | Komponen | Keterangan |
 | :--- | :--- | :--- | :--- |
 | **Mata Pelajaran** | **${subject}** | **Fase** | **${phase}** |
-| **Kelas / Semester** | **${grade} / ${semester}** | **Alokasi Waktu** | **${jpPerWk} JP / Minggu** |
+| **Kelas / Semester** | **${grade} / ${resolvedSemesterLabel}** | **Alokasi Waktu** | **${jpPerWk} JP / Minggu** |
 | **Satuan Pendidikan** | ${schoolName} | **Guru Pengampu** | ${teacherName} (NIP. ${teacherNip}) |
 
 ---
 
-### A. TAHAP 1: PENGUASAAN KONSEP DASAR & IDENTIFIKASI FENOMENA (SEMESTER GANJIL)
-* **Fokus Kompetensi:** Mengidentifikasi karakteristik esensial, istilah ilmiah, dan struktur fundamental ${subject}.
-* **Alur TP:** 
-  1. Mengamati fenomena kontekstual di lingkungan sekitar dan merumuskan hipotesis awal.
-  2. Menemukan keteraturan pola dan kaidah keilmuan melalui inkuiri terbimbing.
-* **Alokasi Jam:** ${Math.round((activeMaterials.length > 0 ? activeMaterials.reduce((acc, m) => acc + (Number(m.allocatedHours) || 18), 0) : 54) * 0.4)} JP
-
-### B. TAHAP 2: APLIKASI & INVESTIGASI MASALAH KONTEKSTUAL (SEMESTER GANJIL)
-* **Fokus Kompetensi:** Menerapkan konsep ke dalam pemecahan masalah praktis, eksperimen terukur, dan telaah kasus kritis.
-* **Alur TP:**
-  1. Merancang langkah penyelidikan mandiri dan membedakan variabel penelitian.
-  2. Mengumpulkan data empiris, mengolah data dengan notasi ilmiah, dan menyimpulkan hasil investigasi.
-* **Alokasi Jam:** ${Math.round((activeMaterials.length > 0 ? activeMaterials.reduce((acc, m) => acc + (Number(m.allocatedHours) || 18), 0) : 54) * 0.6)} JP
-
-### C. TAHAP 3: EKSPERIMEN & ANALISIS SISTEM LANJUTAN (SEMESTER GENAP)
-* **Fokus Kompetensi:** Mengintegrasikan pemahaman konseptual tingkat lanjut, mengevaluasi sistem terpadu, dan kolaborasi tim.
-* **Alur TP:**
-  1. Menganalisis isu global dan keterkaitan sains-teknologi-masyarakat.
-  2. Memvalidasi hipotesis melalui uji perbandingan dan pemodelan solutif.
-
-### D. TAHAP 4: KREASI INOVASI, GELAR KARYA & REFLEKSI KOMPREHENSIF (SEMESTER GENAP)
-* **Fokus Kompetensi:** Merancang prototipe inovatif, memamerkan portofolio hasil karya, dan melakukan metakognisi.
-* **Alur TP:**
-  1. Menciptakan solusi produk/gagasan kreatif ramah lingkungan berkelanjutan.
-  2. Mengomunikasikan hasil karya secara lisan dan tulisan di depan publik.
+${kronologisTahapan}
 
 ---
 
@@ -558,11 +660,19 @@ NIP. ${teacherNip}
       // Default & Primary Standard: Format Standar Baku Resmi 10 Kolom Kemendikbudristek (Sesuai Dokumen Acuan PDF Resmi)
       let calcTotalSemJp = 0;
       const allMaterialsToUse = [...sem1Materials, ...sem2Materials];
-      const materialsToUse = allMaterialsToUse.length > 0 ? allMaterialsToUse : [
+      const defaultSem1AtpMats = [
         { essentialMaterial: `Hakikat ${subject}, Konsep Dasar, dan Pengukurannya`, allocatedHours: 18, tpCount: 3, semester: 1 },
         { essentialMaterial: `Energi, Perubahan Sistem, dan Aplikasinya`, allocatedHours: 18, tpCount: 2, semester: 1 },
-        { essentialMaterial: `Gejala Fenomena Lingkungan dan Pemanasan Global`, allocatedHours: 18, tpCount: 3, semester: 2 },
       ];
+      const defaultSem2AtpMats = [
+        { essentialMaterial: `Gejala Fenomena Lingkungan dan Pemanasan Global`, allocatedHours: 18, tpCount: 3, semester: 2 },
+        { essentialMaterial: `Aksi Nyata Mitigasi Perubahan Iklim`, allocatedHours: 18, tpCount: 2, semester: 2 },
+      ];
+      const materialsToUse = isSem1Only
+        ? (sem1Materials.length > 0 ? sem1Materials : defaultSem1AtpMats)
+        : isSem2Only
+        ? (sem2Materials.length > 0 ? sem2Materials : defaultSem2AtpMats)
+        : (allMaterialsToUse.length > 0 ? allMaterialsToUse : [...defaultSem1AtpMats, ...defaultSem2AtpMats]);
 
       // Build official 10-column table rows
       const tableRows: string[] = [];
@@ -665,7 +775,7 @@ NIP. ${teacherNip}
 | Identitas Perangkat | Keterangan Dokumen | Identitas Perangkat | Keterangan Dokumen |
 | :--- | :--- | :--- | :--- |
 | **Mata Pelajaran** | **${subject}** | **Fase / Jenjang** | **${phase} / ${level}** |
-| **Kelas / Semester** | **${grade} / ${semester}** | **Alokasi Waktu** | **${totalEffectiveJP} JP (${jpPerWk} JP / Minggu)** |
+| **Kelas / Semester** | **${grade} / ${resolvedSemesterLabel}** | **Alokasi Waktu** | **${totalEffectiveJP} JP (${jpPerWk} JP / Minggu)** |
 | **Satuan Pendidikan** | **${schoolName}** | **Pendekatan Pembelajaran** | **Deep Learning (Mindful, Meaningful, Joyful)** |
 | **Penyusun / Guru** | **${teacherName} (NIP. ${teacherNip})** | **Tahun Pelajaran** | **${resolvedAcademicYear}** |
 
@@ -1018,7 +1128,7 @@ Dokumen Program Tahunan (PROTA) ini telah diverifikasi dan disahkan sebagai pedo
 
     case 'promes':
     case 'prosem': {
-      const isGanjil = semester === 'Ganjil' || semester === '1';
+      const isGanjil = isSem1Only;
       const hoursPerWeek = Number(params.distributionData?.jpPerWeek || params.distributionData?.hoursPerWeek || syncedContext.jpPerWeek) || 2;
       const resolvedGradeText = typeof grade === 'number' ? (
         grade === 1 ? 'I' : grade === 2 ? 'II' : grade === 3 ? 'III' : grade === 4 ? 'IV' : grade === 5 ? 'V' : grade === 6 ? 'VI' :

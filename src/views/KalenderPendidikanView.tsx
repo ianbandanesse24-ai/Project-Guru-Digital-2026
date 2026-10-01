@@ -113,7 +113,7 @@ export const KalenderPendidikanView: React.FC<KalenderPendidikanViewProps> = ({
   });
   const [copied, setCopied] = useState<boolean>(false);
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
-  const [selectedSemester, setSelectedSemester] = useState<SemesterType>('Ganjil');
+  const [selectedSemester, setSelectedSemester] = useState<'Ganjil' | 'Genap'>('Ganjil');
 
   // School profile & Subject metadata for calculation
   const schoolProfile = StorageService.getSchoolProfile();

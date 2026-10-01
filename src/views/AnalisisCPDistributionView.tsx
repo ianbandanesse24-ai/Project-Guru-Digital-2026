@@ -92,7 +92,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
 
   // Perangkat Sesuai Format Sekolah Workspace States
   const [selectedPerangkatDocType, setSelectedPerangkatDocType] = useState<string>('modul_ajar');
-  const [selectedPerangkatSemester, setSelectedPerangkatSemester] = useState<'Ganjil' | 'Genap'>('Ganjil');
+  const [selectedPerangkatSemester, setSelectedPerangkatSemester] = useState<'Semester 1' | 'Semester 2' | '1 Tahun'>('Semester 1');
   const [selectedPerangkatTopic, setSelectedPerangkatTopic] = useState<string>('');
   const [selectedPerangkatModel, setSelectedPerangkatModel] = useState<string>('Problem-Based Learning (PBL)');
   const [perangkatDocContent, setPerangkatDocContent] = useState<string>('');
@@ -992,10 +992,17 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
     );
   };
 
-  const triggerGeneratePerangkatDoc = (docType: string = selectedPerangkatDocType, sem: 'Ganjil' | 'Genap' = selectedPerangkatSemester) => {
+  const triggerGeneratePerangkatDoc = (
+    docType: string = selectedPerangkatDocType,
+    sem: 'Semester 1' | 'Semester 2' | '1 Tahun' | 'Ganjil' | 'Genap' = selectedPerangkatSemester
+  ) => {
     setIsGeneratingPerangkatDoc(true);
     setTimeout(() => {
-      const semMaterials = sem === 'Ganjil' ? materialsSem1 : materialsSem2;
+      const semMaterials = sem === 'Semester 1' || sem === 'Ganjil'
+        ? materialsSem1
+        : sem === 'Semester 2' || sem === 'Genap'
+        ? materialsSem2
+        : [...materialsSem1, ...materialsSem2];
       const defaultTopic = selectedPerangkatTopic || (semMaterials.length > 0 ? semMaterials[0].essentialMaterial : `Materi Pokok ${subject}`);
       const currentMat = semMaterials.find(m => m.essentialMaterial === defaultTopic) || semMaterials[0] || null;
       const computedMeetings = currentMat && currentMat.allocatedHours ? Math.max(1, Math.round(currentMat.allocatedHours / (jpPerWeek || 1))) : (currentMat?.meetingCount || 2);
@@ -1046,7 +1053,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
           level,
           grade: Number(grade),
           subject,
-          semester: sem,
+          semester: sem === 'Semester 2' || sem === 'Genap' ? 'Genap' : sem === '1 Tahun' ? '1 Tahun' : 'Ganjil',
           content: doc,
           createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
           updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
@@ -2898,8 +2905,8 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 mb-1">Semester</label>
-                        <div className="grid grid-cols-2 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                          {(['Ganjil', 'Genap'] as const).map((sem) => (
+                        <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                          {(['Semester 1', 'Semester 2', '1 Tahun'] as const).map((sem) => (
                             <button
                               key={sem}
                               type="button"
@@ -2907,7 +2914,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                                 setSelectedPerangkatSemester(sem);
                                 triggerGeneratePerangkatDoc(selectedPerangkatDocType, sem);
                               }}
-                              className={`py-1.5 rounded-lg text-xs font-bold transition ${
+                              className={`py-1.5 px-1 rounded-lg text-[11px] font-bold transition text-center ${
                                 selectedPerangkatSemester === sem
                                   ? 'bg-indigo-600 text-white shadow'
                                   : 'text-slate-400 hover:text-white'
@@ -2940,7 +2947,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
 
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 mb-1">
-                        Fokus Materi / TP Pembelajaran:
+                        Fokus Materi / TP Pembelajaran ({selectedPerangkatSemester}):
                       </label>
                       <select
                         value={selectedPerangkatTopic}
@@ -2950,8 +2957,13 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                         }}
                         className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:outline-none focus:border-indigo-500"
                       >
-                        <option value="">Semua Materi / Otomatis dari CP</option>
-                        {(selectedPerangkatSemester === 'Ganjil' ? materialsSem1 : materialsSem2).map((m, idx) => (
+                        <option value="">Semua Materi / Otomatis dari CP ({selectedPerangkatSemester})</option>
+                        {(selectedPerangkatSemester === 'Semester 1'
+                          ? materialsSem1
+                          : selectedPerangkatSemester === 'Semester 2'
+                          ? materialsSem2
+                          : [...materialsSem1, ...materialsSem2]
+                        ).map((m, idx) => (
                           <option key={idx} value={m.essentialMaterial}>
                             TP {idx + 1}: {m.essentialMaterial} ({m.allocatedHours} JP)
                           </option>

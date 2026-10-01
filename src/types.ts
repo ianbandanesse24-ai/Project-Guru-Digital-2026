@@ -203,7 +203,7 @@ export type UserNotification = NotificationItem;
 
 export type SchoolLevel = 'SD' | 'SMP' | 'SMA' | 'SMK';
 export type EducationLevel = SchoolLevel;
-export type SemesterType = 'Ganjil' | 'Genap';
+export type SemesterType = 'Ganjil' | 'Genap' | '1 Tahun';
 
 export interface SchoolProfile {
   schoolName: string;

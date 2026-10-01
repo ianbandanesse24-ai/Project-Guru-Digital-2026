@@ -261,7 +261,13 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
     master: ActiveMasterCPData | null = activeMasterCP,
     ctx = syncedContext
   ) => {
-    const isGanjil = (sem as string) === 'Ganjil' || (sem as string) === '1';
+    const isYear = (sem as string) === '1 Tahun' || (sem as string) === 'year';
+    if (isYear) {
+      const s1 = (master?.materialsSem1 && master.materialsSem1.length > 0) ? master.materialsSem1 : (ctx?.sem1Materials || []);
+      const s2 = (master?.materialsSem2 && master.materialsSem2.length > 0) ? master.materialsSem2 : (ctx?.sem2Materials || []);
+      return [...s1, ...s2];
+    }
+    const isGanjil = (sem as string) === 'Ganjil' || (sem as string) === '1' || (sem as string) === 'Semester 1';
     const masterMats = isGanjil ? master?.materialsSem1 : master?.materialsSem2;
     if (masterMats && masterMats.length > 0) return masterMats;
     const ctxMats = isGanjil ? ctx?.sem1Materials : ctx?.sem2Materials;
@@ -1456,28 +1462,39 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                     {availableBabMaterials.length} Bab Profil Guru
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleSemesterChange('Ganjil')}
-                    className={`py-1.5 px-3 rounded-lg font-semibold text-xs transition border ${
+                    className={`py-1.5 px-2 rounded-lg font-semibold text-[11px] text-center transition border ${
                       semester === 'Ganjil'
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                         : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-300'
                     }`}
                   >
-                    Semester 1 (Ganjil)
+                    Semester 1
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSemesterChange('Genap')}
-                    className={`py-1.5 px-3 rounded-lg font-semibold text-xs transition border ${
+                    className={`py-1.5 px-2 rounded-lg font-semibold text-[11px] text-center transition border ${
                       semester === 'Genap'
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                         : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-300'
                     }`}
                   >
-                    Semester 2 (Genap)
+                    Semester 2
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSemesterChange('1 Tahun')}
+                    className={`py-1.5 px-2 rounded-lg font-semibold text-[11px] text-center transition border ${
+                      semester === '1 Tahun'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-300'
+                    }`}
+                  >
+                    1 Tahun
                   </button>
                 </div>
               </div>
@@ -2673,11 +2690,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>
-                    {docType === 'modul_ajar'
-                      ? '⚡ 1-Klik Generate RPM Standar Baku Mutlak'
-                      : 'Generate Dokumen dengan AI'}
-                  </span>
+                  <span>Menyusun Perangkat</span>
                 </>
               )}
             </button>
@@ -2721,7 +2734,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
               <div className="max-w-md">
                 <h4 className="text-sm font-bold text-slate-700">Dokumen Belum Dibuat</h4>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Pilih jenis perangkat ajar dan parameter di sebelah kiri, lalu klik <strong>"Generate Dokumen dengan AI"</strong>. Setelah selesai, dokumen bisa diunduh dalam format Word (.doc), PDF, dan Excel (.xlsx).
+                  Pilih jenis perangkat ajar dan parameter di sebelah kiri, lalu klik <strong>"Menyusun Perangkat"</strong>. Setelah selesai, dokumen bisa diunduh dalam format Word (.doc), PDF, dan Excel (.xlsx).
                 </p>
               </div>
             </div>
