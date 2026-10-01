@@ -2,6 +2,16 @@
 <html lang="en">
   <head>
     <script>
+      // React Fast Refresh Preamble stub for Vite Dev & SSR
+      (function() {
+        if (typeof window !== 'undefined') {
+          window.$RefreshReg$ = window.$RefreshReg$ || function() {};
+          window.$RefreshSig$ = window.$RefreshSig$ || function() { return function(type) { return type; }; };
+          window.__vite_plugin_react_preamble_installed__ = true;
+        }
+      })();
+    </script>
+    <script>
       // Filter benign Vite development websocket reconnection messages and false AIS error warnings
       (function() {
         function isViteMessage(args) {

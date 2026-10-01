@@ -4,10 +4,11 @@ import path from 'path';
 import {defineConfig} from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
+  const isBuild = command === 'build';
   const basePath = process.env.VITE_BASE_PATH
     ? (process.env.VITE_BASE_PATH.endsWith('/') ? process.env.VITE_BASE_PATH : `${process.env.VITE_BASE_PATH}/`)
-    : './';
+    : (isBuild ? './' : '/');
 
   return {
     base: basePath,
