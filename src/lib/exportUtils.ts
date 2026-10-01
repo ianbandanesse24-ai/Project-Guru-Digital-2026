@@ -900,12 +900,19 @@ export class ExportService {
 
       closeList();
 
+      // Raw HTML element lines (tables, signature blocks, custom divs, hr)
+      const trimmedLine = line.trim();
+      if (/^<\/?(table|tr|td|th|tbody|thead|tfoot|div|span|p|hr|br|strong|em|u|pre|code)(\s|>|$)/i.test(trimmedLine)) {
+        htmlLines.push(line);
+        continue;
+      }
+
       // Regular paragraph
       const formatted = formatBadgeChip(
         line
           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
           .replace(/\*(.*?)\*/g, '<em>$1</em>')
-          .replace(/`([^`]+)`/g, '<code style="background:#f1f5f9; color:#0f172a; padding:1px 4px; border-radius:3px; font-size:9pt; font-family:monospace;">$1</code>')
+          .replace(/`([^`]+)`/g, '<code style="background:#f1f5f9; color:#0f172a; padding:1px 4px; border-radius:3px; font-family:monospace; font-size:9pt;">$1</code>')
       );
       htmlLines.push(`<p style="margin:6px 0; line-height:1.6; font-size:10.5pt; color:#1e293b; text-align:justify;">${formatted}</p>`);
     }
@@ -1574,19 +1581,20 @@ export class ExportService {
             width: 100%;
             page-break-inside: avoid;
           }
-          .ttd-table {
-            width: 100%;
+          .ttd-table, .signature-table {
+            width: 100% !important;
             border: none !important;
-            border-collapse: collapse;
+            border-collapse: collapse !important;
+            margin-top: 20pt;
           }
-          .ttd-table td {
+          .ttd-table td, .signature-table td {
             border: none !important;
-            text-align: center;
-            width: 50%;
-            vertical-align: top;
-            font-size: 10.5pt;
-            color: #0f172a;
-            padding: 4pt;
+            text-align: center !important;
+            width: 50% !important;
+            vertical-align: top !important;
+            font-size: 10.5pt !important;
+            color: #0f172a !important;
+            padding: 4pt 8pt !important;
           }
           .ttd-space {
             height: 50pt;
@@ -1632,6 +1640,9 @@ export class ExportService {
             ${contentHtml}
           </div>
 
+          ${
+            !contentHtml.includes('signature-table') && !contentHtml.includes('LEMBAR PENGESAHAN')
+              ? `
           <div class="ttd-container">
             <table class="ttd-table">
               <tr>
@@ -1652,6 +1663,9 @@ export class ExportService {
               </tr>
             </table>
           </div>
+              `
+              : ''
+          }
         </div>
       </body>
       </html>
@@ -1862,6 +1876,13 @@ export class ExportService {
           .page-break {
             page-break-before: always;
             break-before: page;
+          }
+          table.signature-table, table.ttd-table,
+          .signature-table td, .signature-table th,
+          .ttd-table td, .ttd-table th {
+            border: none !important;
+            background-color: transparent !important;
+            box-shadow: none !important;
           }
           .ttd-box {
             margin-top: 36px;

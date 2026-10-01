@@ -51,6 +51,64 @@ export interface GenerateCurriculumParams {
   } | null;
 }
 
+/**
+ * Standar Baku Resmi Lembar Pengesahan Dokumen Kurikulum Merdeka & Deep Learning
+ * Rapi, proporsional, simetris, posisi presisi sesuai tata naskah dinas pendidikan:
+ * - Kiri: Mengetahui, Kepala Satuan Pendidikan, Nama Sekolah, Ruang TTD, Nama Jelas Bergaris Bawah, NIP
+ * - Kanan: Kota, Tanggal Penetapan Resmi, Guru Mata Pelajaran, Ruang TTD, Nama Jelas Bergaris Bawah, NIP
+ */
+export function buildOfficialLembarPengesahan(options: {
+  title: string;
+  schoolName: string;
+  city: string;
+  headmasterName: string;
+  headmasterNip: string;
+  teacherName: string;
+  teacherNip: string;
+  dateStr?: string;
+  academicYear?: string;
+  subject?: string;
+  grade?: string | number;
+  phase?: string;
+  customNote?: string;
+}): string {
+  const dateText = options.dateStr || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const yearText = options.academicYear || '2025/2026';
+  const cleanTitle = options.title.toUpperCase().replace(/^LEMBAR PENGESAHAN\s*/, '');
+  const note = options.customNote || `Dokumen **${cleanTitle}** mata pelajaran **${options.subject || 'Mata Pelajaran'}** (${options.phase || 'Fase'} / Kelas ${options.grade || '10'}) ini telah ditelaah, diverifikasi, dan disahkan oleh Kepala Satuan Pendidikan untuk diberlakukan secara resmi sebagai pedoman pelaksanaan Kegiatan Belajar Mengajar (KBM) pada Tahun Pelajaran **${yearText}**.`;
+
+  return `
+---
+
+### LEMBAR PENGESAHAN ${cleanTitle}
+${note}
+
+Ditetapkan di : **${options.city}**  
+Pada tanggal : **${dateText}**
+
+<table class="signature-table" style="width: 100%; border: none !important; border-collapse: collapse; margin-top: 30px; font-size: 10pt; line-height: 1.5;">
+  <tr style="border: none !important;">
+    <td style="width: 50%; border: none !important; text-align: center; vertical-align: top; padding: 4px 16px;">
+      Mengetahui,<br/>
+      <strong>Kepala Satuan Pendidikan</strong><br/>
+      <strong>${options.schoolName}</strong>
+      <div style="height: 65px;"></div>
+      <strong><u>${options.headmasterName}</u></strong><br/>
+      <span>NIP. ${options.headmasterNip}</span>
+    </td>
+    <td style="width: 50%; border: none !important; text-align: center; vertical-align: top; padding: 4px 16px;">
+      ${options.city}, ${dateText}<br/>
+      <strong>Guru Mata Pelajaran</strong><br/>
+      <strong>${options.subject || ''} Kelas ${options.grade || ''}</strong>
+      <div style="height: 65px;"></div>
+      <strong><u>${options.teacherName}</u></strong><br/>
+      <span>NIP. ${options.teacherNip}</span>
+    </td>
+  </tr>
+</table>
+`;
+}
+
 export function generateExpertCurriculumDocument(
   docTypeOrParams: string | GenerateCurriculumParams,
   maybeParams?: GenerateCurriculumParams
@@ -395,6 +453,21 @@ ${sectionETables}
 * **Diferensiasi Konten:** Menyediakan bahan ajar multimodal (teks narasi, infografis visual, video animasi, dan studi kasus riil).
 * **Diferensiasi Proses:** Bimbingan berjenjang (*scaffolding*) bagi kelompok yang membutuhkan bimbingan intensif dan tantangan mandiri untuk kelompok mahir.
 * **Diferensiasi Produk:** Kebebasan memilih bentuk unjuk kerja tugas (laporan tulisan, poster infografis, rekaman podcast audio, atau demonstrasi presentasi video).
+
+${buildOfficialLembarPengesahan({
+  title: 'ANALISIS CP & DISTRIBUSI MATERI',
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  academicYear: resolvedAcademicYear,
+  subject,
+  grade,
+  phase,
+  customNote: `Dokumen Analisis Capaian Pembelajaran (CP) dan Pemetaan Distribusi Materi Pokok ${resolvedSemesterLabel} mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah ditelaah, diverifikasi, dan disahkan oleh Kepala Satuan Pendidikan untuk diberlakukan secara resmi dalam pelaksanaan KBM Tahun Pelajaran **${resolvedAcademicYear}**.`
+})}
 `;
     }
 
@@ -544,24 +617,20 @@ ${inquiryHooks}
 
 ---
 
-### F. LEMBAR PENGESAHAN DOKUMEN TUJUAN PEMBELAJARAN
-Dokumen Perumusan Tujuan Pembelajaran (TP) ini telah disusun sesuai panduan kurikulum mutakhir dan pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*).
-
-Mengetahui,  
-**Kepala Satuan Pendidikan**  
-
-<br><br><br>
-
-**${headmasterName}**  
-NIP. ${headmasterNip}  
-
-${city}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}  
-**Guru Mata Pelajaran**  
-
-<br><br><br>
-
-**${teacherName}**  
-NIP. ${teacherNip}
+${buildOfficialLembarPengesahan({
+  title: 'PERUMUSAN TUJUAN PEMBELAJARAN (TP)',
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  academicYear: resolvedAcademicYear,
+  subject,
+  grade,
+  phase,
+  customNote: `Dokumen Perumusan Tujuan Pembelajaran (TP) ${resolvedSemesterLabel} mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah disusun sesuai panduan kurikulum mutakhir dan pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*), serta disahkan oleh Kepala Satuan Pendidikan untuk Tahun Pelajaran **${resolvedAcademicYear}**.`
+})}
 `;
     }
 
@@ -650,10 +719,20 @@ ${kronologisTahapan}
 
 ---
 
-### E. PENGESAHAN DOKUMEN ALUR TUJUAN PEMBELAJARAN
-| Mengetahui,<br>**Kepala Satuan Pendidikan** | ${city}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br>**Guru Mata Pelajaran** |
-| :--- | :--- |
-| <br><br><br>**${headmasterName}**<br>NIP. ${headmasterNip} | <br><br><br>**${teacherName}**<br>NIP. ${teacherNip} |
+${buildOfficialLembarPengesahan({
+  title: 'ALUR TUJUAN PEMBELAJARAN (ATP)',
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  academicYear: resolvedAcademicYear,
+  subject,
+  grade,
+  phase,
+  customNote: `Dokumen Alur Tujuan Pembelajaran (ATP) ${resolvedSemesterLabel} mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diperiksa, diverifikasi, dan disahkan sesuai Standar Baku Resmi Kemendikbudristek dan Pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*) untuk Tahun Pelajaran **${resolvedAcademicYear}**.`
+})}
 `;
       }
 
@@ -802,25 +881,20 @@ ${tableRows.join('\n')}
 
 ---
 
-### D. PENGESAHAN DOKUMEN ALUR TUJUAN PEMBELAJARAN
-Dokumen Alur Tujuan Pembelajaran (ATP) ini telah diperiksa dan disahkan sesuai standar kurikulum nasional dan pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*).
-
-<table style="width: 100%; border: none; margin-top: 30px; font-size: 10pt; text-align: center;">
-  <tr>
-    <td style="width: 50%; border: none; vertical-align: top;">
-      Mengetahui,<br/>
-      <strong>Kepala Satuan Pendidikan</strong><br/><br/><br/><br/>
-      <strong><u>${headmasterName}</u></strong><br/>
-      NIP. ${headmasterNip}
-    </td>
-    <td style="width: 50%; border: none; vertical-align: top;">
-      ${city}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>
-      <strong>Guru Mata Pelajaran</strong><br/><br/><br/><br/>
-      <strong><u>${teacherName}</u></strong><br/>
-      NIP. ${teacherNip}
-    </td>
-  </tr>
-</table>
+${buildOfficialLembarPengesahan({
+  title: 'ALUR TUJUAN PEMBELAJARAN (ATP)',
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  academicYear: resolvedAcademicYear,
+  subject,
+  grade,
+  phase,
+  customNote: `Dokumen Alur Tujuan Pembelajaran (ATP) ${resolvedSemesterLabel} mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diperiksa, diverifikasi, dan disahkan sesuai Standar Baku Resmi 10 Kolom Kemendikbudristek dan Pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*) untuk Tahun Pelajaran **${resolvedAcademicYear}**.`
+})}
 `;
     }
 
@@ -962,25 +1036,20 @@ ${sem2Materials.length > 0 ? sem2Materials.map((m, idx) => {
 
 ---
 
-### G. LEMBAR PENGESAHAN ANALISIS ALOKASI WAKTU
-Dokumen Analisis Alokasi Waktu dan Rincian Pekan Efektif (RBE) ini telah diperiksa, disetujui, dan disahkan sebagai acuan resmi pelaksanaan Kegiatan Belajar Mengajar berbasis Kurikulum Merdeka dan Pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*).
-
-<table style="width: 100%; border: none; margin-top: 30px; font-size: 10pt; text-align: center;">
-  <tr>
-    <td style="width: 50%; border: none; vertical-align: top;">
-      Mengetahui,<br/>
-      <strong>Kepala Satuan Pendidikan</strong><br/><br/><br/><br/>
-      <strong><u>${headmasterName}</u></strong><br/>
-      NIP. ${headmasterNip}
-    </td>
-    <td style="width: 50%; border: none; vertical-align: top;">
-      ${city}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>
-      <strong>Guru Mata Pelajaran</strong><br/><br/><br/><br/>
-      <strong><u>${teacherName}</u></strong><br/>
-      NIP. ${teacherNip}
-    </td>
-  </tr>
-</table>
+${buildOfficialLembarPengesahan({
+  title: 'ANALISIS ALOKASI WAKTU & RINCIAN PEKAN EFEKTIF (RBE)',
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  academicYear: resolvedAcademicYear,
+  subject,
+  grade,
+  phase,
+  customNote: `Dokumen Analisis Alokasi Waktu dan Rincian Pekan Efektif (RBE) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diperiksa, disetujui, dan disahkan sebagai acuan resmi pelaksanaan Kegiatan Belajar Mengajar berbasis Kurikulum Merdeka dan Pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*) pada Tahun Pelajaran **${resolvedAcademicYear}**.`
+})}
 `;
     }
 
@@ -1104,25 +1173,20 @@ ${protaRows.join('\n')}
 
 ---
 
-### PENGESAHAN DOKUMEN PROGRAM TAHUNAN
-Dokumen Program Tahunan (PROTA) ini telah diverifikasi dan disahkan sebagai pedoman alokasi waktu dan distribusi alur tujuan pembelajaran selama satu tahun pelajaran berbasis Kurikulum Merdeka dan Pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*).
-
-<table style="width: 100%; border: none; margin-top: 30px; font-size: 10pt; text-align: center;">
-  <tr>
-    <td style="width: 50%; border: none; vertical-align: top;">
-      Mengetahui,<br/>
-      <strong>Kepala Sekolah</strong><br/><br/><br/><br/>
-      <strong><u>${headmasterName}</u></strong><br/>
-      NIP. ${headmasterNip}
-    </td>
-    <td style="width: 50%; border: none; vertical-align: top;">
-      ${city}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>
-      <strong>Guru Mata Pelajaran</strong><br/><br/><br/><br/>
-      <strong><u>${teacherName}</u></strong><br/>
-      NIP. ${teacherNip}
-    </td>
-  </tr>
-</table>
+${buildOfficialLembarPengesahan({
+  title: 'PROGRAM TAHUNAN (PROTA)',
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  academicYear: resolvedAcademicYear,
+  subject,
+  grade,
+  phase,
+  customNote: `Dokumen Program Tahunan (PROTA) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diverifikasi dan disahkan sebagai pedoman alokasi waktu dan distribusi alur tujuan pembelajaran selama satu tahun pelajaran berbasis Kurikulum Merdeka dan Pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*) pada Tahun Pelajaran **${resolvedAcademicYear}**.`
+})}
 `;
     }
 
@@ -1436,31 +1500,20 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
   </table>
 </div>
 
-<table style="width: 100%; border: none; margin-top: 35px; font-size: 9.5pt; font-family: inherit; line-height: 1.4;">
-  <tr>
-    <td style="width: 45%; border: none; vertical-align: top; text-align: center;">
-      Diverifikasi Oleh<br/>
-      <strong>Waka. Ur. Kurikulum</strong><br/><br/><br/><br/>
-      <strong><u>${wakaName}</u></strong><br/>
-      NIP. ${wakaNip}
-    </td>
-    <td style="width: 10%; border: none;"></td>
-    <td style="width: 45%; border: none; vertical-align: top; text-align: center;">
-      ${city}, ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}<br/>
-      <strong>Guru Mata Pelajaran</strong><br/><br/><br/><br/>
-      <strong><u>${teacherName}</u></strong><br/>
-      NIP. ${teacherNip}
-    </td>
-  </tr>
-  <tr>
-    <td colspan="3" style="border: none; padding-top: 25px; text-align: center;">
-      Mengetahui,<br/>
-      <strong>Plt. Kepala ${schoolName}</strong><br/><br/><br/><br/>
-      <strong><u>${headmasterName}</u></strong><br/>
-      NIP. ${headmasterNip}
-    </td>
-  </tr>
-</table>
+${buildOfficialLembarPengesahan({
+  title: 'LEMBAR PENGESAHAN PROGRAM SEMESTER (PROSEM)',
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  subject,
+  grade,
+  phase,
+  academicYear: resolvedAcademicYear,
+  customNote: `Dokumen **Program Semester (PROSEM)** ${resolvedSemesterLabel} mata pelajaran **${subject}** (${phase} / Kelas ${grade}) Tahun Pelajaran **${resolvedAcademicYear}** ini telah diverifikasi dan disahkan oleh Kepala Satuan Pendidikan untuk diberlakukan secara resmi sebagai pedoman distribusi materi mingguan dan alokasi waktu Kegiatan Belajar Mengajar (KBM).`,
+})}
 `;
     }
 
@@ -1797,6 +1850,21 @@ ${meetingsContent}
 | **3. Partisipasi & Antusiasme Siswa** | ................................................................................................................................ |
 | **4. Kendala & Miskonsepsi yang Muncul** | ................................................................................................................................ |
 | **5. Rencana Perbaikan untuk Pertemuan Berikutnya** | ................................................................................................................................ |
+
+${buildOfficialLembarPengesahan({
+  title: 'MODUL AJAR / RENCANA PELAKSANAAN MODUL (RPM)',
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  academicYear: resolvedAcademicYear,
+  subject,
+  grade,
+  phase,
+  customNote: `Dokumen Modul Ajar / Rencana Pelaksanaan Modul (RPM) Deep Learning (*Mindful, Meaningful, & Joyful Learning*) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) materi **${topic}** ini telah diverifikasi dan disahkan oleh Kepala Satuan Pendidikan untuk diberlakukan secara resmi pada Tahun Pelajaran **${resolvedAcademicYear}**.`
+})}
 `;
     }
 
@@ -1932,7 +2000,22 @@ Gambarkan rancangan diagram ide, bagan sistem prototipe, poster mini, atau ilust
 `);
       }
 
-      return meetingBlocks.join('\n\n<div class="page-break" style="page-break-before:always; break-before:page; margin-top:24px; margin-bottom:18px;"></div>\n\n');
+      const lkpdPengesahan = buildOfficialLembarPengesahan({
+        title: 'LEMBAR KERJA PESERTA DIDIK (LKPD)',
+        schoolName,
+        city,
+        headmasterName,
+        headmasterNip,
+        teacherName,
+        teacherNip,
+        academicYear: resolvedAcademicYear,
+        subject,
+        grade,
+        phase,
+        customNote: `Dokumen Lembar Kerja Peserta Didik (LKPD) Kreatif Berdiferensiasi ${resolvedSemesterLabel} mata pelajaran **${subject}** (${phase} / Kelas ${grade}) materi **${topic}** ini telah diperiksa, disetujui, dan disahkan sebagai instrumen KBM Deep Learning untuk Tahun Pelajaran **${resolvedAcademicYear}**.`
+      });
+
+      return meetingBlocks.join('\n\n<div class="page-break" style="page-break-before:always; break-before:page; margin-top:24px; margin-bottom:18px;"></div>\n\n') + '\n\n' + lkpdPengesahan;
     }
 
     case 'bundle':
@@ -2169,24 +2252,20 @@ ${sampleClassChecklist}
 
 ---
 
-### G. LEMBAR PENGESAHAN DOKUMEN KKTP
-Dokumen Kriteria Ketercapaian Tujuan Pembelajaran (KKTP) ini telah diverifikasi, disetujui, dan disahkan untuk dipergunakan sebagai pedoman evaluasi pembelajaran Deep Learning.
-
-Mengetahui,  
-**Kepala ${schoolName}**  
-
-<br><br><br>
-
-**${headmasterName}**  
-NIP. ${headmasterNip}  
-
-${city}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}  
-**Guru Mata Pelajaran ${subject}**  
-
-<br><br><br>
-
-**${teacherName}**  
-NIP. ${teacherNip}
+${buildOfficialLembarPengesahan({
+  title: 'KRITERIA KETERCAPAIAN TUJUAN PEMBELAJARAN (KKTP)',
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  academicYear: resolvedAcademicYear,
+  subject,
+  grade,
+  phase,
+  customNote: `Dokumen Kriteria Ketercapaian Tujuan Pembelajaran (KKTP) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) materi **${currentMaterial?.essentialMaterial || topic}** ini telah diverifikasi, disetujui, dan disahkan untuk dipergunakan sebagai acuan evaluasi mutu pembelajaran pada Tahun Pelajaran **${resolvedAcademicYear}**.`
+})}
 `;
       }
 
@@ -2276,24 +2355,20 @@ ${sem2MatrixRows}
 
 ---
 
-### F. LEMBAR PENGESAHAN DOKUMEN KKTP TAHUNAN
-Dokumen Kriteria Ketercapaian Tujuan Pembelajaran (KKTP) 1 Tahun Pelajaran ini telah diverifikasi, disetujui, dan disahkan untuk dipergunakan sebagai acuan evaluasi mutu pembelajaran.
-
-Mengetahui,  
-**Kepala ${schoolName}**  
-
-<br><br><br>
-
-**${headmasterName}**  
-NIP. ${headmasterNip}  
-
-${city}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}  
-**Guru Mata Pelajaran ${subject}**  
-
-<br><br><br>
-
-**${teacherName}**  
-NIP. ${teacherNip}
+${buildOfficialLembarPengesahan({
+  title: 'KRITERIA KETERCAPAIAN TUJUAN PEMBELAJARAN (KKTP) TAHUNAN',
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  academicYear: resolvedAcademicYear,
+  subject,
+  grade,
+  phase,
+  customNote: `Dokumen Kriteria Ketercapaian Tujuan Pembelajaran (KKTP) 1 Tahun Pelajaran Penuh (Semester 1 & 2) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diverifikasi, disetujui, dan disahkan untuk dipergunakan sebagai acuan evaluasi mutu pembelajaran pada Tahun Pelajaran **${resolvedAcademicYear}**.`
+})}
 `;
       }
 
@@ -2391,24 +2466,20 @@ ${sampleSemesterChecklist}
 
 ---
 
-### G. LEMBAR PENGESAHAN DOKUMEN KKTP
-Dokumen Kriteria Ketercapaian Tujuan Pembelajaran (KKTP) Semester ${semesterLabel} ini telah diverifikasi, disetujui, dan disahkan untuk dipergunakan sebagai acuan evaluasi pembelajaran Deep Learning.
-
-Mengetahui,  
-**Kepala ${schoolName}**  
-
-<br><br><br>
-
-**${headmasterName}**  
-NIP. ${headmasterNip}  
-
-${city}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}  
-**Guru Mata Pelajaran ${subject}**  
-
-<br><br><br>
-
-**${teacherName}**  
-NIP. ${teacherNip}
+${buildOfficialLembarPengesahan({
+  title: `KRITERIA KETERCAPAIAN TUJUAN PEMBELAJARAN (KKTP) SEMESTER ${semesterLabel.toUpperCase()}`,
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  academicYear: resolvedAcademicYear,
+  subject,
+  grade,
+  phase,
+  customNote: `Dokumen Kriteria Ketercapaian Tujuan Pembelajaran (KKTP) Semester ${semesterLabel} mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diverifikasi, disetujui, dan disahkan untuk dipergunakan sebagai acuan evaluasi pembelajaran Deep Learning pada Tahun Pelajaran **${resolvedAcademicYear}**.`
+})}
 `;
     }
 
@@ -2528,25 +2599,20 @@ $$\text{Nilai Akhir Asesmen (NA)} = \left(\frac{\text{Skor PG (Maks 10)} + \text
 
 ---
 
-### G. LEMBAR PENGESAHAN INSTRUMEN ASESMEN & RUBRIK PENILAIAN
-Dokumen Rubrik Penilaian Terpadu berbasis Kurikulum Merdeka dan Pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*) ini telah diperiksa dan disahkan untuk digunakan dalam evaluasi pembelajaran.
-
-<table style="width: 100%; border: none; margin-top: 30px; font-size: 10pt; text-align: center;">
-  <tr>
-    <td style="width: 50%; border: none; vertical-align: top;">
-      Mengetahui,<br/>
-      <strong>Kepala Satuan Pendidikan</strong><br/><br/><br/><br/>
-      <strong><u>${headmasterName}</u></strong><br/>
-      NIP. ${headmasterNip}
-    </td>
-    <td style="width: 50%; border: none; vertical-align: top;">
-      ${city}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>
-      <strong>Guru Mata Pelajaran</strong><br/><br/><br/><br/>
-      <strong><u>${teacherName}</u></strong><br/>
-      NIP. ${teacherNip}
-    </td>
-  </tr>
-</table>
+${buildOfficialLembarPengesahan({
+  title: 'INSTRUMEN ASESMEN & RUBRIK PENILAIAN',
+  schoolName,
+  city,
+  headmasterName,
+  headmasterNip,
+  teacherName,
+  teacherNip,
+  academicYear: resolvedAcademicYear,
+  subject,
+  grade,
+  phase,
+  customNote: `Dokumen Rubrik Penilaian Terpadu berbasis Kurikulum Merdeka dan Pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) materi **${topic}** ini telah diperiksa, diverifikasi, dan disahkan oleh Kepala Satuan Pendidikan untuk digunakan dalam evaluasi pembelajaran Tahun Pelajaran **${resolvedAcademicYear}**.`
+})}
 `;
 
     default:
@@ -2650,19 +2716,23 @@ Menyatakan bahwa Perangkat Ajar Kurikulum Merdeka ini telah memenuhi standar kom
 Ditetapkan dan disahkan di : **${city}**  
 Pada tanggal : **${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}**
 
-<table style="width: 100%; border: none; margin-top: 36px; font-size: 10.5pt; text-align: center;">
-  <tr>
-    <td style="width: 50%; border: none; vertical-align: top;">
+<table class="signature-table" style="width: 100%; border: none !important; border-collapse: collapse; margin-top: 36px; font-size: 10.5pt; text-align: center; line-height: 1.5;">
+  <tr style="border: none !important;">
+    <td style="width: 50%; border: none !important; vertical-align: top; text-align: center; padding: 4px 16px;">
       Mengetahui,<br/>
-      <strong>Kepala Satuan Pendidikan</strong><br/><br/><br/><br/>
+      <strong>Kepala Satuan Pendidikan</strong><br/>
+      <strong>${schoolName}</strong>
+      <div style="height: 65px;"></div>
       <strong><u>${headmasterName}</u></strong><br/>
-      NIP. ${headmasterNip}
+      <span>NIP. ${headmasterNip}</span>
     </td>
-    <td style="width: 50%; border: none; vertical-align: top;">
-      Penyusun,<br/>
-      <strong>Guru Mata Pelajaran</strong><br/><br/><br/><br/>
+    <td style="width: 50%; border: none !important; vertical-align: top; text-align: center; padding: 4px 16px;">
+      ${city}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>
+      <strong>Guru Mata Pelajaran</strong><br/>
+      <strong>${subject} Kelas ${grade}</strong>
+      <div style="height: 65px;"></div>
       <strong><u>${teacherName}</u></strong><br/>
-      NIP. ${teacherNip}
+      <span>NIP. ${teacherNip}</span>
     </td>
   </tr>
 </table>

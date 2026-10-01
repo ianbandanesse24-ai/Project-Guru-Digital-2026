@@ -1147,7 +1147,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                 className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center space-x-1.5 transition shadow-sm disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-                <span>Regenerate Dokumen</span>
+                <span>Susun Ulang Perangkat</span>
               </button>
             </div>
           </div>

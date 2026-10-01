@@ -2862,7 +2862,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                       ) : (
                         <Zap className="w-4 h-4 text-slate-950 fill-current" />
                       )}
-                      <span>Generate Ulang</span>
+                      <span>Susun Ulang Perangkat</span>
                     </button>
                   </div>
                 </div>

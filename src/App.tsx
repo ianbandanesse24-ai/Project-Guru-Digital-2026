@@ -11,6 +11,7 @@ import {
   Zap,
   ShieldCheck,
   RotateCcw,
+  Palette,
 } from 'lucide-react';
 import { UserAccount, UserNotification, SchoolProfile, AppTheme, TokenQuotaStatus } from './types';
 import { StorageService, addStorageListener } from './lib/storage';
@@ -639,6 +640,17 @@ export default function App() {
               >
                 <School className="w-3.5 h-3.5 text-blue-600" />
                 <span className="text-[11px] font-semibold text-slate-700">Kop Sekolah</span>
+              </button>
+
+              {/* Pilihan Tema Bebas */}
+              <button
+                id="btn-open-theme-customizer"
+                onClick={() => setShowThemeModal(true)}
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-colors duration-150"
+                title="Pilihan Tema Bebas (Warna, Font, Menu, Kerapatan)"
+              >
+                <Palette className="w-3.5 h-3.5 text-blue-600" />
+                <span className="hidden sm:inline text-[11px] font-semibold text-slate-700">Tema Tampilan</span>
               </button>
 
               {/* Notifications */}

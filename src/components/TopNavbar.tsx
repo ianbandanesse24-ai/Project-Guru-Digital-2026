@@ -15,6 +15,7 @@ import {
   MessageSquare,
   ShieldCheck,
   RotateCcw,
+  Palette,
 } from 'lucide-react';
 import { AppThemeConfig } from '../types';
 import { AMDLogo } from './AMDLogo';
@@ -235,6 +236,21 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           <MessageSquare className="w-3.5 h-3.5" />
           <span>Saran & Masukan</span>
         </button>
+
+        {/* Pilihan Tema Bebas */}
+        {onOpenThemeModal && (
+          <button
+            onClick={() => {
+              onOpenThemeModal();
+              setOpenDropdown(null);
+            }}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors shadow-2xs"
+            title="Pilihan Tema Bebas (Warna, Font, Tata Letak)"
+          >
+            <Palette className="w-3.5 h-3.5 text-blue-600" />
+            <span>Pilihan Tema</span>
+          </button>
+        )}
 
         {/* Reset Kurikulum & Perangkat (24 Jam) Shortcut - Admin Only */}
         {isAdmin && onOpenResetModal && (

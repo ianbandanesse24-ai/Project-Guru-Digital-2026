@@ -446,6 +446,16 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
                   border-radius: 6px;
                   border: 1px solid #cbd5e1;
                 }
+                .pdf-document-sheet table.signature-table,
+                .pdf-document-sheet table.ttd-table,
+                .pdf-document-sheet .signature-table td,
+                .pdf-document-sheet .signature-table th,
+                .pdf-document-sheet .ttd-table td,
+                .pdf-document-sheet .ttd-table th {
+                  border: none !important;
+                  background-color: transparent !important;
+                  box-shadow: none !important;
+                }
                 .pdf-document-sheet .ttd-box {
                   margin-top: 36px;
                   padding-top: 16px;
