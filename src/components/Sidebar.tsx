@@ -34,6 +34,7 @@ import {
   BookOpen,
   UploadCloud,
   Calculator,
+  Layers,
 } from 'lucide-react';
 import { UserAccount, AppTheme } from '../types';
 import { useOfflineSync } from '../lib/offlineManager';
@@ -81,13 +82,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   } = useOfflineSync();
 
   const handleSelectView = (viewId: string) => {
-    if (typeof setActiveView === 'function') {
-      setActiveView(viewId);
-    }
     if (typeof onSelectView === 'function') {
       onSelectView(viewId);
-    }
-    if (typeof onNavigate === 'function') {
+    } else if (typeof setActiveView === 'function') {
+      setActiveView(viewId);
+    } else if (typeof onNavigate === 'function') {
       onNavigate(viewId);
     }
   };
@@ -112,10 +111,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
       desc: 'Jam Tatap Muka Guru',
     },
     {
+      id: 'agenda',
+      label: 'Agenda Harian Mengajar',
+      icon: ClipboardList,
+      desc: 'Catatan Agenda & Pertemuan',
+    },
+    {
       id: 'jurnal',
       label: 'Jurnal Mengajar',
       icon: BookMarked,
       desc: 'Refleksi Guru & Supervisi',
+    },
+    {
+      id: 'guru_wali',
+      label: 'Buku Wali Kelas & Rekap',
+      icon: BookOpen,
+      desc: 'Nilai & Catatan Siswa Binaan',
     },
     {
       id: 'cetak_laporan',
@@ -147,6 +158,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Sliders,
       badge: 'Deep Learning',
       desc: 'Bab, Materi Pokok & Alokasi JP',
+    },
+    {
+      id: 'upload_cp_master',
+      label: 'Upload & Analisis CP Master',
+      icon: BookOpen,
+      desc: 'Upload Dokumen CP Resmi & Analisis',
+    },
+    {
+      id: 'analisis_cp_distribusi',
+      label: 'Matriks Distribusi CP & Bab',
+      icon: Layers,
+      desc: 'Tabel Pemetaan Bab TP & Jam',
     },
     {
       id: 'ai_analisis_cp',
@@ -244,6 +267,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Database,
       badge: 'Auto-Sync',
       desc: 'Dual Cloud & Git Backup',
+    },
+    {
+      id: 'saran',
+      label: 'Kotak Saran & Masukan',
+      icon: MessageSquareHeart,
+      desc: 'Kritik, Masukan & Saran Fitur',
     },
   ];
 

@@ -680,6 +680,7 @@ export type ThemeMenuPosition = 'left' | 'right' | 'top';
 export type ThemeDensity = 'comfortable' | 'compact';
 export type ThemeRadius = 'standard' | 'sharp' | 'soft';
 export type ThemeContentWidth = 'boxed' | 'wide';
+export type PlatformMode = 'auto' | 'android' | 'ios' | 'windows';
 
 export interface AppThemeConfig {
   preset: ThemeColorPreset;
@@ -688,6 +689,7 @@ export interface AppThemeConfig {
   density: ThemeDensity;
   radius: ThemeRadius;
   contentWidth: ThemeContentWidth;
+  platformMode?: PlatformMode;
 }
 
 export type AppTheme = AppThemeConfig | ThemeColorPreset | 'dark' | 'light' | 'slate' | 'emerald';

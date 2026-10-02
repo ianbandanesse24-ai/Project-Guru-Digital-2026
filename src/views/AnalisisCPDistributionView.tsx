@@ -35,6 +35,7 @@ import {
   UploadCloud,
   Zap,
   Calculator,
+  FolderSync,
 } from 'lucide-react';
 import {
   SchoolLevel,
@@ -1266,6 +1267,28 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2">
+          {onNavigate && (
+            <>
+              <button
+                type="button"
+                onClick={() => onNavigate('ai_analisis_cp')}
+                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition shadow cursor-pointer"
+                title="Buka format dokumen hasil analisis CP resmi siap cetak"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Dokumen Resmi Siap Cetak</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate('upload_cp_master')}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer"
+                title="Buka upload dokumen CP master terpusat"
+              >
+                <FolderSync className="w-3.5 h-3.5 text-slate-400" />
+                <span>Master CP</span>
+              </button>
+            </>
+          )}
           <button
             onClick={handleSavePlan}
             disabled={isSaving}

@@ -36,6 +36,8 @@ import {
   Compass,
   UploadCloud,
   Calculator,
+  ClipboardList,
+  BookOpen,
 } from 'lucide-react';
 import { UserAccount, SchoolProfile, AppTheme, ActiveMasterCPData } from '../types';
 import { StorageService } from '../lib/storage';
@@ -131,10 +133,24 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       category: 'admin',
     },
     {
+      id: 'agenda',
+      title: 'Agenda Harian Mengajar',
+      desc: 'Catatan kegiatan pembelajaran, tanggal pertemuan, dan keterlaksanaan',
+      icon: ClipboardList,
+      category: 'admin',
+    },
+    {
       id: 'jurnal',
       title: 'Jurnal Mengajar',
       desc: 'Refleksi pedagogis harian, catatan supervisi, dan tindak lanjut',
       icon: BookMarked,
+      category: 'admin',
+    },
+    {
+      id: 'guru_wali',
+      title: 'Buku Wali Kelas & Rekap',
+      desc: 'Rekapitulasi nilai, catatan kepribadian, dan biodata siswa asuh',
+      icon: BookOpen,
       category: 'admin',
     },
     {
@@ -171,6 +187,22 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       icon: Sliders,
       category: 'kaldik',
       badge: 'Deep Learning',
+    },
+    {
+      id: 'upload_cp_master',
+      title: 'Upload & Analisis CP Master',
+      desc: 'Upload dokumen Capaian Pembelajaran resmi dan analisis otomatis',
+      icon: BookOpen,
+      category: 'ai',
+      badge: 'Master CP',
+    },
+    {
+      id: 'analisis_cp_distribusi',
+      title: 'Matriks Distribusi CP & Bab',
+      desc: 'Pemetaan materi pokok, bab, dan pembagian semester ganjil-genap',
+      icon: Layers,
+      category: 'ai',
+      badge: 'Matriks TP',
     },
     {
       id: 'ai_analisis_cp',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Menu,
   X,
@@ -12,6 +12,11 @@ import {
   ShieldCheck,
   RotateCcw,
   Palette,
+  LayoutDashboard,
+  Users,
+  FileSearch,
+  FileText,
+  Calendar,
 } from 'lucide-react';
 import { UserAccount, UserNotification, SchoolProfile, AppTheme, TokenQuotaStatus } from './types';
 import { StorageService, addStorageListener } from './lib/storage';
@@ -122,14 +127,31 @@ export default function App() {
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
+  const mainContentRef = useRef<HTMLElement>(null);
+
+  const handleNavigateView = (viewId: string) => {
+    setActiveView(viewId);
+    setIsMobileSidebarOpen(false);
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  };
+
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [activeView]);
+
   const handleLoginSuccess = (user: UserAccount) => {
     setCurrentUser(user);
     setTokenQuota(StorageService.getTokenQuotaStatus(user));
     setSchoolProfile(StorageService.getSchoolProfile());
     setNotifications(StorageService.getNotifications());
     setShowAuthModal(false);
-    setActiveView('welcome_sync');
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    handleNavigateView('welcome_sync');
   };
 
   const handleLogout = () => {
@@ -147,7 +169,7 @@ export default function App() {
     StorageService.setCurrentUser(null);
     setCurrentUser(null);
     setShowAuthModal(true);
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    handleNavigateView('welcome_sync');
   };
 
   const handleClearNotifications = () => {
@@ -204,9 +226,6 @@ export default function App() {
       case 'pembagian_materi':
       case 'deep_learning':
         return { label: 'Parameter Kurikulum & Bab TP', category: 'Kurikulum & Perangkat' };
-      case 'ai_bundle':
-      case 'bundle':
-        return { label: '📦 Bundel 1 Perangkat Ajar Lengkap', category: 'Kurikulum & Perangkat' };
       case 'ai_analisis_cp':
       case 'analisis_cp':
       case 'cp':
@@ -280,7 +299,7 @@ export default function App() {
       return (
         <WelcomeSyncView
           currentUser={currentUser}
-          onNavigate={(viewId) => setActiveView(viewId)}
+          onNavigate={handleNavigateView}
         />
       );
     }
@@ -289,7 +308,7 @@ export default function App() {
       return (
         <DashboardHomeView
           currentUser={currentUser}
-          onNavigate={(viewId) => setActiveView(viewId)}
+          onNavigate={handleNavigateView}
           onOpenSchoolProfile={() => setShowSchoolModal(true)}
           theme={theme}
         />
@@ -304,34 +323,38 @@ export default function App() {
       return <KelasSiswaView />;
     }
     if (activeView === 'admin_upload_cp' || activeView === 'upload_cp' || activeView === 'upload_cp_master') {
-      if (currentUser.role !== 'admin') {
-        return <AIAssistantView initialDocType="ai_analisis_cp" onNavigate={(v) => setActiveView(v)} />;
-      }
-      return <UploadCPMasterView onNavigate={(v) => setActiveView(v)} />;
+      return <UploadCPMasterView onNavigate={handleNavigateView} />;
+    }
+    if (
+      activeView === 'analisis_cp_distribusi' ||
+      activeView === 'ai_analisis_cp_distribusi' ||
+      activeView === 'cp_distribusi'
+    ) {
+      return <AnalisisCPDistributionView onNavigate={handleNavigateView} />;
     }
     if (activeView === 'ai_analisis_cp' || activeView === 'analisis_cp' || activeView === 'cp') {
-      return <AIAssistantView initialDocType="ai_analisis_cp" onNavigate={(v) => setActiveView(v)} />;
+      return <AIAssistantView key="analisis_cp" initialDocType="ai_analisis_cp" onNavigate={handleNavigateView} />;
     }
     if (activeView === 'ai_tp' || activeView === 'tp') {
-      return <AIAssistantView initialDocType="ai_tp" onNavigate={(v) => setActiveView(v)} />;
+      return <AIAssistantView key="tp" initialDocType="ai_tp" onNavigate={handleNavigateView} />;
     }
     if (activeView === 'ai_atp' || activeView === 'atp') {
-      return <AIAssistantView initialDocType="ai_atp" onNavigate={(v) => setActiveView(v)} />;
+      return <AIAssistantView key="atp" initialDocType="ai_atp" onNavigate={handleNavigateView} />;
     }
     if (activeView === 'ai_prota' || activeView === 'prota') {
-      return <AIAssistantView initialDocType="ai_prota" onNavigate={(v) => setActiveView(v)} />;
+      return <AIAssistantView key="prota" initialDocType="ai_prota" onNavigate={handleNavigateView} />;
     }
     if (activeView === 'ai_prosem' || activeView === 'prosem') {
-      return <AIAssistantView initialDocType="ai_prosem" onNavigate={(v) => setActiveView(v)} />;
+      return <AIAssistantView key="prosem" initialDocType="ai_prosem" onNavigate={handleNavigateView} />;
     }
     if (activeView === 'ai_kktp' || activeView === 'kktp') {
-      return <AIAssistantView initialDocType="ai_kktp" onNavigate={(v) => setActiveView(v)} />;
+      return <AIAssistantView key="kktp" initialDocType="ai_kktp" onNavigate={handleNavigateView} />;
     }
     if (activeView === 'ai_modul_ajar' || activeView === 'modul_ajar' || activeView === 'rpm') {
-      return <AIAssistantView initialDocType="ai_modul_ajar" onNavigate={(v) => setActiveView(v)} />;
+      return <AIAssistantView key="modul_ajar" initialDocType="ai_modul_ajar" onNavigate={handleNavigateView} />;
     }
     if (activeView === 'ai_lkpd' || activeView === 'lkpd') {
-      return <AIAssistantView initialDocType="ai_lkpd" onNavigate={(v) => setActiveView(v)} />;
+      return <AIAssistantView key="lkpd" initialDocType="ai_lkpd" onNavigate={handleNavigateView} />;
     }
     if (
       activeView === 'ai_rubrik_penilaian' ||
@@ -339,13 +362,13 @@ export default function App() {
       activeView === 'rubrik' ||
       activeView === 'rubrik_penilaian'
     ) {
-      return <AIAssistantView initialDocType="ai_rubrik_penilaian" onNavigate={(v) => setActiveView(v)} />;
+      return <AIAssistantView key="rubrik_penilaian" initialDocType="ai_rubrik_penilaian" onNavigate={handleNavigateView} />;
     }
     if (
       activeView === 'profil_guru_mapel' ||
       activeView === 'profil_guru'
     ) {
-      return <ProfilGuruMapelView onNavigate={(v) => setActiveView(v)} />;
+      return <ProfilGuruMapelView onNavigate={handleNavigateView} />;
     }
     if (
       activeView === 'kalender_pendidikan' ||
@@ -360,18 +383,15 @@ export default function App() {
         activeView === 'ai_analisis_alokasi_waktu'
           ? 'analisis'
           : 'upload';
-      return <KalenderPendidikanView initialTab={initialTab} onNavigate={(v) => setActiveView(v)} />;
+      return <KalenderPendidikanView initialTab={initialTab} onNavigate={handleNavigateView} />;
     }
     if (
       activeView === 'parameter_kurikulum' ||
       activeView === 'parameter_belajar' ||
-      activeView === 'analisis_cp_distribusi' ||
-      activeView === 'ai_analisis_cp_distribusi' ||
-      activeView === 'cp_distribusi' ||
       activeView === 'pembagian_materi' ||
       activeView === 'deep_learning'
     ) {
-      return <ParameterKurikulumView initialTab="parameter_materi" onNavigate={(v) => setActiveView(v)} />;
+      return <ParameterKurikulumView initialTab="parameter_materi" onNavigate={handleNavigateView} />;
     }
     if (activeView === 'absensi' || activeView === 'attendance') return <AbsensiView />;
     if (activeView === 'jadwal' || activeView === 'schedule') return <JadwalView />;
@@ -396,7 +416,7 @@ export default function App() {
       activeView === 'admin_api_config'
     ) {
       if (currentUser.role !== 'admin') {
-        return <DashboardHomeView currentUser={currentUser} onNavigate={setActiveView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
+        return <DashboardHomeView currentUser={currentUser} onNavigate={handleNavigateView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
       }
       return (
         <div className="max-w-7xl mx-auto py-2">
@@ -405,27 +425,27 @@ export default function App() {
       );
     }
 
-    // AI Assistant Views
+    // Perangkat Ajar & Modul Views
     if (activeView.startsWith('ai_')) {
-      return <AIAssistantView initialDocType={activeView} onNavigate={(v) => setActiveView(v)} />;
+      return <AIAssistantView initialDocType={activeView} onNavigate={handleNavigateView} />;
     }
 
-    // Admin & Supabase Sync Views (Protected - Only for Admin)
+    // Admin Views (Protected - Only for Admin)
     if (activeView === 'admin_tokens' || activeView === 'admin_token_management') {
       if (currentUser.role !== 'admin') {
-        return <DashboardHomeView currentUser={currentUser} onNavigate={setActiveView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
+        return <DashboardHomeView currentUser={currentUser} onNavigate={handleNavigateView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
       }
       return <AdminDashboardView initialSubTab="tokens" />;
     }
     if (activeView === 'admin_dashboard' || activeView === 'admin_activity_logs') {
       if (currentUser.role !== 'admin') {
-        return <DashboardHomeView currentUser={currentUser} onNavigate={setActiveView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
+        return <DashboardHomeView currentUser={currentUser} onNavigate={handleNavigateView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
       }
       return <AdminDashboardView initialSubTab="dashboard" />;
     }
     if (activeView === 'admin_access' || activeView === 'admin_user_approval') {
       if (currentUser.role !== 'admin') {
-        return <DashboardHomeView currentUser={currentUser} onNavigate={setActiveView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
+        return <DashboardHomeView currentUser={currentUser} onNavigate={handleNavigateView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
       }
       return <AdminDashboardView initialSubTab="access" />;
     }
@@ -435,7 +455,7 @@ export default function App() {
       activeView === 'admin_supabase'
     ) {
       if (currentUser.role !== 'admin') {
-        return <DashboardHomeView currentUser={currentUser} onNavigate={setActiveView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
+        return <DashboardHomeView currentUser={currentUser} onNavigate={handleNavigateView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
       }
       return <SupabaseSyncView />;
     }
@@ -444,7 +464,7 @@ export default function App() {
       return <SaranView currentUser={currentUser} />;
     }
 
-    return <DashboardHomeView currentUser={currentUser} onNavigate={setActiveView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
+    return <DashboardHomeView currentUser={currentUser} onNavigate={handleNavigateView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
   };
 
   // If not logged in or in auth screen, render only the Auth Page
@@ -477,18 +497,9 @@ export default function App() {
           >
             <Sidebar
               activeView={activeView}
-              setActiveView={(view) => {
-                setActiveView(view);
-                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-              }}
-              onSelectView={(view) => {
-                setActiveView(view);
-                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-              }}
-              onNavigate={(view) => {
-                setActiveView(view);
-                window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-              }}
+              setActiveView={handleNavigateView}
+              onSelectView={handleNavigateView}
+              onNavigate={handleNavigateView}
               currentUser={currentUser}
               onLogout={handleLogout}
               theme={theme}
@@ -534,21 +545,9 @@ export default function App() {
               <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <Sidebar
                   activeView={activeView}
-                  setActiveView={(view) => {
-                    setActiveView(view);
-                    setIsMobileSidebarOpen(false);
-                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                  }}
-                  onSelectView={(view) => {
-                    setActiveView(view);
-                    setIsMobileSidebarOpen(false);
-                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                  }}
-                  onNavigate={(view) => {
-                    setActiveView(view);
-                    setIsMobileSidebarOpen(false);
-                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-                  }}
+                  setActiveView={handleNavigateView}
+                  onSelectView={handleNavigateView}
+                  onNavigate={handleNavigateView}
                   currentUser={currentUser}
                   onLogout={handleLogout}
                   theme={theme}
@@ -743,15 +742,84 @@ export default function App() {
           )}
 
           {/* Main Content Area */}
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar bg-slate-50">
+          <main ref={mainContentRef} className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar bg-slate-50 pb-24 lg:pb-8">
             <div className={normalizedTheme.contentWidth === 'wide' ? 'w-full' : 'max-w-7xl mx-auto'}>
-              <ErrorBoundary fallbackTitle="Kendala Memuat Halaman" onReset={() => setActiveView('dashboard')}>
+              <ErrorBoundary fallbackTitle="Kendala Memuat Halaman" onReset={() => handleNavigateView('dashboard')}>
                 {renderActiveView()}
               </ErrorBoundary>
             </div>
           </main>
         </div>
       </div>
+
+      {/* Mobile & Tablet Bottom Navigation Dock (Android & iOS) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1 shadow-lg pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+        <div className="flex items-center justify-around">
+          {/* 1. Dashboard */}
+          <button
+            id="mobile-nav-dashboard"
+            onClick={() => handleNavigateView('dashboard')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[10px] font-semibold transition active:scale-95 cursor-pointer ${
+              activeView === 'dashboard' ? 'text-blue-600 font-bold bg-blue-50/80' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <LayoutDashboard className="w-5 h-5 mb-0.5" />
+            <span>Beranda</span>
+          </button>
+
+          {/* 2. Administrasi */}
+          <button
+            id="mobile-nav-administrasi"
+            onClick={() => handleNavigateView('kelas_siswa')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[10px] font-semibold transition active:scale-95 cursor-pointer ${
+              ['kelas_siswa', 'absensi', 'jadwal', 'agenda', 'jurnal', 'guru_wali', 'cetak_laporan'].includes(activeView)
+                ? 'text-blue-600 font-bold bg-blue-50/80'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Users className="w-5 h-5 mb-0.5" />
+            <span>Administrasi</span>
+          </button>
+
+          {/* 3. Analisis CP (Direct Quick-Access!) */}
+          <button
+            id="mobile-nav-analisis-cp"
+            onClick={() => handleNavigateView('ai_analisis_cp')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[10px] font-semibold transition active:scale-95 cursor-pointer ${
+              ['ai_analisis_cp', 'analisis_cp', 'cp', 'analisis_cp_distribusi', 'upload_cp_master'].includes(activeView)
+                ? 'text-blue-600 font-bold bg-blue-50/80'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <FileSearch className="w-5 h-5 mb-0.5" />
+            <span>Analisis CP</span>
+          </button>
+
+          {/* 4. Perangkat / RPM */}
+          <button
+            id="mobile-nav-perangkat"
+            onClick={() => handleNavigateView('ai_modul_ajar')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[10px] font-semibold transition active:scale-95 cursor-pointer ${
+              ['ai_modul_ajar', 'modul_ajar', 'rpm', 'ai_tp', 'ai_atp', 'ai_prota', 'ai_prosem', 'ai_kktp', 'ai_lkpd', 'ai_rubrik_penilaian'].includes(activeView)
+                ? 'text-blue-600 font-bold bg-blue-50/80'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <FileText className="w-5 h-5 mb-0.5" />
+            <span>Perangkat</span>
+          </button>
+
+          {/* 5. Menu Drawer */}
+          <button
+            id="mobile-nav-menu"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[10px] font-semibold text-slate-500 hover:text-slate-800 transition active:scale-95 cursor-pointer"
+          >
+            <Menu className="w-5 h-5 mb-0.5" />
+            <span>Menu</span>
+          </button>
+        </div>
+      </nav>
 
       {/* School Profile Setup Modal */}
       <SchoolProfileModal

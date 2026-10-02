@@ -726,31 +726,6 @@ ${sem2.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.2.${i+1}`} 
   const filteredSem1 = filterList(masterCP.materialsSem1 || []);
   const filteredSem2 = filterList(masterCP.materialsSem2 || []);
 
-  if (currentUser.role !== 'admin') {
-    return (
-      <div className="p-8 max-w-xl mx-auto my-12 bg-slate-900 border border-amber-500/40 rounded-3xl text-center space-y-4 shadow-2xl text-white">
-        <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mx-auto text-amber-400">
-          <ShieldAlert className="w-8 h-8" />
-        </div>
-        <h2 className="text-xl font-bold">Akses Dibatasi Khusus Administrator</h2>
-        <p className="text-xs text-slate-300 leading-relaxed">
-          Unggah dan analisis Capaian Pembelajaran (CP) Master hanya dapat dilakukan oleh akun Administrator Sekolah untuk standardisasi kurikulum terpusat.
-        </p>
-        <p className="text-xs text-slate-400">
-          Sebagai guru, perangkat pembelajaran dan analisis CP otomatis tersinkronisasi sesuai profil mata pelajaran Anda.
-        </p>
-        <div className="pt-2 flex justify-center gap-3">
-          <button
-            onClick={() => onNavigate && onNavigate('ai_analisis_cp')}
-            className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition"
-          >
-            Buka Analisis CP
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-300">
       {/* Top Banner Notice */}
@@ -889,6 +864,18 @@ ${sem2.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.2.${i+1}`} 
                 )}
               </button>
 
+              {onNavigate && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('ai_analisis_cp')}
+                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                  title="Lihat dokumen lengkap hasil analisis CP siap cetak"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Dokumen Siap Cetak</span>
+                </button>
+              )}
+
               <button
                 onClick={handlePrint}
                 className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition"
@@ -924,9 +911,9 @@ ${sem2.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.2.${i+1}`} 
             }`}
           >
             <UploadCloud className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Upload & Analisis CP Master (Admin)</span>
+            <span>Upload &amp; Analisis File CP Baru</span>
             <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-500/30 text-indigo-200">
-              Admin Only
+              PDF/Word/Excel
             </span>
           </button>
 
@@ -1071,7 +1058,7 @@ ${sem2.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.2.${i+1}`} 
                   </button>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed max-w-4xl">
-                  Administrator dapat mengunggah dokumen regulasi Capaian Pembelajaran (CP) Kemdikbudristek (Capaian Pembelajaran No. 020 Tahun 2026 atau SK Sekolah). Sistem akan mengekstrak elemen, memilah kompetensi Bloom HOTS, merumuskan TP, membagi materi Semester 1 & 2, serta <strong>secara otomatis menyinkronkan seluruh 9 perangkat kurikulum</strong> (Analisis CP, TP, ATP, PROTA, PROSEM, KKTP, RPM Deep Learning, LKPD, dan Rubrik Penilaian).
+                  Unggah dokumen regulasi Capaian Pembelajaran (CP) Kemdikbudristek (No. 020 Tahun 2026 atau SK Sekolah). Sistem otomatis mengekstrak elemen, memilah kompetensi Bloom HOTS, merumuskan TP, membagi materi Semester 1 &amp; 2, dan menyinkronkan ke seluruh 9 perangkat ajar.
                 </p>
               </div>
 
@@ -2037,20 +2024,25 @@ ${sem2.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.2.${i+1}`} 
                   { num: '7', title: 'RPM / Modul Ajar Deep Learning', id: 'ai_modul_ajar' },
                   { num: '8', title: 'Lembar Kerja Siswa (LKPD)', id: 'ai_lkpd' },
                   { num: '9', title: 'Rubrik Penilaian Terpadu', id: 'ai_rubrik_penilaian' },
-                  { num: '📦', title: 'Bundel 1 Perangkat Lengkap', id: 'ai_bundle' },
                 ].map((item, idx) => (
-                  <div
+                  <button
                     key={idx}
-                    className="p-2 rounded-xl bg-slate-900 border border-slate-800/80 flex items-center justify-between hover:border-emerald-500/30 transition"
+                    type="button"
+                    onClick={() => {
+                      setAdoptedSuccessModal(null);
+                      if (onNavigate) onNavigate(item.id);
+                    }}
+                    className="p-2 rounded-xl bg-slate-900 border border-slate-800/80 hover:border-emerald-500/50 hover:bg-slate-850 flex items-center justify-between transition cursor-pointer text-left group"
+                    title={`Buka tampilan ${item.title}`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold flex items-center justify-center">
+                      <span className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold flex items-center justify-center group-hover:bg-emerald-500/30">
                         {item.num}
                       </span>
-                      <span className="text-slate-200 font-medium text-[11px]">{item.title}</span>
+                      <span className="text-slate-200 group-hover:text-emerald-200 font-medium text-[11px]">{item.title}</span>
                     </div>
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -2058,7 +2050,7 @@ ${sem2.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.2.${i+1}`} 
             <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl text-xs text-indigo-200 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
               <span>
-                Profil guru mata pelajaran Anda telah otomatis diselaraskan dengan {adoptedSuccessModal.subject} ({adoptedSuccessModal.phase}). Anda dapat langsung membuat modul ajar atau bundel lengkap!
+                Profil guru mata pelajaran Anda telah otomatis diselaraskan dengan {adoptedSuccessModal.subject} ({adoptedSuccessModal.phase}). Anda dapat langsung menyusun modul ajar dan perangkat pembelajaran lainnya!
               </span>
             </div>
 
@@ -2072,16 +2064,6 @@ ${sem2.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.2.${i+1}`} 
               >
                 <FileText className="w-3.5 h-3.5" />
                 <span>Buka RPM / Modul Ajar</span>
-              </button>
-              <button
-                onClick={() => {
-                  setAdoptedSuccessModal(null);
-                  if (onNavigate) onNavigate('ai_bundle');
-                }}
-                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition flex items-center gap-1.5"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
-                <span>Buka Bundel Lengkap</span>
               </button>
               <button
                 onClick={() => setAdoptedSuccessModal(null)}

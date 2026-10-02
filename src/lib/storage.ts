@@ -2568,7 +2568,7 @@ export class StorageService {
       userEmail: user.email,
       userName: user.name,
       userRole: user.role,
-      action: `Konsumsi Token AI (${featureName})`,
+      action: `Konsumsi Kuota Token (${featureName})`,
       details: `Menggunakan ${actualTokensConsumed.toLocaleString('id-ID')} token (Context Caching hemat ${tokensSavedByCaching.toLocaleString('id-ID')} token). Pemakaian hari ini: ${statusAfter.dailyTokensUsed.toLocaleString('id-ID')}/${statusAfter.dailyTokensLimit.toLocaleString('id-ID')} token/hari. Reset otomatis pukul 00:00 WIB.`,
       status: 'success',
     });
@@ -2576,7 +2576,7 @@ export class StorageService {
     return {
       success: true,
       status: statusAfter,
-      message: `Dokumen AI berhasil diproses (${actualTokensConsumed.toLocaleString('id-ID')} token). Sisa kuota hari ini: ${statusAfter.isAdmin ? 'Unlimited (Admin)' : `${statusAfter.dailyTokensRemaining.toLocaleString('id-ID')} token (Reset 00:00 WIB)`}.`,
+      message: `Dokumen berhasil diproses (${actualTokensConsumed.toLocaleString('id-ID')} token). Sisa kuota hari ini: ${statusAfter.isAdmin ? 'Unlimited (Admin)' : `${statusAfter.dailyTokensRemaining.toLocaleString('id-ID')} token (Reset 00:00 WIB)`}.`,
       tokensConsumed: actualTokensConsumed,
       tokensSavedByCaching,
     };
@@ -2839,7 +2839,7 @@ export class StorageService {
       isRedeemed: false,
       createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
       createdBy: DEFAULT_ADMIN.name,
-      description: description || `Bonus Tambahan ${extraClicks} Klik AI`,
+      description: description || `Bonus Tambahan ${extraClicks} Kuota Klik`,
     };
 
     vouchers.unshift(newVoucher);
@@ -2918,14 +2918,14 @@ export class StorageService {
       userEmail: targetUser.email,
       userName: targetUser.name,
       userRole: targetUser.role,
-      action: 'Klaim Voucher Token AI',
-      details: `Pengguna berhasil mengklaim voucher "${cleanCode}" (+${voucher.extraClicks} klik AI).`,
+      action: 'Klaim Voucher Token Sistem',
+      details: `Pengguna berhasil mengklaim voucher "${cleanCode}" (+${voucher.extraClicks} kuota klik).`,
       status: 'success',
     });
 
     return {
       success: true,
-      message: `Selamat! Voucher "${cleanCode}" berhasil diklaim. Anda mendapatkan tambahan +${voucher.extraClicks} klik AI!`,
+      message: `Selamat! Voucher "${cleanCode}" berhasil diklaim. Anda mendapatkan tambahan +${voucher.extraClicks} kuota klik!`,
       extraAdded: voucher.extraClicks,
     };
   }

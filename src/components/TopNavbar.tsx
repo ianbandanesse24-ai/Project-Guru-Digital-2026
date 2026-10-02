@@ -84,6 +84,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       items: [
         { id: 'profil_guru_mapel', label: 'Profil Guru Mata Pelajaran', badge: 'Acuan' },
         { id: 'parameter_kurikulum', label: 'Parameter Kurikulum, Beban Belajar & Kaldik', badge: 'RBE' },
+        { id: 'upload_cp_master', label: 'Upload & Master CP Sekolah' },
+        { id: 'analisis_cp_distribusi', label: 'Matriks Elemen & Distribusi CP' },
         { id: 'ai_analisis_cp', label: '1. Analisis & Distribusi CP' },
         { id: 'ai_tp', label: '2. Tujuan Pembelajaran (TP)' },
         { id: 'ai_atp', label: '3. Alur Tujuan Pembelajaran (ATP)' },
@@ -91,7 +93,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
         { id: 'ai_prosem', label: '5. Program Semester (PROSEM)' },
         { id: 'ai_kktp', label: '6. Kriteria Ketuntasan (KKTP)' },
         { id: 'ai_modul_ajar', label: '7. RPM / Modul Ajar', badge: 'RPM' },
-        { id: 'ai_lkpd', label: '8. LKPD Generator', badge: 'LKPD' },
+        { id: 'ai_lkpd', label: '8. LKPD Siswa', badge: 'LKPD' },
         { id: 'ai_rubrik_penilaian', label: '9. Rubrik Penilaian Terpadu' },
       ],
     },
