@@ -121,10 +121,6 @@ export function generateExpertCurriculumDocument(
   const rawType = params.toolType || params.docType || 'modul_ajar';
   const docType = rawType.toString().toLowerCase().replace(/^ai_/, '');
 
-  if (docType === 'bundle' || docType === 'perangkat_lengkap') {
-    return generateFullCurriculumBundle(params);
-  }
-
   const subject = params.subject || 'Mata Pelajaran';
   const syncedContext = StorageService.getSyncedCurriculumContext(subject, params.grade, params.level);
   const schoolProfile = syncedContext.schoolProfile;
@@ -2018,11 +2014,6 @@ Gambarkan rancangan diagram ide, bagan sistem prototipe, poster mini, atau ilust
       return meetingBlocks.join('\n\n<div class="page-break" style="page-break-before:always; break-before:page; margin-top:24px; margin-bottom:18px;"></div>\n\n') + '\n\n' + lkpdPengesahan;
     }
 
-    case 'bundle':
-    case 'bundel_lengkap':
-    case 'perangkat_ajar_lengkap':
-      return generateFullCurriculumBundle(params);
-
     case 'kktp': {
       const isYear = params.kktpScope === 'year' ||
         (params.topic && (
@@ -2645,150 +2636,11 @@ ${customFormatFile ? `* **Berkas Acuan Sekolah:** ${customFormatFile.name} (${cu
 }
 
 /**
- * Generates a complete, ready-to-print Master Curriculum Portfolio (1 Unified Perangkat Ajar Lengkap)
- * Synchronized across Teacher Profile, CP, TP, ATP, Time Allocation, PROTA, PROSEM, KKTP, Modul Ajar, LKPD, and Rubrik.
+ * @deprecated Bundel perangkat ajar telah dihapus.
  */
-export function generateFullCurriculumBundle(params: GenerateCurriculumParams): string {
-  const schoolProfile = StorageService.getSchoolProfile();
-  const subject = params.subject || 'Fisika';
-  const level = params.level || 'SMA';
-  const grade = params.grade || 10;
-  const phase = params.phase || (grade === 10 ? 'Fase E' : Number(grade) > 10 ? 'Fase F' : Number(grade) >= 7 ? 'Fase D' : 'Fase A/B/C');
-  const resolvedAcademicYear = params.academicYear || schoolProfile.academicYear || '2025/2026';
-  const teacherName = params.teacherName || params.schoolProfile?.teacherName || params.distributionData?.teacherName || schoolProfile.teacherName || 'Guru Mata Pelajaran';
-  const teacherNip = params.teacherNip || params.schoolProfile?.teacherNip || schoolProfile.teacherNip || '19850715 201101 1 003';
-  const headmasterName = params.headmasterName || params.schoolProfile?.headmasterName || schoolProfile.headmasterName || 'Kepala Satuan Pendidikan';
-  const headmasterNip = params.headmasterNip || params.schoolProfile?.headmasterNip || schoolProfile.headmasterNip || '-';
-  const schoolName = params.schoolName || params.schoolProfile?.schoolName || schoolProfile.schoolName || 'SMA / SMK / MA / SMP / SD Terpadu';
-  const city = params.city || params.schoolProfile?.city || schoolProfile.city || 'Kota Satuan Pendidikan';
-
-  // 1. Cover Page
-  const coverSection = `
-# DOKUMEN PERANGKAT AJAR LENGKAP
-## KURIKULUM MERDEKA & PENDEKATAN DEEP LEARNING
-### (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
-
-<div style="text-align: center; margin: 30px 0;">
-  <div style="font-size: 16pt; font-weight: bold; color: #1e3a8a; text-transform: uppercase;">
-    MATA PELAJARAN: ${subject.toUpperCase()}
-  </div>
-  <div style="font-size: 13pt; font-weight: bold; color: #334155; margin-top: 6px;">
-    JENJANG ${level} • ${phase} • KELAS ${grade}
-  </div>
-  <div style="font-size: 12pt; color: #475569; margin-top: 4px;">
-    TAHUN PELAJARAN ${resolvedAcademicYear}
-  </div>
-</div>
-
----
-
-### PROFIL GURU PENGAMPU & SATUAN PENDIDIKAN
-| Data Administrasi | Keterangan Dokumen Resmi |
-| :--- | :--- |
-| **Satuan Pendidikan** | **${schoolName}** |
-| **Nama Guru Pengampu** | **${teacherName}** |
-| **NIP Guru Pengampu** | ${teacherNip} |
-| **Mata Pelajaran** | **${subject}** |
-| **Fase / Kelas / Jenjang** | **${phase} / Kelas ${grade} (${level})** |
-| **Kepala Satuan Pendidikan** | **${headmasterName}** |
-| **NIP Kepala Sekolah** | ${headmasterNip} |
-| **Kota / Kabupaten** | ${city} |
-| **Status Dokumen** | **✅ TERVERIFIKASI & TERSINKRONISASI LENGKAP** |
-
-<div style="page-break-before: always; break-before: page; margin-top: 40px;"></div>
-`;
-
-  // 2. Lembar Pengesahan Terpadu
-  const pengesahanSection = `
-# LEMBAR PENGESAHAN PERANGKAT AJAR
-## DOKUMEN ADMINISTRASI PEMBELAJARAN TAHUN PELAJARAN ${resolvedAcademicYear}
-
-Setelah memeriksa dan menelaah secara saksama seluruh instrumen dan dokumen administrasi pembelajaran mata pelajaran **${subject}** untuk **${phase} / Kelas ${grade}**, yang disusun oleh:
-
-* **Nama Guru Mata Pelajaran** : **${teacherName}**
-* **NIP** : ${teacherNip}
-* **Satuan Pendidikan** : **${schoolName}**
-
-Menyatakan bahwa Perangkat Ajar Kurikulum Merdeka ini telah memenuhi standar kompetensi Capaian Pembelajaran No. 020 Tahun 2026 dan prinsip pembelajaran mendalam (*Deep Learning: Mindful, Meaningful, & Joyful*), serta disahkan untuk diberlakukan sebagai pedoman pelaksanaan Kegiatan Belajar Mengajar (KBM) pada Tahun Pelajaran **${resolvedAcademicYear}**.
-
----
-
-Ditetapkan dan disahkan di : **${city}**  
-Pada tanggal : **${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}**
-
-<table class="signature-table" style="width: 100%; border: none !important; border-collapse: collapse; margin-top: 36px; font-size: 10.5pt; text-align: center; line-height: 1.5;">
-  <tr style="border: none !important;">
-    <td style="width: 50%; border: none !important; vertical-align: top; text-align: center; padding: 4px 16px;">
-      Mengetahui,<br/>
-      <strong>Kepala Satuan Pendidikan</strong><br/>
-      <strong>${schoolName}</strong>
-      <div style="height: 65px;"></div>
-      <strong><u>${headmasterName}</u></strong><br/>
-      <span>NIP. ${headmasterNip}</span>
-    </td>
-    <td style="width: 50%; border: none !important; vertical-align: top; text-align: center; padding: 4px 16px;">
-      ${city}, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br/>
-      <strong>Guru Mata Pelajaran</strong><br/>
-      <strong>${subject} Kelas ${grade}</strong>
-      <div style="height: 65px;"></div>
-      <strong><u>${teacherName}</u></strong><br/>
-      <span>NIP. ${teacherNip}</span>
-    </td>
-  </tr>
-</table>
-
-<div style="page-break-before: always; break-before: page; margin-top: 40px;"></div>
-`;
-
-  // 3. Daftar Isi
-  const daftarIsiSection = `
-# DAFTAR ISI PERANGKAT AJAR TERPADU
-## MATA PELAJARAN: ${subject.toUpperCase()} (${level} KELAS ${grade})
-
-1. **LEMBAR PENGESAHAN RESMI**
-2. **BAGIAN I : ANALISIS ALOKASI WAKTU & RINCIAN PEKAN EFEKTIF (RBE)**
-3. **BAGIAN II : ANALISIS CAPAIAN PEMBELAJARAN (CP) TERBARU & PEMETAAN ELEMEN**
-4. **BAGIAN III : RUMUSAN TUJUAN PEMBELAJARAN (TP) BERBASIS KKO & ABCD**
-5. **BAGIAN IV : ALUR TUJUAN PEMBELAJARAN (ATP) & PEMETAAN JAM PELAJARAN**
-6. **BAGIAN V : PROGRAM TAHUNAN (PROTA) SEMESTER GANJIL & GENAP**
-7. **BAGIAN VI : PROGRAM SEMESTER (PROSEM) & MATRIKS PEKANAN BERWARNA**
-8. **BAGIAN VII : KRITERIA KETERCAPAIAN TUJUAN PEMBELAJARAN (KKTP)**
-9. **BAGIAN VIII : MODUL AJAR (DEEP LEARNING: MINDFUL, MEANINGFUL, & JOYFUL)**
-10. **BAGIAN IX : LEMBAR KERJA PESERTA DIDIK (LKPD KREATIF BERDIFERENSIASI)**
-11. **BAGIAN X : RUBRIK & INSTRUMEN PENILAIAN TERPADU (SIKAP 6C, KINERJA, & SUMATIF HOTS)**
-
-<div style="page-break-before: always; break-before: page; margin-top: 40px;"></div>
-`;
-
-  // 4. Generate all individual parts
-  const docAlokasiWaktu = generateExpertCurriculumDocument({ ...params, docType: 'analisis_alokasi_waktu', toolType: 'analisis_alokasi_waktu' });
-  const docAnalisisCP = generateExpertCurriculumDocument({ ...params, docType: 'analisis_cp', toolType: 'analisis_cp' });
-  const docTP = generateExpertCurriculumDocument({ ...params, docType: 'tp', toolType: 'tp' });
-  const docATP = generateExpertCurriculumDocument({ ...params, docType: 'atp', toolType: 'atp' });
-  const docPROTA = generateExpertCurriculumDocument({ ...params, docType: 'prota', toolType: 'prota' });
-  const docPROSEM = generateExpertCurriculumDocument({ ...params, docType: 'prosem', toolType: 'prosem' });
-  const docKKTP = generateExpertCurriculumDocument({ ...params, docType: 'kktp', toolType: 'kktp' });
-  const docModulAjar = generateExpertCurriculumDocument({ ...params, docType: 'modul_ajar', toolType: 'modul_ajar' });
-  const docLKPD = generateExpertCurriculumDocument({ ...params, docType: 'lkpd', toolType: 'lkpd' });
-  const docRubrik = generateExpertCurriculumDocument({ ...params, docType: 'rubrik_penilaian', toolType: 'rubrik_penilaian' });
-
-  const pageBreak = '\n\n<div style="page-break-before: always; break-before: page; margin-top: 40px;"></div>\n\n';
-
-  return [
-    coverSection.trim(),
-    pengesahanSection.trim(),
-    daftarIsiSection.trim(),
-    '# BAGIAN I : ANALISIS ALOKASI WAKTU (RBE)\n' + docAlokasiWaktu.trim(),
-    '# BAGIAN II : ANALISIS CAPAIAN PEMBELAJARAN (CP) TERBARU\n' + docAnalisisCP.trim(),
-    '# BAGIAN III : RUMUSAN TUJUAN PEMBELAJARAN (TP)\n' + docTP.trim(),
-    '# BAGIAN IV : ALUR TUJUAN PEMBELAJARAN (ATP)\n' + docATP.trim(),
-    '# BAGIAN V : PROGRAM TAHUNAN (PROTA)\n' + docPROTA.trim(),
-    '# BAGIAN VI : PROGRAM SEMESTER (PROSEM) GANJIL & GENAP\n' + docPROSEM.trim(),
-    '# BAGIAN VII : KRITERIA KETERCAPAIAN TUJUAN PEMBELAJARAN (KKTP)\n' + docKKTP.trim(),
-    '# BAGIAN VIII : MODUL AJAR DEEP LEARNING\n' + docModulAjar.trim(),
-    '# BAGIAN IX : LEMBAR KERJA PESERTA DIDIK (LKPD KREATIF)\n' + docLKPD.trim(),
-    '# BAGIAN X : RUBRIK PENILAIAN TERPADU\n' + docRubrik.trim(),
-  ].join(pageBreak);
+export function generateFullCurriculumBundle(_params?: any): string {
+  return '';
 }
+
 
 

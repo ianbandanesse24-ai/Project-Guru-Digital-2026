@@ -21,6 +21,15 @@ export class OfflineManager {
    */
   static registerServiceWorker(): void {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      if (import.meta.env.DEV) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const registration of registrations) {
+            registration.unregister();
+          }
+        }).catch(() => {});
+        return;
+      }
+
       window.addEventListener('load', () => {
         const swPath = `${import.meta.env.BASE_URL}sw.js`.replace(/\/+/g, '/');
         navigator.serviceWorker

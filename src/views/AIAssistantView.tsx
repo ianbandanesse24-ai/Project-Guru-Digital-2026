@@ -55,7 +55,7 @@ import { AIDocument, EducationLevel, SemesterType, UserAccount, TokenQuotaStatus
 import { StorageService, addStorageListener } from '../lib/storage';
 import { ExportService } from '../lib/exportUtils';
 import { CP_REFERENCES, parseTPList } from '../lib/curriculumData';
-import { generateExpertCurriculumDocument, generateFullCurriculumBundle } from '../lib/curriculumEngine';
+import { generateExpertCurriculumDocument } from '../lib/curriculumEngine';
 import { DocumentPdfPreview } from '../components/DocumentPdfPreview';
 import { CustomFormatSelector, CustomFormatConfig } from '../components/CustomFormatSelector';
 import { TokenQuotaModal } from '../components/TokenQuotaModal';
@@ -754,9 +754,6 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
       academicYear: prof?.academicYear,
     };
 
-    if (activeDocType === 'bundle' || activeDocType === 'bundel_lengkap' || activeDocType === 'perangkat_ajar_lengkap') {
-      return generateFullCurriculumBundle(payload);
-    }
     return generateExpertCurriculumDocument(payload);
   };
 
@@ -972,61 +969,33 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
 
     // Fallback if network or server did not return content
     if (!content) {
-      if (activeDocType === 'bundle' || activeDocType === 'bundel_lengkap' || activeDocType === 'perangkat_ajar_lengkap') {
-        content = generateFullCurriculumBundle({
-          toolType: activeDocType,
-          docType: activeDocType,
-          subject,
-          level,
-          grade,
-          phase: currentPhase,
-          semester,
-          topic: resolvedTopic,
-          meetingCount,
-          hoursPerMeeting,
-          minutesPerJP,
-          totalJP,
-          modulOption,
-          manualTP: finalManualTP,
-          useManualTP: !!finalManualTP,
-          customPrompt,
-          cpText: activeMasterCP?.cpText || currentCP?.cpText,
-          distributionData: activeDistribution,
-          kalenderData: StorageService.getKalenderPendidikan(),
-          schoolProfile: StorageService.getSchoolProfile(),
-          useCustomFormat: customFormatConfig.useCustomFormat,
-          customFormatNotes: customFormatConfig.customFormatNotes,
-          customFormatFile: customFormatConfig.formatFile,
-        });
-      } else {
-        content = generateExpertCurriculumDocument({
-          toolType: activeDocType,
-          docType: activeDocType,
-          subject,
-          level,
-          grade,
-          phase: currentPhase,
-          semester,
-          topic: resolvedTopic,
-          meetingCount,
-          hoursPerMeeting,
-          minutesPerJP,
-          totalJP,
-          modulOption,
-          manualTP: finalManualTP,
-          useManualTP: !!finalManualTP,
-          kktpScope: (activeDocType === 'kktp' || activeDocType === 'ai_kktp') ? kktpScope : undefined,
-          subTopics: selectedTPObjects.length > 0 ? selectedTPObjects.map((t) => t.text) : undefined,
-          customPrompt,
-          cpText: activeMasterCP?.cpText || currentCP?.cpText,
-          distributionData: activeDistribution,
-          kalenderData: StorageService.getKalenderPendidikan(),
-          schoolProfile: StorageService.getSchoolProfile(),
-          useCustomFormat: customFormatConfig.useCustomFormat,
-          customFormatNotes: customFormatConfig.customFormatNotes,
-          customFormatFile: customFormatConfig.formatFile,
-        });
-      }
+      content = generateExpertCurriculumDocument({
+        toolType: activeDocType,
+        docType: activeDocType,
+        subject,
+        level,
+        grade,
+        phase: currentPhase,
+        semester,
+        topic: resolvedTopic,
+        meetingCount,
+        hoursPerMeeting,
+        minutesPerJP,
+        totalJP,
+        modulOption,
+        manualTP: finalManualTP,
+        useManualTP: !!finalManualTP,
+        kktpScope: (activeDocType === 'kktp' || activeDocType === 'ai_kktp') ? kktpScope : undefined,
+        subTopics: selectedTPObjects.length > 0 ? selectedTPObjects.map((t) => t.text) : undefined,
+        customPrompt,
+        cpText: activeMasterCP?.cpText || currentCP?.cpText,
+        distributionData: activeDistribution,
+        kalenderData: StorageService.getKalenderPendidikan(),
+        schoolProfile: StorageService.getSchoolProfile(),
+        useCustomFormat: customFormatConfig.useCustomFormat,
+        customFormatNotes: customFormatConfig.customFormatNotes,
+        customFormatFile: customFormatConfig.formatFile,
+      });
     }
 
     setGeneratedMarkdown(content);

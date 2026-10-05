@@ -12,11 +12,6 @@ import {
   ShieldCheck,
   RotateCcw,
   Palette,
-  LayoutDashboard,
-  Users,
-  FileSearch,
-  FileText,
-  Calendar,
 } from 'lucide-react';
 import { UserAccount, UserNotification, SchoolProfile, AppTheme, TokenQuotaStatus } from './types';
 import { StorageService, addStorageListener } from './lib/storage';
@@ -742,7 +737,7 @@ export default function App() {
           )}
 
           {/* Main Content Area */}
-          <main ref={mainContentRef} className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar bg-slate-50 pb-24 lg:pb-8">
+          <main ref={mainContentRef} className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar bg-slate-50 pb-8">
             <div className={normalizedTheme.contentWidth === 'wide' ? 'w-full' : 'max-w-7xl mx-auto'}>
               <ErrorBoundary fallbackTitle="Kendala Memuat Halaman" onReset={() => handleNavigateView('dashboard')}>
                 {renderActiveView()}
@@ -751,75 +746,6 @@ export default function App() {
           </main>
         </div>
       </div>
-
-      {/* Mobile & Tablet Bottom Navigation Dock (Android & iOS) */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1 shadow-lg pb-[max(0.25rem,env(safe-area-inset-bottom))]">
-        <div className="flex items-center justify-around">
-          {/* 1. Dashboard */}
-          <button
-            id="mobile-nav-dashboard"
-            onClick={() => handleNavigateView('dashboard')}
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[10px] font-semibold transition active:scale-95 cursor-pointer ${
-              activeView === 'dashboard' ? 'text-blue-600 font-bold bg-blue-50/80' : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <LayoutDashboard className="w-5 h-5 mb-0.5" />
-            <span>Beranda</span>
-          </button>
-
-          {/* 2. Administrasi */}
-          <button
-            id="mobile-nav-administrasi"
-            onClick={() => handleNavigateView('kelas_siswa')}
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[10px] font-semibold transition active:scale-95 cursor-pointer ${
-              ['kelas_siswa', 'absensi', 'jadwal', 'agenda', 'jurnal', 'guru_wali', 'cetak_laporan'].includes(activeView)
-                ? 'text-blue-600 font-bold bg-blue-50/80'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Users className="w-5 h-5 mb-0.5" />
-            <span>Administrasi</span>
-          </button>
-
-          {/* 3. Analisis CP (Direct Quick-Access!) */}
-          <button
-            id="mobile-nav-analisis-cp"
-            onClick={() => handleNavigateView('ai_analisis_cp')}
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[10px] font-semibold transition active:scale-95 cursor-pointer ${
-              ['ai_analisis_cp', 'analisis_cp', 'cp', 'analisis_cp_distribusi', 'upload_cp_master'].includes(activeView)
-                ? 'text-blue-600 font-bold bg-blue-50/80'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <FileSearch className="w-5 h-5 mb-0.5" />
-            <span>Analisis CP</span>
-          </button>
-
-          {/* 4. Perangkat / RPM */}
-          <button
-            id="mobile-nav-perangkat"
-            onClick={() => handleNavigateView('ai_modul_ajar')}
-            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[10px] font-semibold transition active:scale-95 cursor-pointer ${
-              ['ai_modul_ajar', 'modul_ajar', 'rpm', 'ai_tp', 'ai_atp', 'ai_prota', 'ai_prosem', 'ai_kktp', 'ai_lkpd', 'ai_rubrik_penilaian'].includes(activeView)
-                ? 'text-blue-600 font-bold bg-blue-50/80'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <FileText className="w-5 h-5 mb-0.5" />
-            <span>Perangkat</span>
-          </button>
-
-          {/* 5. Menu Drawer */}
-          <button
-            id="mobile-nav-menu"
-            onClick={() => setIsMobileSidebarOpen(true)}
-            className="flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-[10px] font-semibold text-slate-500 hover:text-slate-800 transition active:scale-95 cursor-pointer"
-          >
-            <Menu className="w-5 h-5 mb-0.5" />
-            <span>Menu</span>
-          </button>
-        </div>
-      </nav>
 
       {/* School Profile Setup Modal */}
       <SchoolProfileModal
