@@ -111,7 +111,7 @@ export const DEFAULT_KALENDER_PENDIDIKAN: KalenderPendidikanData = {
   academicYear: '2025/2026',
   tahunAjaran: '2025/2026',
   province: 'Nasional / Maluku',
-  notes: 'Kalender Pendidikan Standar Kurikulum Merdeka TP 2025/2026 (Semester Ganjil & Genap)',
+  notes: 'Kalender Pendidikan Standar Kurikulum Berbasis Deep Learning TP 2025/2026 (Semester Ganjil & Genap)',
   catatanKhusus: 'Pekan efektif disesuaikan dengan agenda kalender pendidikan dinas setempat.',
   uploadedAt: '2025-07-01 08:00',
   semester1: {
@@ -265,7 +265,7 @@ export const INITIAL_TOKEN_VOUCHERS: TokenVoucher[] = [
     isRedeemed: false,
     createdAt: '2026-08-25 00:00',
     createdBy: 'Sistem Master',
-    description: 'Bonus Kuota Tambahan 20 Klik Kurikulum Merdeka',
+    description: 'Bonus Kuota Tambahan 20 Klik Kurikulum Berbasis Deep Learning',
   },
   {
     id: 'vouch-2',
@@ -763,6 +763,39 @@ export class StorageService {
       } else {
         // Tetap pastikan akun Uus terhapus jika ada di local
         this.purgeUserByQuery('uus');
+      }
+
+      // Pastikan seluruh kurikulum di perangkat ini murni berfondasikan Deep Learning
+      const cleanCurriculumKey = 'agk_deep_learning_exclusive_v1';
+      if (!window.localStorage.getItem(cleanCurriculumKey)) {
+        try {
+          const kaldik = this.getKalenderPendidikan();
+          if (kaldik && kaldik.notes && kaldik.notes.includes('Merdeka')) {
+            kaldik.notes = 'Kalender Pendidikan Standar Kurikulum Berbasis Deep Learning TP 2025/2026 (Semester Ganjil & Genap)';
+            this.saveKalenderPendidikan(kaldik);
+          }
+          const aiDocs = this.getAIDocuments();
+          if (aiDocs && aiDocs.length > 0) {
+            let changed = false;
+            const sanitized = aiDocs.map((doc) => {
+              if (doc.content && (doc.content.includes('Kurikulum Merdeka') || doc.content.includes('Merdeka Belajar'))) {
+                changed = true;
+                return {
+                  ...doc,
+                  content: doc.content
+                    .replace(/Kurikulum Deep Learning & Merdeka Belajar/g, 'Kurikulum Berbasis Deep Learning')
+                    .replace(/Kurikulum Merdeka/g, 'Kurikulum Berbasis Deep Learning')
+                    .replace(/Merdeka Belajar/g, 'Deep Learning (Mindful, Meaningful, & Joyful)'),
+                };
+              }
+              return doc;
+            });
+            if (changed) {
+              this.saveAIDocuments(sanitized);
+            }
+          }
+        } catch {}
+        window.localStorage.setItem(cleanCurriculumKey, 'true');
       }
     } catch {}
   }
@@ -1524,14 +1557,50 @@ export class StorageService {
 
   static setActiveMasterCP(masterData: ActiveMasterCPData, userId?: string, skipReverseSync: boolean = false): void {
     const key = this.getUserScopedKey(KEYS.ACTIVE_MASTER_CP, userId);
-    saveToStorage(key, masterData);
+    
+    // Normalize materials with consistent allocatedHours and meetingCount
+    const effectiveJpPerWeek = Number(masterData.jpPerWeek) > 0 ? Number(masterData.jpPerWeek) : 3;
+    const normSem1 = (masterData.materialsSem1 || []).map((m, idx) => {
+      const hours = Number(m.allocatedHours) || (effectiveJpPerWeek * 4);
+      const meetings = Number(m.meetingCount) > 0 
+        ? Number(m.meetingCount) 
+        : Math.max(1, Math.round(hours / effectiveJpPerWeek));
+      return {
+        ...m,
+        orderNumber: m.orderNumber || idx + 1,
+        allocatedHours: hours,
+        meetingCount: meetings,
+      };
+    });
+
+    const normSem2 = (masterData.materialsSem2 || []).map((m, idx) => {
+      const hours = Number(m.allocatedHours) || (effectiveJpPerWeek * 4);
+      const meetings = Number(m.meetingCount) > 0 
+        ? Number(m.meetingCount) 
+        : Math.max(1, Math.round(hours / effectiveJpPerWeek));
+      return {
+        ...m,
+        orderNumber: m.orderNumber || idx + 1,
+        allocatedHours: hours,
+        meetingCount: meetings,
+      };
+    });
+
+    const totSem1 = normSem1.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0);
+    const totSem2 = normSem2.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0);
+
+    const normalizedMasterData: ActiveMasterCPData = {
+      ...masterData,
+      jpPerWeek: effectiveJpPerWeek,
+      materialsSem1: normSem1,
+      materialsSem2: normSem2,
+      totalHoursPerYear: totSem1 + totSem2,
+    };
+
+    saveToStorage(key, normalizedMasterData);
 
     // Also auto-save/update in CP Distributions: REPLACE OLD CPs so newly uploaded CP is solely active
     const planId = masterData.id?.startsWith('plan-') || masterData.id?.startsWith('master-') ? masterData.id : `master-plan-${masterData.id || Date.now()}`;
-    const sem1 = masterData.materialsSem1 || [];
-    const sem2 = masterData.materialsSem2 || [];
-    const totSem1 = sem1.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0);
-    const totSem2 = sem2.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0);
 
     const distPlan: CPDistributionPlan = {
       id: planId,
@@ -1544,21 +1613,37 @@ export class StorageService {
       phase: masterData.phase,
       academicYear: masterData.academicYear || this.getAcademicYear(userId) || '2026/2027',
       semesterOption: 'all',
-      totalHoursPerYear: masterData.totalHoursPerYear || (totSem1 + totSem2),
-      totalTPCount: (sem1.length) + (sem2.length),
-      jpPerWeek: masterData.jpPerWeek || 3,
+      totalHoursPerYear: (totSem1 + totSem2),
+      totalTPCount: (normSem1.length) + (normSem2.length),
+      jpPerWeek: effectiveJpPerWeek,
       timeAllocationPerWeek: masterData.timeAllocationPerWeek,
       cpText: masterData.cpText,
       elements: masterData.elements?.map(e => ({ name: e.name, description: e.description })),
-      materialsSem1: sem1,
-      materialsSem2: sem2,
+      materialsSem1: normSem1,
+      materialsSem2: normSem2,
       totalHoursSem1: totSem1,
       totalHoursSem2: totSem2,
       createdAt: masterData.uploadedAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    // Otomatis hapus CP lama dan ganti dengan CP baru yang diupload
+    // Otomatis update Menu Distribusi Alokasi Waktu
     this.saveCPDistributions([distPlan], userId);
+
+    // Invalidate stale AI curriculum documents for this subject so newly updated BABs, JP, and meeting counts immediately take effect in PROSEM & all teaching tools
+    try {
+      const docsKey = this.getUserScopedKey(KEYS.AI_DOCS, userId);
+      const existingDocs = loadFromStorage<AIDocument[]>(docsKey, []);
+      if (existingDocs && existingDocs.length > 0) {
+        const curriculumDocTypes = ['prosem', 'promes', 'prota', 'atp', 'tp', 'analisis_cp', 'modul_ajar', 'rpm', 'kktp', 'lkpd', 'rubrik_penilaian', 'asesmen'];
+        const updatedDocs = existingDocs.filter(d => {
+          const isSameSubject = !d.subject || d.subject.toLowerCase() === masterData.subject.toLowerCase();
+          const cleanType = (d.type || '').replace(/^ai_/, '').toLowerCase();
+          const isCurriculumDoc = curriculumDocTypes.includes(cleanType);
+          return !(isSameSubject && isCurriculumDoc);
+        });
+        saveToStorage(docsKey, updatedDocs);
+      }
+    } catch {}
 
     // Also register in CP References bank (Otomatis hapus referensi CP lama)
     const refId = `ref-master-${masterData.id || Date.now()}`;
@@ -1651,9 +1736,10 @@ export class StorageService {
       if (typeof window !== 'undefined') {
         const syncedProfile = this.getSchoolProfile(userId);
         window.dispatchEvent(new Event('storage'));
-        window.dispatchEvent(new CustomEvent('master-cp-updated', { detail: masterData }));
+        window.dispatchEvent(new CustomEvent('master-cp-updated', { detail: normalizedMasterData }));
         window.dispatchEvent(new CustomEvent('school-profile-updated', { detail: syncedProfile }));
-        window.dispatchEvent(new CustomEvent('curriculum-parameters-synced', { detail: { profile: syncedProfile, masterCP: masterData } }));
+        window.dispatchEvent(new CustomEvent('curriculum-parameters-synced', { detail: { profile: syncedProfile, masterCP: normalizedMasterData } }));
+        window.dispatchEvent(new CustomEvent('curriculum-materials-changed', { detail: { masterCP: normalizedMasterData, materialsSem1: normSem1, materialsSem2: normSem2 } }));
       }
     } catch {}
   }

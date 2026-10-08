@@ -38,7 +38,6 @@ import {
 } from 'lucide-react';
 import { UserAccount, AppTheme } from '../types';
 import { useOfflineSync } from '../lib/offlineManager';
-import { PWAInstallButton } from './PWAInstallButton';
 import { AMDLogo } from './AMDLogo';
 
 interface SidebarProps {
@@ -564,32 +563,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </nav>
         </div>
 
-        {/* PWA Install Button */}
-        <PWAInstallButton variant="sidebar" />
-
         {/* Cloud Status */}
         <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 text-xs space-y-1.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 font-semibold text-xs">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  isOnline ? 'bg-emerald-500' : 'bg-amber-500'
-                }`}
-              />
-              <span className="text-slate-900 font-bold">{isOnline ? 'Cloud Terhubung' : 'Mode Offline'}</span>
-            </div>
-            {isOnline && (
-              <button
-                type="button"
-                id="sidebar-btn-sync"
-                onClick={() => triggerManualSync()}
-                disabled={isSyncing}
-                title="Sinkronkan data sekarang"
-                className="p-1 rounded bg-white hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 transition-colors duration-150 disabled:opacity-50 shadow-2xs"
-              >
-                <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-blue-600' : ''}`} />
-              </button>
-            )}
+          <div className="flex items-center space-x-2 font-semibold text-xs">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isOnline ? 'bg-emerald-500' : 'bg-amber-500'
+              }`}
+            />
+            <span className="text-slate-900 font-bold">{isOnline ? 'Cloud Terhubung' : 'Mode Offline'}</span>
           </div>
           <p className="text-[11px] text-slate-600 leading-tight">
             {isOnline ? 'Data tersimpan aman dan terintegrasi otomatis.' : 'Data tersimpan di penyimpanan lokal.'}
@@ -599,19 +581,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Footer User Info */}
       <div className="p-3 border-t border-slate-200 bg-slate-50/80">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2.5 min-w-0">
-            <div className="w-7 h-7 rounded-md bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
-              {currentUser.name.charAt(0)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold truncate text-slate-900">
-                {currentUser.name}
-              </p>
-              <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
-                {currentUser.role === 'admin' ? 'Administrator' : 'Guru'}
-              </p>
-            </div>
+        <div className="flex items-center space-x-2.5 min-w-0">
+          <div className="w-7 h-7 rounded-md bg-blue-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+            {currentUser.name.charAt(0)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold truncate text-slate-900">
+              {currentUser.name}
+            </p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+              {currentUser.role === 'admin' ? 'Administrator' : 'Guru'}
+            </p>
           </div>
         </div>
       </div>

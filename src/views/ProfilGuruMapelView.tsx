@@ -1648,7 +1648,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                     <span>2. Identitas Mata Pelajaran & Parameter Jenjang</span>
                   </h2>
                   <span className="text-[10px] text-blue-700 font-bold px-2.5 py-1 rounded-md bg-blue-50 border border-blue-200">
-                    Kurikulum Merdeka 2025/2026
+                    Kurikulum Berbasis Deep Learning
                   </span>
                 </div>
 

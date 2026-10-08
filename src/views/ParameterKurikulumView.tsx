@@ -276,6 +276,70 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     setModalAllocatedHours(presetItem?.allocatedHours || jpPerWeek * 4);
   };
 
+  // Helper to persist and broadcast changes immediately to Distribusi Alokasi Waktu, PROSEM, & seluruh perangkat ajar
+  const persistAndSyncParameters = (
+    nextSem1: CPMaterialItem[],
+    nextSem2: CPMaterialItem[],
+    nextJpPerWeek: number = jpPerWeek,
+    customToastMessage?: string
+  ) => {
+    const currentMaster = StorageService.getActiveMasterCP();
+    const syncMaterialsSem1 = nextSem1.map((m) => ({
+      ...m,
+      meetingCount: Math.max(1, Math.round((Number(m.allocatedHours) || 0) / (nextJpPerWeek || 1))),
+    }));
+    const syncMaterialsSem2 = nextSem2.map((m) => ({
+      ...m,
+      meetingCount: Math.max(1, Math.round((Number(m.allocatedHours) || 0) / (nextJpPerWeek || 1))),
+    }));
+
+    const totSem1 = syncMaterialsSem1.reduce((sum, m) => sum + (m.allocatedHours || 0), 0);
+    const totSem2 = syncMaterialsSem2.reduce((sum, m) => sum + (m.allocatedHours || 0), 0);
+
+    const updatedMaster: ActiveMasterCPData = {
+      id: currentMaster?.id || `master-cp-${Date.now()}`,
+      fileName: currentMaster?.fileName || `${subject}_Kelas_${grade}_${level}.pdf`,
+      uploadedAt: currentMaster?.uploadedAt || new Date().toISOString(),
+      teacherName: currentMaster?.teacherName || schoolProfile.teacherName || 'Guru Pengampu',
+      teacherNip: currentMaster?.teacherNip || schoolProfile.teacherNip || '-',
+      principalName: currentMaster?.principalName || schoolProfile.principalName || '-',
+      principalNip: currentMaster?.principalNip || schoolProfile.principalNip || '-',
+      schoolName: currentMaster?.schoolName || schoolProfile.schoolName || 'SMA NEGERI 30 MALUKU TENGAH',
+      academicYear: currentMaster?.academicYear || schoolProfile.academicYear || '2025/2026',
+      city: currentMaster?.city || schoolProfile.city || 'Maluku Tengah',
+      subject,
+      level,
+      grade,
+      phase,
+      jpPerWeek: nextJpPerWeek,
+      timeAllocationPerWeek,
+      materialsSem1: syncMaterialsSem1,
+      materialsSem2: syncMaterialsSem2,
+      totalHoursPerYear: totSem1 + totSem2,
+      cpText: currentMaster?.cpText || '',
+      elements: currentMaster?.elements || [],
+    };
+
+    StorageService.setActiveMasterCP(updatedMaster);
+    if (customToastMessage) {
+      setSaveToast(customToastMessage);
+      setTimeout(() => setSaveToast(null), 4500);
+    }
+  };
+
+  // Debounced auto-save: every manual edit (JP, meeting count, material text) automatically persists and syncs to PROSEM and all tools
+  const isInitialMount = React.useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      persistAndSyncParameters(materialsSem1, materialsSem2, jpPerWeek);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [materialsSem1, materialsSem2, jpPerWeek, subject, grade, level, phase]);
+
   const handleConfirmAddChapterModal = () => {
     if (!addChapterModalSem) return;
     const sem = addChapterModalSem;
@@ -309,15 +373,22 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
       deepLearningMethod: 'Mindful & Meaningful Learning',
     };
 
+    const nextSem1 = sem === 1 ? [...materialsSem1, newChapter] : materialsSem1;
+    const nextSem2 = sem === 2 ? [...materialsSem2, newChapter] : materialsSem2;
+
     if (sem === 1) {
-      setMaterialsSem1([...materialsSem1, newChapter]);
+      setMaterialsSem1(nextSem1);
     } else {
-      setMaterialsSem2([...materialsSem2, newChapter]);
+      setMaterialsSem2(nextSem2);
     }
 
     setAddChapterModalSem(null);
-    setSaveToast(`Bab "${materialName}" berhasil ditambahkan dengan ${targetTPCount} TP otomatis!`);
-    setTimeout(() => setSaveToast(null), 3500);
+    persistAndSyncParameters(
+      nextSem1,
+      nextSem2,
+      jpPerWeek,
+      `Bab "${materialName}" berhasil ditambahkan & otomatis tersinkron ke Menu Distribusi Alokasi Waktu, PROSEM, PROTA, ATP & Modul Ajar!`
+    );
   };
 
   const handleDirectAddChapter = (sem: 1 | 2) => {
@@ -349,11 +420,22 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
       assessmentStrategy: presetItem?.assessmentStrategy || 'Tes Formatif, Kinerja & Portofolio Kognitif',
       deepLearningMethod: presetItem?.deepLearningMethod || 'Mindful & Meaningful Learning',
     };
+
+    const nextSem1 = sem === 1 ? [...materialsSem1, newChapter] : materialsSem1;
+    const nextSem2 = sem === 2 ? [...materialsSem2, newChapter] : materialsSem2;
+
     if (sem === 1) {
-      setMaterialsSem1([...materialsSem1, newChapter]);
+      setMaterialsSem1(nextSem1);
     } else {
-      setMaterialsSem2([...materialsSem2, newChapter]);
+      setMaterialsSem2(nextSem2);
     }
+
+    persistAndSyncParameters(
+      nextSem1,
+      nextSem2,
+      jpPerWeek,
+      `Bab ${nextIdx} ("${materialName}") berhasil ditambahkan & otomatis tersinkron ke Distribusi Alokasi Waktu, PROSEM & Perangkat Ajar!`
+    );
   };
 
   // Auto-distribute total semester hours across BABs where every BAB's JP MUST be a multiple of jpPerWeek!
@@ -396,14 +478,21 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
 
     if (sem === 1) {
       setMaterialsSem1(distributed);
+      persistAndSyncParameters(
+        distributed,
+        materialsSem2,
+        weekJP,
+        `✅ Berhasil membagi ${effectiveTotalJP} JP ke ${numBab} BAB (Beban: ${weekJP} JP/Minggu) & disinkronkan ke Menu Distribusi Alokasi Waktu, PROSEM, PROTA & Modul Ajar!`
+      );
     } else {
       setMaterialsSem2(distributed);
+      persistAndSyncParameters(
+        materialsSem1,
+        distributed,
+        weekJP,
+        `✅ Berhasil membagi ${effectiveTotalJP} JP ke ${numBab} BAB (Beban: ${weekJP} JP/Minggu) & disinkronkan ke Menu Distribusi Alokasi Waktu, PROSEM, PROTA & Modul Ajar!`
+      );
     }
-
-    setSaveToast(
-      `✅ Berhasil membagi ${effectiveTotalJP} JP ke ${numBab} BAB (Beban: ${weekJP} JP/Minggu). Tiap BAB dialokasikan kelipatan ${weekJP} JP: ${distributed.map((d, i) => `Bab ${i + 1} = ${d.allocatedHours} JP (${d.meetingCount} Pertemuan)`).join(', ')}.`
-    );
-    setTimeout(() => setSaveToast(null), 6000);
   };
 
   const handleAutoGenerateTPForChapter = (sem: 1 | 2, chapterIdx: number) => {
@@ -416,11 +505,19 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
   };
 
   const handleDirectDeleteChapter = (sem: 1 | 2, index: number) => {
+    const nextSem1 = sem === 1 ? materialsSem1.filter((_, idx) => idx !== index) : materialsSem1;
+    const nextSem2 = sem === 2 ? materialsSem2.filter((_, idx) => idx !== index) : materialsSem2;
     if (sem === 1) {
-      setMaterialsSem1(materialsSem1.filter((_, idx) => idx !== index));
+      setMaterialsSem1(nextSem1);
     } else {
-      setMaterialsSem2(materialsSem2.filter((_, idx) => idx !== index));
+      setMaterialsSem2(nextSem2);
     }
+    persistAndSyncParameters(
+      nextSem1,
+      nextSem2,
+      jpPerWeek,
+      `Bab berhasil dihapus & penyesuaian alokasi JP otomatis tersinkron ke Menu Distribusi Alokasi Waktu, PROSEM & Perangkat Ajar!`
+    );
   };
 
   const handleDirectUpdateChapter = (
@@ -555,43 +652,12 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
 
   // Save all settings to master CP
   const handleSaveParameters = () => {
-    const currentMaster = StorageService.getActiveMasterCP();
-    const syncMaterialsSem1 = materialsSem1.map((m) => ({
-      ...m,
-      meetingCount: Math.max(1, Math.round((Number(m.allocatedHours) || 0) / (jpPerWeek || 1))),
-    }));
-    const syncMaterialsSem2 = materialsSem2.map((m) => ({
-      ...m,
-      meetingCount: Math.max(1, Math.round((Number(m.allocatedHours) || 0) / (jpPerWeek || 1))),
-    }));
-
-    const updatedMaster: ActiveMasterCPData = {
-      id: currentMaster?.id || `master-cp-${Date.now()}`,
-      fileName: currentMaster?.fileName || `${subject}_Kelas_${grade}_${level}.pdf`,
-      uploadedAt: currentMaster?.uploadedAt || new Date().toISOString(),
-      teacherName: currentMaster?.teacherName || schoolProfile.teacherName || 'Guru Pengampu',
-      teacherNip: currentMaster?.teacherNip || schoolProfile.teacherNip || '-',
-      principalName: currentMaster?.principalName || schoolProfile.principalName || '-',
-      principalNip: currentMaster?.principalNip || schoolProfile.principalNip || '-',
-      schoolName: currentMaster?.schoolName || schoolProfile.schoolName || 'SMA NEGERI 30 MALUKU TENGAH',
-      academicYear: currentMaster?.academicYear || schoolProfile.academicYear || '2025/2026',
-      city: currentMaster?.city || schoolProfile.city || 'Maluku Tengah',
-      subject,
-      level,
-      grade,
-      phase,
+    persistAndSyncParameters(
+      materialsSem1,
+      materialsSem2,
       jpPerWeek,
-      timeAllocationPerWeek,
-      materialsSem1: syncMaterialsSem1,
-      materialsSem2: syncMaterialsSem2,
-      totalHoursPerYear: totalJPYear,
-      cpText: currentMaster?.cpText || '',
-      elements: currentMaster?.elements || [],
-    };
-
-    StorageService.setActiveMasterCP(updatedMaster);
-    setSaveToast('Parameter Kurikulum & Beban Belajar berhasil disimpan & disinkronkan ke seluruh modul!');
-    setTimeout(() => setSaveToast(null), 4000);
+      '✅ Parameter Kurikulum & Beban Belajar berhasil disimpan! Perubahan Alokasi Waktu/BAB, Jumlah Pertemuan, & Bab Baru otomatis tersinkron ke Menu Distribusi Alokasi Waktu, PROSEM, PROTA, ATP, & Modul Ajar (RPM).'
+    );
   };
 
   return (
@@ -634,6 +700,24 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
               <span>Simpan & Sinkronkan</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Real-time Auto-Sync Ecosystem Notice */}
+      <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border border-emerald-500/30 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+        <div className="flex items-center space-x-2.5 text-emerald-900">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="font-bold">
+            ⚡ Sinkronisasi Otomatis Aktif:
+          </span>
+          <span className="text-slate-700">
+            Setiap perubahan manual pada <strong>Alokasi Waktu (JP)/BAB</strong>, <strong>Jumlah Pertemuan</strong>, atau <strong>Penambahan BAB Baru</strong> langsung disinkronkan secara otomatis ke <strong>Menu Distribusi Alokasi Waktu</strong>, <strong>PROSEM</strong>, <strong>PROTA</strong>, <strong>ATP</strong>, dan <strong>Modul Ajar (RPM)</strong>.
+          </span>
+        </div>
+        <div className="flex items-center space-x-2 shrink-0">
+          <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-[11px] font-bold border border-emerald-300">
+            {totalJPYear} Total JP • {totalPertemuanSem1 + totalPertemuanSem2} Pertemuan
+          </span>
         </div>
       </div>
 

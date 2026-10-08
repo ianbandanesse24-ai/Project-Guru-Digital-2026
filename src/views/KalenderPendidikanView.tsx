@@ -161,11 +161,13 @@ export const KalenderPendidikanView: React.FC<KalenderPendidikanViewProps> = ({
     window.addEventListener('curriculum-parameters-synced', handleSync);
     window.addEventListener('school-profile-updated', handleSync);
     window.addEventListener('master-cp-updated', handleSync);
+    window.addEventListener('curriculum-materials-changed', handleSync);
 
     return () => {
       window.removeEventListener('curriculum-parameters-synced', handleSync);
       window.removeEventListener('school-profile-updated', handleSync);
       window.removeEventListener('master-cp-updated', handleSync);
+      window.removeEventListener('curriculum-materials-changed', handleSync);
     };
   }, []);
 

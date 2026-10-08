@@ -171,7 +171,7 @@ E. ASESMEN PEMBELAJARAN:
 E. MEDIA, ALAT, DAN SUMBER BELAJAR:
    - Media Pembelajaran Interaktif (Video animasi kontekstual, Slide infografis visual, LKPD Deep Learning, Papan tulis/Mind Map)
    - Alat dan Bahan Praktik Konkret (Kit peraga/investigasi konkret, Benda kontekstual lingkungan, Sticky notes & spidol warna, LCD Proyektor & Laptop)
-   - Sumber Belajar Resmi (Buku Teks Siswa Kemendikbudristek RI, Buku Panduan Guru Kemendikbudristek RI, Modul Digital Kurikulum Merdeka, Portal Simulasi Edukasi)
+   - Sumber Belajar Resmi (Buku Teks Siswa Kemendikbudristek RI, Buku Panduan Guru Kemendikbudristek RI, Modul Digital Kurikulum Berbasis Deep Learning, Portal Simulasi Edukasi)
 
 VIII. MATRIKS PEMBELAJARAN BERDIFERENSIASI:
    - Skema Matriks Alur Visual (Diferensiasi Konten, Diferensiasi Proses, Diferensiasi Produk)
@@ -223,14 +223,14 @@ X. PENGESAHAN DOKUMEN:
     id: 'template_standar_resmi_prota_4_kolom',
     name: 'Standar Baku Resmi PROTA 4 Kolom (Kemendikbudristek & Deep Learning - Utama)',
     category: 'prota',
-    description: 'Format Standar Baku Resmi Program Tahunan (PROTA) 4 Kolom Kurikulum Merdeka terintegrasi Pendekatan Deep Learning: Identitas Perangkat Lengkap (Satuan Pendidikan, Penyusun, NIP, Mata Pelajaran, Fase, Kelas/Semester, Model Deep Learning), Tabel PROTA 4 Kolom (Bab, Alur Tujuan Pembelajaran 3 Pilar, Ruang Lingkup Materi, Alokasi Waktu JP), Total Alokasi Waktu Tahunan, dan Lembar Pengesahan Resmi.',
+    description: 'Format Standar Baku Resmi Program Tahunan (PROTA) 4 Kolom Kurikulum Berbasis Deep Learning: Identitas Perangkat Lengkap (Satuan Pendidikan, Penyusun, NIP, Mata Pelajaran, Fase, Kelas/Semester, Model Deep Learning), Tabel PROTA 4 Kolom (Bab, Alur Tujuan Pembelajaran 3 Pilar, Ruang Lingkup Materi, Alokasi Waktu JP), Total Alokasi Waktu Tahunan, dan Lembar Pengesahan Resmi.',
     isBuiltIn: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     notes: `STANDAR BAKU RESMI PROGRAM TAHUNAN (PROTA) 4 KOLOM DEEP LEARNING:
 
 1. COVER & IDENTITAS PERANGKAT:
-   - Judul: PROGRAM TAHUNAN (PROTA) KURIKULUM MERDEKA
+   - Judul: PROGRAM TAHUNAN (PROTA) KURIKULUM BERBASIS DEEP LEARNING
    - Subjudul: PENDEKATAN DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
    - Identitas: Mata Pelajaran, Satuan Pendidikan, Tahun Pelajaran, Fase, Kelas / Semester (Ganjil & Genap), Nama Penyusun, NIP
 
@@ -268,7 +268,7 @@ X. PENGESAHAN DOKUMEN:
     id: 'template_standar_resmi_alokasi_waktu_deep_learning',
     name: 'Standar Analisis Alokasi Waktu RBE (Kemendikbudristek & Deep Learning - Utama)',
     category: 'analisis_alokasi_waktu',
-    description: 'Format Standar Analisis Alokasi Waktu & Rincian Pekan Efektif (RBE) Kurikulum Merdeka terintegrasi Siklus Deep Learning: Identitas Dokumen, Skema Struktur Waktu Tahunan (Mindful, Meaningful, Joyful), Distribusi Pekan Kalender & Jam Efektif Semester 1 dan 2, Distribusi JP per Bab, dan Pengesahan Resmi.',
+    description: 'Format Standar Analisis Alokasi Waktu & Rincian Pekan Efektif (RBE) Kurikulum Berbasis Deep Learning: Identitas Dokumen, Skema Struktur Waktu Tahunan (Mindful, Meaningful, Joyful), Distribusi Pekan Kalender & Jam Efektif Semester 1 dan 2, Distribusi JP per Bab, dan Pengesahan Resmi.',
     isBuiltIn: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',

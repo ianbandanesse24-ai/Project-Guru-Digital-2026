@@ -407,8 +407,8 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
               </h1>
 
               <p className="text-sm text-slate-300 leading-relaxed max-w-2xl font-normal">
-                Pusat Kendali Administrasi KBM &amp; Studio Kurikulum Merdeka. Seluruh data Capaian Pembelajaran,
-                alokasi jam tatap muka, dan format 9 dokumen resmi tersinkronisasi secara otomatis tanpa redundansi.
+                Pusat Kendali Administrasi KBM &amp; Studio Kurikulum Berbasis Deep Learning. Seluruh data Capaian Pembelajaran,
+                alokasi jam tatap muka, dan format 9 dokumen resmi tersinkronisasi secara otomatis berlandaskan 3 Pilar Pembelajaran Mendalam (Mindful, Meaningful, &amp; Joyful Learning).
               </p>
 
               {/* Status Pills */}

@@ -1,6 +1,6 @@
 /**
  * AI Curriculum Generation Engine
- * Generates rich, comprehensive, official Kurikulum Merdeka & Deep Learning documents
+ * Generates rich, comprehensive, official Kurikulum Berbasis Deep Learning documents
  * (Mindful, Meaningful, Joyful Learning) with ABCD TP formulations, HOTS rubrics, and detailed tables.
  */
 
@@ -52,7 +52,7 @@ export interface GenerateCurriculumParams {
 }
 
 /**
- * Standar Baku Resmi Lembar Pengesahan Dokumen Kurikulum Merdeka & Deep Learning
+ * Standar Baku Resmi Lembar Pengesahan Dokumen Kurikulum Berbasis Deep Learning
  * Rapi, proporsional, simetris, posisi presisi sesuai tata naskah dinas pendidikan:
  * - Kiri: Mengetahui, Kepala Satuan Pendidikan, Nama Sekolah, Ruang TTD, Nama Jelas Bergaris Bawah, NIP
  * - Kanan: Kota, Tanggal Penetapan Resmi, Guru Mata Pelajaran, Ruang TTD, Nama Jelas Bergaris Bawah, NIP
@@ -348,7 +348,7 @@ ${sem2Rows}
 | **Jumlah Tujuan Pembelajaran (TP)** | ${sem1Materials.length > 0 ? sem1Materials.length : 3} TP | ${sem2Materials.length > 0 ? sem2Materials.length : 3} TP | **${totalTPCount} TP** | Pemetaan Master CP & Modul |
 | **Alokasi Jam Tatap Muka Efektif** | ${finalSem1JP} JP | ${finalSem2JP} JP | **${finalSem1JP + finalSem2JP} JP** | KBM Berdiferensiasi & Deep Learning |
 | **Alokasi Jam Cadangan & Sumatif** | 6 JP | 6 JP | **12 JP** | ASTS, ASAS, & Evaluasi Mutu |
-| **Total Jam Pelajaran (JP)** | **${finalSem1JP + 6} JP** | **${finalSem2JP + 6} JP** | **${totalYearJP + 12} JP** | Beban Standar Kurikulum Merdeka |
+| **Total Jam Pelajaran (JP)** | **${finalSem1JP + 6} JP** | **${finalSem2JP + 6} JP** | **${totalYearJP + 12} JP** | Beban Standar Kurikulum Berbasis Deep Learning |
 | **Beban Tatap Muka per Minggu** | ${jpPerWk} JP / Minggu | ${jpPerWk} JP / Minggu | **${jpPerWk} JP / Minggu** | Matriks Jadwal Mingguan Sekolah |
 | **Estimasi Pekan Efektif KBM (RBE)** | ~18 Pekan | ~18 Pekan | **~36 Pekan Efektif** | Sinkronisasi Kalender Pendidikan |`;
       }
@@ -697,7 +697,7 @@ ${buildOfficialLembarPengesahan({
         }
 
         return `# ALUR TUJUAN PEMBELAJARAN (ATP) - FORMAT KRONOLOGIS TAHAPAN
-## KURIKULUM MERDEKA — TAHAPAN LOGIS DARI KONKRET KE ABSTRAK
+## KURIKULUM BERBASIS DEEP LEARNING — TAHAPAN LOGIS DARI KONKRET KE ABSTRAK
 ### TAHUN PELAJARAN ${resolvedAcademicYear}
 
 ---
@@ -803,7 +803,7 @@ ${buildOfficialLembarPengesahan({
         const indicatorList = `• mengidentifikasi konsep dan komponen esensial ${matTitle}.<br/>• menganalisis data empiris dan variabel terkait.<br/>• menyajikan kesimpulan dan solusi kreatif.`;
         const profilPancasila = `• <strong>Dimensi 6C:</strong> Character, Critical Thinking, Creativity, Collaboration, Communication, Citizenship.<br/>• <strong>Profil Pancasila:</strong> Beriman, Bernalar Kritis, Bergotong Royong, Kreatif, Mandiri.`;
         const deepLearningActivities = `• <strong>Mindful:</strong> Observasi kesadaran penuh terhadap fenomena ${matTitle}.<br/>• <strong>Meaningful:</strong> Penyelidikan inkuiri berbasis data nyata.<br/>• <strong>Joyful:</strong> Kreasi karya inovatif & selebrasi belajar.`;
-        const sumberBelajar = `• Buku Teks ${subject} ${level} Kelas ${grade} (Kemendikbudristek).<br/>• Modul Ajar & LKPD Kurikulum Merdeka.<br/>• Sumber Digital & Lingkungan Kontekstual.`;
+        const sumberBelajar = `• Buku Teks ${subject} ${level} Kelas ${grade} (Kemendikbudristek).<br/>• Modul Ajar & LKPD Berbasis Deep Learning.<br/>• Sumber Digital & Lingkungan Kontekstual.`;
         const penilaian = `• Asesmen Diagnostik & Formatif Sikap 6C.<br/>• Penilaian Kinerja Keterampilan Proses.<br/>• Asesmen Sumatif Lingkup Materi.`;
         const hoursPerTp = Math.round((hours / numTPs) * 10) / 10;
 
@@ -843,7 +843,7 @@ ${buildOfficialLembarPengesahan({
 
       return `# ALUR TUJUAN PEMBELAJARAN (ATP)
 ## PENDEKATAN DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
-### KURIKULUM MERDEKA — TAHUN PELAJARAN ${resolvedAcademicYear}
+### KURIKULUM BERBASIS DEEP LEARNING — TAHUN PELAJARAN ${resolvedAcademicYear}
 
 ---
 
@@ -909,7 +909,7 @@ ${buildOfficialLembarPengesahan({
 
       return `# ANALISIS ALOKASI WAKTU & RINCIAN PEKAN EFEKTIF (RBE)
 ## PENDEKATAN DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
-### KURIKULUM MERDEKA — TAHUN PELAJARAN ${resolvedAcademicYear}
+### KURIKULUM BERBASIS DEEP LEARNING — TAHUN PELAJARAN ${resolvedAcademicYear}
 ${customSchoolHeader}
 ---
 
@@ -1044,12 +1044,13 @@ ${buildOfficialLembarPengesahan({
   subject,
   grade,
   phase,
-  customNote: `Dokumen Analisis Alokasi Waktu dan Rincian Pekan Efektif (RBE) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diperiksa, disetujui, dan disahkan sebagai acuan resmi pelaksanaan Kegiatan Belajar Mengajar berbasis Kurikulum Merdeka dan Pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*) pada Tahun Pelajaran **${resolvedAcademicYear}**.`
+  customNote: `Dokumen Analisis Alokasi Waktu dan Rincian Pekan Efektif (RBE) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diperiksa, disetujui, dan disahkan sebagai acuan resmi pelaksanaan Kegiatan Belajar Mengajar berbasis Kurikulum Deep Learning (*Mindful, Meaningful, & Joyful Learning*) pada Tahun Pelajaran **${resolvedAcademicYear}**.`
 })}
 `;
     }
 
     case 'prota': {
+      const hoursPerWeek = Number(params.distributionData?.jpPerWeek || (params.distributionData as any)?.hoursPerWeek || syncedContext.jpPerWeek) || 3;
       const resolvedGradeRoman = typeof grade === 'number' ? (
         grade === 1 ? 'I' : grade === 2 ? 'II' : grade === 3 ? 'III' : grade === 4 ? 'IV' : grade === 5 ? 'V' : grade === 6 ? 'VI' :
         grade === 7 ? 'VII' : grade === 8 ? 'VIII' : grade === 9 ? 'IX' :
@@ -1128,6 +1129,7 @@ ${buildOfficialLembarPengesahan({
           const jp2 = chunkJp;
           const jp3 = Math.max(2, totalBabJp - (jp1 + jp2));
 
+          const babMeetings = Math.max(1, Math.round(totalBabJp / (hoursPerWeek || 1)));
           const sub1Title = `${babTitle} — Fondasi Konsep & Karakteristik Pokok (Mindful)`;
           const sub2Title = `${babTitle} — Inkuiri Kritis, Formulasi & Analisis Masalah (Meaningful)`;
           const sub3Title = `${babTitle} — Rekayasa Terapan, Gelar Karya & Refleksi 3-2-1 (Joyful)`;
@@ -1136,14 +1138,16 @@ ${buildOfficialLembarPengesahan({
           const tp2 = `Peserta didik (**A**) mampu **menerapkan formulasi ilmiah, mengolah data empiris, dan memecahkan permasalahan** (**B**) kontekstual nyata terkait **${babTitle}** melalui inkuiri terbimbing (**C**) dengan akurat, teliti, dan kolaboratif (**D**).`;
           const tp3 = `Peserta didik (**A**) mampu **merancang karya/solusi inovatif, menyajikan laporan pameran karya (*gallery walk*), serta merefleksikan proses belajar** (**B**) materi **${babTitle}** (**C**) secara estetis, komunikatif, dan penuh antusiasme (**D**).`;
 
-          protaRows.push(`| **Bab ${babNum} : ${babTitle}** | ${tp1} | ${sub1Title} | ${jp1} JP |`);
+          protaRows.push(`| **Bab ${babNum} : ${babTitle}**<br/><span style="font-size: 8pt; color: #0284c7; font-weight: bold;">(Total: ${totalBabJp} JP • ${babMeetings} Pertemuan)</span> | ${tp1} | ${sub1Title} | ${jp1} JP |`);
           protaRows.push(`| | ${tp2} | ${sub2Title} | ${jp2} JP |`);
           protaRows.push(`| | ${tp3} | ${sub3Title} | ${jp3} JP |`);
         }
       });
 
+      const grandTotalMeetings = Math.max(1, Math.round(grandTotalJP / (hoursPerWeek || 1)));
+
       return `# PROGRAM TAHUNAN (PROTA)
-## KURIKULUM MERDEKA — PENDEKATAN DEEP LEARNING
+## KURIKULUM BERBASIS DEEP LEARNING
 ### (MINDFUL, MEANINGFUL, & JOYFUL LEARNING) — TAHUN PELAJARAN ${resolvedAcademicYear}
 
 ---
@@ -1157,7 +1161,7 @@ ${buildOfficialLembarPengesahan({
 * **Semester:** I (Ganjil) & II (Genap) — 1 Tahun Pelajaran Penuh
 * **Pendekatan & Model:** **Deep Learning (Mindful, Meaningful, & Joyful Learning)**
 * **Tahun Pelajaran:** **${resolvedAcademicYear}**
-* **Total Alokasi Waktu:** **${grandTotalJP} JP (Jam Pelajaran)**
+* **Total Alokasi Waktu:** **${grandTotalJP} JP (${grandTotalMeetings} Pertemuan KBM)**
 
 ---
 
@@ -1165,7 +1169,7 @@ ${buildOfficialLembarPengesahan({
 | Bab | Alur Tujuan Pembelajaran (3 Pilar Deep Learning) | Materi / Ruang Lingkup | Alokasi Waktu |
 | :--- | :--- | :--- | :---: |
 ${protaRows.join('\n')}
-| **Total** | | | **${grandTotalJP} JP** |
+| **Total Alokasi Waktu 1 Tahun** | | | **${grandTotalJP} JP (${grandTotalMeetings} Pertemuan)** |
 
 ---
 
@@ -1181,7 +1185,7 @@ ${buildOfficialLembarPengesahan({
   subject,
   grade,
   phase,
-  customNote: `Dokumen Program Tahunan (PROTA) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diverifikasi dan disahkan sebagai pedoman alokasi waktu dan distribusi alur tujuan pembelajaran selama satu tahun pelajaran berbasis Kurikulum Merdeka dan Pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*) pada Tahun Pelajaran **${resolvedAcademicYear}**.`
+  customNote: `Dokumen Program Tahunan (PROTA) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diverifikasi dan disahkan sebagai pedoman alokasi waktu dan distribusi alur tujuan pembelajaran selama satu tahun pelajaran berbasis Kurikulum Deep Learning (*Mindful, Meaningful, & Joyful Learning*) pada Tahun Pelajaran **${resolvedAcademicYear}**.`
 })}
 `;
     }
@@ -1320,11 +1324,15 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
       const materialAllocations = semMats.map((m, idx) => {
         const matName = m.essentialMaterial || m.tpName || `Bab ${idx + 1}`;
         const rawJP = Number(m.allocatedHours) || (idx === 0 ? 16 : 18);
+        const meetingCount = Number(m.meetingCount) > 0 
+          ? Number(m.meetingCount) 
+          : Math.max(1, Math.round(rawJP / (hoursPerWeek || 1)));
         return {
           id: m.id || `mat-${idx + 1}`,
           tpCode: m.tpCode || `TP.${idx + 1}`,
           name: matName,
           jp: rawJP,
+          meetingCount,
           tpCount: Number(m.tpCount) || 1,
           tpName: m.tpName || '',
         };
@@ -1368,7 +1376,7 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
       ).join('');
 
       // HTML Table Body Rows (Bab Banner Rows + TP Rows)
-      let globalBabOffset = isGanjil ? 0 : 2;
+      let globalBabOffset = isGanjil ? 0 : (sem1Materials.length > 0 ? sem1Materials.length : 2);
       const tableRowsHtml = materialAllocations.map((m, mIdx) => {
         const babNum = globalBabOffset + mIdx + 1;
         const babTitle = m.name;
@@ -1406,7 +1414,7 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
             ${tpContentFormatted}
           </td>
           <td style="border: 1px solid #333333; padding: 6px 4px; font-weight: bold; text-align: center; vertical-align: middle; background-color: #f8fafc; font-size: 9pt;">
-            ${m.jp} JP
+            ${m.jp} JP<br/><span style="font-size: 8pt; font-weight: bold; color: #0284c7;">(${m.meetingCount} Pertemuan)</span>
           </td>
           ${cellsHtml}
         </tr>`;
@@ -1422,6 +1430,7 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
       }).join('');
 
       const totalSemesterJP = materialAllocations.reduce((s, m) => s + m.jp, 0);
+      const totalSemesterMeetings = materialAllocations.reduce((s, m) => s + m.meetingCount, 0);
 
       // Resolve waka kurikulum name from params or profile fallback
       const wakaName = (params as any).wakaName || (schoolProfile as any)?.wakaName || 'Alpiyan Prasetiya Marasabessy, S.Pd., Gr.';
@@ -1488,8 +1497,8 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
       ${tableRowsHtml}
       <!-- BARIS JUMLAH JAM PELAJARAN -->
       <tr style="background-color: #e2e8f0; font-weight: bold;">
-        <td style="border: 1px solid #333333; padding: 6px 8px; text-align: left; font-weight: bold;" colspan="2">JUMLAH JAM PELAJARAN</td>
-        <td style="border: 1px solid #333333; padding: 6px 4px; font-weight: bold; text-align: center; background-color: #cbd5e1;">${totalSemesterJP} JP</td>
+        <td style="border: 1px solid #333333; padding: 6px 8px; text-align: left; font-weight: bold;" colspan="2">TOTAL ALOKASI WAKTU SEMESTER</td>
+        <td style="border: 1px solid #333333; padding: 6px 4px; font-weight: bold; text-align: center; background-color: #cbd5e1;">${totalSemesterJP} JP<br/><span style="font-size: 8pt; font-weight: bold; color: #0f172a;">(${totalSemesterMeetings} Pertemuan)</span></td>
         ${weeklyTotalCellsHtml}
       </tr>
     </tbody>
@@ -1808,7 +1817,7 @@ ${meetingsContent}
 - **Sumber Belajar Resmi:**
   - Buku Teks Utama: *${subject} untuk ${level} Kelas ${grade}*, Pusat Perbukuan Kemendikbudristek RI.
   - Buku Panduan Guru *${subject}*, Kemendikbudristek RI.
-  - Modul & Bahan Ajar Digital Pendamping Kurikulum Merdeka.
+  - Modul & Bahan Ajar Digital Pendamping Berbasis Deep Learning.
   - Portal Sains & Simulasi Edukasi: *PhET Interactive Simulations*, *Khan Academy*, dan ensiklopedia ilmiah.
 
 ---
@@ -2477,7 +2486,7 @@ ${buildOfficialLembarPengesahan({
     case 'rubrik_penilaian':
     case 'asesmen':
       return `# RUBRIK PENILAIAN TERPADU BERBASIS DEEP LEARNING & KARAKTER 6C
-## SINKRON DENGAN RENCANA PELAKSANAAN MODUL (RPM) & KURIKULUM MERDEKA
+## SINKRON DENGAN RENCANA PELAKSANAAN MODUL (RPM) & KURIKULUM BERBASIS DEEP LEARNING
 ### PENDEKATAN DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
 
 ---
@@ -2602,12 +2611,12 @@ ${buildOfficialLembarPengesahan({
   subject,
   grade,
   phase,
-  customNote: `Dokumen Rubrik Penilaian Terpadu berbasis Kurikulum Merdeka dan Pendekatan Deep Learning (*Mindful, Meaningful, & Joyful Learning*) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) materi **${topic}** ini telah diperiksa, diverifikasi, dan disahkan oleh Kepala Satuan Pendidikan untuk digunakan dalam evaluasi pembelajaran Tahun Pelajaran **${resolvedAcademicYear}**.`
+  customNote: `Dokumen Rubrik Penilaian Terpadu berbasis Kurikulum Deep Learning (*Mindful, Meaningful, & Joyful Learning*) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) materi **${topic}** ini telah diperiksa, diverifikasi, dan disahkan oleh Kepala Satuan Pendidikan untuk digunakan dalam evaluasi pembelajaran Tahun Pelajaran **${resolvedAcademicYear}**.`
 })}
 `;
 
     default:
-      return `# PERANGKAT AJAR KURIKULUM MERDEKA
+      return `# PERANGKAT AJAR BERBASIS DEEP LEARNING
 ## MATA PELAJARAN: ${subject.toUpperCase()} (${level} KELAS ${grade})
 * **Fase:** ${phase} | **Semester:** ${semester}
 * **Topik:** ${topic}

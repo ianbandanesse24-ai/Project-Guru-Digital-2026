@@ -491,7 +491,7 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
               {/* Document Title */}
               <div className="title-box">
                 <div className="title">{title}</div>
-                <div className="fase-badge">Kurikulum Deep Learning & Merdeka Belajar (Fase {phase})</div>
+                <div className="fase-badge">Kurikulum Berbasis Deep Learning (Fase {phase})</div>
               </div>
 
               {/* Rendered HTML Document Content (Menggunakan Identitas & Lembar Pengesahan Resmi yang Dibuat Langsung Oleh Aplikasi) */}

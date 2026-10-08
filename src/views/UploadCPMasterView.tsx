@@ -380,7 +380,7 @@ E. RENCANA PENILAIAN & ASESMEN AUTENTIK`,
           deepLearningMethod: 'Meaningful (Keteladanan Karakter Tokoh), Mindful (Inspirasi Hidup)',
         },
       ],
-      executiveSummary: 'Analisis mendalam Capaian Pembelajaran (CP) Bahasa Indonesia Fase E (Kelas 10) berlandaskan Kurikulum Merdeka. Struktur materi dirancang seimbang antara Semester 1 dan 2 dengan total alokasi 108 JP setahun (3 JP/Minggu) serta terintegrasi utuh dengan 3 Pilar Deep Learning dan Penguatan Karakter 6C.',
+      executiveSummary: 'Analisis mendalam Capaian Pembelajaran (CP) Bahasa Indonesia Fase E (Kelas 10) berlandaskan Kurikulum Berbasis Deep Learning. Struktur materi dirancang seimbang antara Semester 1 dan 2 dengan total alokasi 108 JP setahun (3 JP/Minggu) serta terintegrasi utuh dengan 3 Pilar Deep Learning (Mindful, Meaningful, Joyful Learning) dan 8 Dimensi Kelulusan / Karakter 6C.',
       kktpSummary: 'Pedoman Interval Ketuntasan KKTP: 0 - 40% (Perlu Bimbingan Individual), 41 - 65% (Remedial pada Indikator yang Belum Dikuasai), 66 - 85% (Tuntas Mencapai Tujuan Pembelajaran), 86 - 100% (Pengayaan & Pendalaman Materi Mandiri).',
       syncStatus: 'synced',
       lastSyncedAt: new Date().toISOString(),
@@ -456,7 +456,7 @@ ${customFormatConfig.customFormatNotes ? `Struktur & Catatan Khusus Format:\n${c
 
     content += `\n---
 ## IV. KRITERIA KETERCAPAIAN TUJUAN PEMBELAJARAN (KKTP)
-${masterCP.kktpSummary || 'Interval Standar Kurikulum Merdeka 0-100%'}\n`;
+${masterCP.kktpSummary || 'Interval Standar Kriteria Ketuntasan Berbasis Deep Learning 0-100%'}\n`;
 
     ExportService.exportToWord(
       `Hasil Analisis CP ${masterCP.subject} ${masterCP.phase}`,

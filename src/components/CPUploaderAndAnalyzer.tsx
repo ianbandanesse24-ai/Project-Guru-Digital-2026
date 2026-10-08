@@ -288,7 +288,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
         setCurrentPhaseDetail('Membaca berkas CP resmi BSKAP Kemendikdasmen RI...');
       } else if (currentPct < 40) {
         setCurrentPhaseTitle('2. Deteksi Metadata Resmi (Jenjang, Fase, Kelas, Mapel)');
-        setCurrentPhaseDetail('Mengidentifikasi regulasi Kurikulum Merdeka & alokasi JP per tahun...');
+        setCurrentPhaseDetail('Mengidentifikasi regulasi Kurikulum Berbasis Deep Learning & alokasi JP per tahun...');
       } else if (currentPct < 60) {
         setCurrentPhaseTitle('3. Dekomposisi Elemen CP & KKO Taksonomi Bloom HOTS');
         setCurrentPhaseDetail('Mengekstrak kompetensi esensial dan lingkup materi pokok...');
@@ -1950,7 +1950,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                       <span>Ringkasan Eksekutif Analisis CP</span>
                     </h4>
                     <p className="text-slate-200 leading-relaxed">
-                      {masterData.executiveSummary || 'Analisis mendalam Capaian Pembelajaran Kurikulum Merdeka berorientasi Deep Learning.'}
+                      {masterData.executiveSummary || 'Analisis mendalam Capaian Pembelajaran Kurikulum Berbasis Deep Learning (Mindful, Meaningful, & Joyful Learning).'}
                     </p>
                   </div>
 

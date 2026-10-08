@@ -383,6 +383,17 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
     const handleCPEvent = () => {
       setHasManuallyModified(false);
       updateUserData();
+      // Auto-regenerate active document so manual changes to Bab, JP & meetings immediately update on screen
+      setTimeout(() => {
+        try {
+          const freshDoc = buildInstantDocument(docType);
+          if (freshDoc) {
+            setGeneratedMarkdown(freshDoc);
+          }
+        } catch (err) {
+          console.error('Failed auto-syncing active document:', err);
+        }
+      }, 50);
     };
 
     const unsubscribe = addStorageListener(() => {
@@ -392,12 +403,14 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
     window.addEventListener('master-cp-updated', handleCPEvent);
     window.addEventListener('school-profile-updated', handleCPEvent);
     window.addEventListener('curriculum-parameters-synced', handleCPEvent);
+    window.addEventListener('curriculum-materials-changed', handleCPEvent);
 
     return () => {
       unsubscribe();
       window.removeEventListener('master-cp-updated', handleCPEvent);
       window.removeEventListener('school-profile-updated', handleCPEvent);
       window.removeEventListener('curriculum-parameters-synced', handleCPEvent);
+      window.removeEventListener('curriculum-materials-changed', handleCPEvent);
     };
   }, []);
 
@@ -553,7 +566,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
     setTimeout(() => setResetFeedback(''), 2500);
   };
 
-  // Reset RPM Format to official standard Deep Learning Kurikulum Merdeka
+  // Reset RPM Format to official standard Kurikulum Berbasis Deep Learning
   const handleResetRPMFormat = () => {
     // 1. Reset custom format and uploaded files
     setCustomFormatConfig({
@@ -708,7 +721,8 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
       resolvedTopic = currentCP?.topic || `${subject} - Materi Pokok Semester ${semester}`;
     }
     const totalJP = meetingCount * hoursPerMeeting;
-    const activeDistribution = activeMasterCP || StorageService.getCPDistributions().find(p => p.subject.toLowerCase() === subject.toLowerCase());
+    const latestMaster = StorageService.getActiveMasterCP();
+    const activeDistribution = latestMaster || activeMasterCP || StorageService.getCPDistributions().find(p => p.subject.toLowerCase() === subject.toLowerCase());
     
     const selectedTPObjects = allSyncedTPs.filter((t) => selectedTPIds.includes(t.id));
     const finalManualTP =
@@ -730,7 +744,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
       hoursPerMeeting,
       minutesPerJP,
       totalJP,
-      cpText: activeMasterCP?.cpText || currentCP?.cpText || 'Memahami dan menganalisis gagasan serta pesan dalam konteks pembelajaran mendalam.',
+      cpText: latestMaster?.cpText || activeMasterCP?.cpText || currentCP?.cpText || 'Memahami dan menganalisis gagasan serta pesan dalam konteks pembelajaran mendalam.',
       distributionData: activeDistribution,
       kalenderData: StorageService.getKalenderPendidikan(),
       modulOption: activeDocType === 'modul_ajar' ? modulOption : undefined,
@@ -943,7 +957,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
       const clientApiKey = localStorage.getItem('agk_client_gemini_key');
       if (clientApiKey) {
         try {
-          const directPrompt = `Anda adalah pakar Kurikulum Merdeka & Deep Learning Indonesia. Buatlah ${activeDocType} resmi dan lengkap untuk mata pelajaran ${subject}, jenjang ${level}, kelas ${grade}, fase ${currentPhase}, semester ${semester}, materi/topik "${resolvedTopic}". ${customPrompt ? `Instruksi khusus: ${customPrompt}` : ''}`;
+          const directPrompt = `Anda adalah pakar Kurikulum Berbasis Deep Learning (Mindful, Meaningful, & Joyful Learning) Indonesia. Buatlah ${activeDocType} resmi dan lengkap untuk mata pelajaran ${subject}, jenjang ${level}, kelas ${grade}, fase ${currentPhase}, semester ${semester}, materi/topik "${resolvedTopic}". ${customPrompt ? `Instruksi khusus: ${customPrompt}` : ''}`;
           const directRes = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${clientApiKey}`,
             {
@@ -1860,7 +1874,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                             Mode Penilaian KKTP Setiap Semester (Semester {semester}):
                           </span>
                           <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200">
-                            Standar Utama Kurikulum Merdeka
+                            Pondasi Baku Deep Learning
                           </span>
                         </div>
                         <p className="text-slate-600">

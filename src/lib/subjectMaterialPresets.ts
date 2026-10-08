@@ -2474,7 +2474,7 @@ export function generateDynamicGradePreset(
     phase,
     totalHoursPerYear: 108,
     jpPerWeek: 3,
-    cpSummary: `Peserta didik Kelas ${numGrade} (${phase}) menguasai pemahaman esensial, keterampilan proses penyelidikan, dan penalaran kritis materi ${cleanSubject} berbasis kerangka Kurikulum Merdeka & Deep Learning.`,
+    cpSummary: `Peserta didik Kelas ${numGrade} (${phase}) menguasai pemahaman esensial, keterampilan proses penyelidikan, dan penalaran kritis materi ${cleanSubject} berbasis kerangka Kurikulum Berbasis Deep Learning (Mindful, Meaningful, & Joyful Learning).`,
     materialsSem1: sem1Topics.map((item, idx) => ({
       semester: 1,
       orderNumber: idx + 1,
@@ -2577,7 +2577,7 @@ export function syncAllPresetSubjectsToMasterCP(
       phase: preset.phase,
       grade: preset.grade,
       subject: preset.subject,
-      curriculumVersion: 'Kurikulum Merdeka - Deep Learning 2026/2027',
+      curriculumVersion: 'Kurikulum Berbasis Deep Learning 2026/2027',
       uploadedAt: new Date().toISOString().substring(0, 16),
       uploadedBy: activeTeacher,
       fileName: `Dokumen_CP_${preset.subject}_${preset.level}_Kelas_${preset.grade}_Kemendikdasmen.pdf`,

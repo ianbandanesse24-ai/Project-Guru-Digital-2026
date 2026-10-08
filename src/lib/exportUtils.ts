@@ -1163,7 +1163,7 @@ export class ExportService {
         [`NPSN: ${npsn} | Alamat: ${address} | Email: ${email}`],
         [],
         [`DOKUMEN: ${docTitle.toUpperCase()}`],
-        [`Kurikulum Deep Learning & Merdeka Belajar (Fase ${phase})`],
+        [`Kurikulum Berbasis Deep Learning (Fase ${phase})`],
         [],
         ['Satuan Pendidikan:', schoolName, 'Tahun Pelajaran:', academicYear],
         ['Mata Pelajaran:', subject, 'Semester:', semester],
@@ -1612,7 +1612,7 @@ export class ExportService {
 
           <div class="doc-title-box">
             <div class="doc-title">${title}</div>
-            <div class="fase-badge">Kurikulum Deep Learning & Merdeka Belajar (Fase ${phase})</div>
+            <div class="fase-badge">Kurikulum Berbasis Deep Learning (Fase ${phase})</div>
           </div>
 
           <table class="meta-box">
@@ -1942,7 +1942,7 @@ export class ExportService {
 
         <div class="title-box">
           <div class="title">${title}</div>
-          <div class="fase-badge">Kurikulum Deep Learning & Merdeka Belajar (Fase ${phase})</div>
+          <div class="fase-badge">Kurikulum Berbasis Deep Learning (Fase ${phase})</div>
         </div>
 
         <div class="content">

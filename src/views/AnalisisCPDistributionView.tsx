@@ -173,18 +173,25 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
 
     const handleSyncEvent = () => {
       loadInitialData();
+      if (activeTab === 'preview') {
+        setTimeout(() => {
+          triggerGeneratePerangkatDoc(selectedPerangkatDocType, selectedPerangkatSemester);
+        }, 100);
+      }
     };
 
     window.addEventListener('curriculum-parameters-synced', handleSyncEvent);
     window.addEventListener('master-cp-updated', handleSyncEvent);
     window.addEventListener('school-profile-updated', handleSyncEvent);
+    window.addEventListener('curriculum-materials-changed', handleSyncEvent);
 
     return () => {
       window.removeEventListener('curriculum-parameters-synced', handleSyncEvent);
       window.removeEventListener('master-cp-updated', handleSyncEvent);
       window.removeEventListener('school-profile-updated', handleSyncEvent);
+      window.removeEventListener('curriculum-materials-changed', handleSyncEvent);
     };
-  }, []);
+  }, [activeTab, selectedPerangkatDocType, selectedPerangkatSemester]);
 
   const loadInitialData = () => {
     const loadedPlans = StorageService.getCPDistributions();
@@ -2650,7 +2657,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                   MATRIKS PEMBAGIAN MATERI & TUJUAN PEMBELAJARAN (ANALISIS CP)
                 </h3>
                 <p className="text-xs italic text-slate-600 font-sans">
-                  Tahun Ajaran: {academicYear} • Kurikulum Merdeka (Pendekatan Deep Learning)
+                  Tahun Ajaran: {academicYear} • Kurikulum Berbasis Deep Learning (Mindful, Meaningful, &amp; Joyful Learning)
                 </p>
               </div>
 
@@ -3314,7 +3321,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                   required
                   value={modalItem.tpName}
                   onChange={(e) => setModalItem({ ...modalItem, tpName: e.target.value })}
-                  placeholder="Tuliskan rumusan kompetensi dan materi yang diharapkan dicapai peserta didik (gunakan kata kerja operasional HOTS/Kurikulum Merdeka)..."
+                  placeholder="Tuliskan rumusan kompetensi dan materi yang diharapkan dicapai peserta didik (gunakan kata kerja operasional HOTS/Deep Learning)..."
                   className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-indigo-500 leading-relaxed"
                 />
               </div>
@@ -3339,7 +3346,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                   <label className="block text-[11px] font-bold text-slate-400 uppercase">
                     Penerapan Pendekatan Deep Learning (Mindful, Meaningful, Joyful)
                   </label>
-                  <span className="text-[10px] text-indigo-400">Kurikulum Merdeka</span>
+                  <span className="text-[10px] text-indigo-400">Pondasi Deep Learning</span>
                 </div>
                 <textarea
                   rows={2}
@@ -3488,7 +3495,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    Pustaka Template Materi Kurikulum Nasional
+                    Pustaka Template Materi Kurikulum Berbasis Deep Learning
                   </h3>
                   <p className="text-xs text-slate-400">
                     Pilih struktur materi standar Kemendikbudristek untuk langsung mendistribusikan Semester 1 & 2.
