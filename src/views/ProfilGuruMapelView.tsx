@@ -70,6 +70,11 @@ const POPULAR_SUBJECTS = [
   'Informatika',
   'Bahasa Indonesia',
   'Bahasa Inggris',
+  'Bahasa Jerman',
+  'Bahasa Arab',
+  'Bahasa Jepang',
+  'Bahasa Mandarin',
+  'Bahasa Perancis',
   'Pendidikan Pancasila',
   'Sejarah',
   'Geografi',
@@ -82,8 +87,8 @@ const POPULAR_SUBJECTS = [
   'IPAS (SD/SMP)',
 ];
 
-import { getDefaultTPText, countTPsInText, parseTPList } from '../lib/curriculumData';
-export { getDefaultTPText, countTPsInText, parseTPList };
+import { getDefaultTPText, countTPsInText, parseTPList, generateAutoTPForMaterial } from '../lib/curriculumData';
+export { getDefaultTPText, countTPsInText, parseTPList, generateAutoTPForMaterial };
 
 
 export const formatTPList = (tpList: string[]): string => {
@@ -1108,29 +1113,39 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
       return;
     }
 
-    const targetSemester = modalItem.semester;
+    const itemToSave = { ...modalItem };
+    if (!itemToSave.tpName.trim() && itemToSave.essentialMaterial.trim()) {
+      itemToSave.tpName = generateAutoTPForMaterial(
+        itemToSave.essentialMaterial,
+        subject,
+        Number(grade) || 10,
+        itemToSave.tpCount || 2
+      );
+    }
+
+    const targetSemester = itemToSave.semester;
     if (isNewModalItem) {
       if (targetSemester === 1) {
-        setMaterialsSem1([...materialsSem1, modalItem]);
+        setMaterialsSem1([...materialsSem1, itemToSave]);
       } else {
-        setMaterialsSem2([...materialsSem2, modalItem]);
+        setMaterialsSem2([...materialsSem2, itemToSave]);
       }
       showNotif(`Materi baru berhasil ditambahkan ke Semester ${targetSemester}!`);
     } else {
       if (targetSemester !== modalSemester) {
         if (modalSemester === 1) {
-          setMaterialsSem1(materialsSem1.filter((m) => m.id !== modalItem.id));
-          setMaterialsSem2([...materialsSem2, modalItem]);
+          setMaterialsSem1(materialsSem1.filter((m) => m.id !== itemToSave.id));
+          setMaterialsSem2([...materialsSem2, itemToSave]);
         } else {
-          setMaterialsSem2(materialsSem2.filter((m) => m.id !== modalItem.id));
-          setMaterialsSem1([...materialsSem1, modalItem]);
+          setMaterialsSem2(materialsSem2.filter((m) => m.id !== itemToSave.id));
+          setMaterialsSem1([...materialsSem1, itemToSave]);
         }
         showNotif(`Materi berhasil diperbarui dan dipindahkan ke Semester ${targetSemester}!`);
       } else {
         if (targetSemester === 1) {
-          setMaterialsSem1(materialsSem1.map((m) => (m.id === modalItem.id ? modalItem : m)));
+          setMaterialsSem1(materialsSem1.map((m) => (m.id === itemToSave.id ? itemToSave : m)));
         } else {
-          setMaterialsSem2(materialsSem2.map((m) => (m.id === modalItem.id ? modalItem : m)));
+          setMaterialsSem2(materialsSem2.map((m) => (m.id === itemToSave.id ? itemToSave : m)));
         }
         showNotif(`Materi Semester ${targetSemester} berhasil diperbarui!`);
       }
@@ -2490,26 +2505,67 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Lingkup Materi Pokok *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-semibold">Lingkup Materi Pokok *</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (modalItem.essentialMaterial.trim()) {
+                        const autoTP = generateAutoTPForMaterial(
+                          modalItem.essentialMaterial,
+                          subject,
+                          Number(grade) || 10,
+                          modalItem.tpCount || 2
+                        );
+                        setModalItem({ ...modalItem, tpName: autoTP });
+                      }
+                    }}
+                    className="text-xs text-emerald-700 hover:text-emerald-800 font-bold flex items-center space-x-1 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-200 transition cursor-pointer"
+                    title="Generate TP otomatis sesuai lingkup materi yang diisi"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Auto Buat TP dari Materi</span>
+                  </button>
+                </div>
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: Pengukuran Besaran Fisis, Angka Penting & Ketidakpastian"
+                  placeholder="Contoh: Begrüßung und Kennenlernen / Pengukuran Besaran Fisis"
                   value={modalItem.essentialMaterial}
-                  onChange={(e) => setModalItem({ ...modalItem, essentialMaterial: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const curTP = (modalItem.tpName || '').trim();
+                    const isGeneric = !curTP || curTP.includes('Materi Pokok') || curTP.includes('Kajian');
+                    if (isGeneric && val.trim()) {
+                      const autoTP = generateAutoTPForMaterial(val, subject, Number(grade) || 10, modalItem.tpCount || 2);
+                      setModalItem({ ...modalItem, essentialMaterial: val, tpName: autoTP });
+                    } else {
+                      setModalItem({ ...modalItem, essentialMaterial: val });
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const val = e.target.value.trim();
+                    if (val && (!modalItem.tpName || !modalItem.tpName.trim())) {
+                      const autoTP = generateAutoTPForMaterial(val, subject, Number(grade) || 10, modalItem.tpCount || 2);
+                      setModalItem({ ...modalItem, tpName: autoTP });
+                    }
+                  }}
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-blue-600 font-bold"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Rumusan Tujuan Pembelajaran (TP) *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-semibold">Rumusan Tujuan Pembelajaran (TP) *</label>
+                  <span className="text-[11px] text-blue-600 font-semibold">Tersinkron Otomatis dari Materi</span>
+                </div>
                 <textarea
                   rows={3}
                   required
-                  placeholder="Peserta didik mampu menerapkan prinsip-prinsip pengukuran..."
+                  placeholder="Peserta didik mampu memahami dan menerapkan..."
                   value={modalItem.tpName}
                   onChange={(e) => setModalItem({ ...modalItem, tpName: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-blue-600 leading-relaxed"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-blue-600 leading-relaxed text-xs"
                 />
               </div>
 

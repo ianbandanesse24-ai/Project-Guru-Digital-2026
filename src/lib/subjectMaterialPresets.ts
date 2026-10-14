@@ -1165,6 +1165,85 @@ export const SUBJECT_MATERIAL_PRESETS: SubjectPreset[] = [
   },
 
   // ==========================================
+  // SMA - BAHASA JERMAN (FASE E & F)
+  // ==========================================
+  {
+    subject: 'Bahasa Jerman',
+    level: 'SMA',
+    grade: 10,
+    phase: 'Fase E',
+    totalHoursPerYear: 72,
+    jpPerWeek: 2,
+    cpSummary: 'Peserta didik mampu menyimak (Hören), berbicara (Sprechen), membaca (Lesen), dan menulis (Schreiben) ungkapan komunikatif sederhana seputar salam dan perkenalan diri (Begrüßung & Kennenlernen), kehidupan sekolah (Schulleben), keluarga dan hobi (Familie & Hobbys), kegiatan harian (Tagesablauf), makanan dan minuman (Essen & Trinken), serta wawasan interkultural penutur bahasa Jerman dengan pendekatan Deep Learning.',
+    elements: [
+      {
+        name: 'Menyimak & Berbicara (Hören & Sprechen)',
+        description: 'Peserta didik memahami pesan lisan, melafalkan ujaran dengan intonasi tepat, dan berinteraksi secara aktif dalam situasi komunikatif sehari-hari.',
+        competencies: ['Mengidentifikasi ungkapan sapaan dan perkenalan', 'Merespons pertanyaan lisan sederhana', 'Melakukan dialog interaktif'],
+        essentialMaterials: ['Begrüßung & Kennenlernen', 'Zahlen & Alphabet', 'Dialoge im Alltag'],
+      },
+      {
+        name: 'Membaca & Menulis (Lesen & Schreiben)',
+        description: 'Peserta didik memahami teks deskriptif/interaksional pendek dan menyusun teks tulis sederhana dengan tata bahasa dan ejaan bahasa Jerman yang tepat.',
+        competencies: ['Menemukan informasi tersurat dan tersirat', 'Menerapkan kaidah Grammatik', 'Menyusun teks tulis sederhana'],
+        essentialMaterials: ['Personalpronomen & Konjugation', 'Bestimmter/Unbestimmter Artikel', 'Steckbrief & E-Mail schreiben'],
+      },
+    ],
+    materialsSem1: [
+      {
+        semester: 1,
+        orderNumber: 1,
+        tpCode: 'TP.10.1.1',
+        tpName: 'Mengidentifikasi ungkapan sapaan, melafalkan ujaran (Aussprache), dan memperkenalkan diri serta orang lain (Kennenlernen & Begrüßung) secara santun dan percaya diri.',
+        essentialMaterial: 'Bab 1: Begrüßung, Kennenlernen & Identitätsangaben (Alphabet, Zahlen, Personalpronomen & Konjugation der regelmäßigen Verben im Präsens)',
+        elementName: 'Hören & Sprechen, Lesen & Schreiben',
+        allocatedHours: 18,
+        tpCount: 2,
+        assessmentStrategy: 'Tes Praktik Berbicara Dialog Perkenalan Diri & Kuis Formatif Grammatik',
+        deepLearningMethod: 'Joyful: Simulasi interaktif Speed Dating / Perkenalan sahabat pena Jerman secara ceria.',
+      },
+      {
+        semester: 1,
+        orderNumber: 2,
+        tpCode: 'TP.10.1.2',
+        tpName: 'Menganalisis teks informasi dan mendeskripsikan benda-benda ruang kelas serta aktivitas pembelajaran di sekolah (Schulleben und Schulsachen).',
+        essentialMaterial: 'Bab 2: Schulleben, Schulsachen & Stundenplan (Bestimmter/Unbestimmter Artikel der/die/das, Negation kein/nicht, Schulfächer)',
+        elementName: 'Lesen & Schreiben',
+        allocatedHours: 18,
+        tpCount: 2,
+        assessmentStrategy: 'Penilaian Proyek Poster Jadwal Pelajaran (Stundenplan) & Tes Formatif',
+        deepLearningMethod: 'Mindful: Refleksi kesadaran penggunaan artikel kata benda maskulin, feminin, dan netral secara teliti.',
+      },
+    ],
+    materialsSem2: [
+      {
+        semester: 2,
+        orderNumber: 3,
+        tpCode: 'TP.10.2.1',
+        tpName: 'Menganalisis profil keluarga, mendeskripsikan anggota keluarga dan hobi kegemaran (Familie, Freunde und Hobbys) dalam teks lisan dan tulis.',
+        essentialMaterial: 'Bab 3: Familie, Verwandte, Freunde & Hobbys (Possessivpronomen mein/dein/sein/ihr, Verben mit Vokalwechsel)',
+        elementName: 'Sprechen & Schreiben',
+        allocatedHours: 18,
+        tpCount: 2,
+        assessmentStrategy: 'Pembuatan Portofolio Pohon Keluarga (Stammbaum) & Uji Kinerja Lisan',
+        deepLearningMethod: 'Meaningful: Mengapresiasi kasih sayang keluarga dan berbagi cerita hobi bermakna.',
+      },
+      {
+        semester: 2,
+        orderNumber: 4,
+        tpCode: 'TP.10.2.2',
+        tpName: 'Menerapkan ungkapan komunikatif mengenai aktivitas harian, makanan minuman, serta merefleksikan wawasan lintas budaya Jerman (Alltag & Esskultur).',
+        essentialMaterial: 'Bab 4: Tagesablauf, Uhrzeit, Essen und Trinken (Trennbare Verben, Uhrzeitformeln, Modalverben möchten/mögen)',
+        elementName: 'Hören, Sprechen & Interkulturelle Kompetenz',
+        allocatedHours: 18,
+        tpCount: 2,
+        assessmentStrategy: 'Asesmen Sumatif Akhir Tahun: Role Play Pesan Makanan di Kafe Jerman & Ujian Tulis',
+        deepLearningMethod: 'Joyful: Role play pemesanan menu makanan khas Jerman (Pretzel, Apfelschorle) secara kolaboratif.',
+      },
+    ],
+  },
+
+  // ==========================================
   // SMP - ILMU PENGETAHUAN ALAM (IPA)
   // ==========================================
   {
@@ -2418,8 +2497,16 @@ export function generateDynamicGradePreset(
   const numGrade = Number(grade) || (level === 'SD' ? 4 : level === 'SMP' ? 7 : 10);
   const phase = customPhase || (numGrade === 10 ? 'Fase E' : numGrade > 10 ? 'Fase F' : numGrade >= 7 ? 'Fase D' : numGrade >= 4 ? 'Fase B/C' : 'Fase A');
   const cleanSubject = subject.trim() || 'Mata Pelajaran';
+  const subLower = cleanSubject.toLowerCase();
 
-  const sem1Topics = [
+  const isGerman = subLower.includes('jerman') || subLower.includes('deutsch') || subLower.includes('german');
+  const isArabic = subLower.includes('arab');
+  const isJapanese = subLower.includes('jepang') || subLower.includes('nihongo');
+  const isMandarin = subLower.includes('mandarin') || subLower.includes('tionghoa') || subLower.includes('chinese');
+  const isFrench = subLower.includes('perancis') || subLower.includes('prancis') || subLower.includes('french');
+  const isLanguage = isGerman || isArabic || isJapanese || isMandarin || isFrench || subLower.includes('bahasa') || subLower.includes('sastra');
+
+  let sem1Topics = [
     {
       title: `Konsep Dasar, Hakikat, dan Landasan Teoretis ${cleanSubject}`,
       element: 'Pemahaman Konsep & Karakteristik Dasar',
@@ -2443,7 +2530,7 @@ export function generateDynamicGradePreset(
     },
   ];
 
-  const sem2Topics = [
+  let sem2Topics = [
     {
       title: `Pengembangan Gagasan Lanjut, Analisis Kritis, dan Sintesis ${cleanSubject}`,
       element: 'Penalaran Kritis & Analisis Lanjut',
@@ -2467,36 +2554,130 @@ export function generateDynamicGradePreset(
     },
   ];
 
+  if (isGerman) {
+    sem1Topics = [
+      {
+        title: `Bab 1: Begrüßung, Kennenlernen & Identitätsangaben (Salam & Perkenalan Diri ${cleanSubject})`,
+        element: 'Hören & Sprechen (Menyimak & Berbicara)',
+        hours: 18,
+        assessment: 'Tes Praktik Lisan Percakapan Perkenalan & Kuis Formatif Kosakata',
+        dl: 'Joyful: Role play interaktif saling berkenalan dengan ungkapan komunikatif bahasa Jerman.',
+      },
+      {
+        title: `Bab 2: Schulleben, Schulsachen & Stundenplan (Kehidupan Sekolah & Jadwal Pelajaran)`,
+        element: 'Lesen & Schreiben (Membaca & Menulis)',
+        hours: 18,
+        assessment: 'Penilaian Proyek Poster Jadwal Pelajaran & Kuis Tata Bahasa (Artikel)',
+        dl: 'Mindful: Kesadaran teliti dalam mengidentifikasi kata benda maskulin, feminin, dan netral.',
+      },
+    ];
+    sem2Topics = [
+      {
+        title: `Bab 3: Familie, Verwandte, Freunde & Hobbys (Keluarga, Sahabat, dan Kegemaran)`,
+        element: 'Sprechen & Schreiben (Berbicara & Menulis)',
+        hours: 18,
+        assessment: 'Portofolio Pohon Keluarga (Stammbaum) & Praktik Berbicara',
+        dl: 'Meaningful: Mengaitkan deskripsi anggota keluarga dengan empati dan kasih sayang.',
+      },
+      {
+        title: `Bab 4: Tagesablauf, Essen und Trinken (Aktivitas Harian, Makanan & Minuman)`,
+        element: 'Hören, Sprechen & Interkulturelle Kompetenz',
+        hours: 18,
+        assessment: 'Asesmen Sumatif Akhir: Role Play di Kafe / Restoran Jerman & Ujian Tulis',
+        dl: 'Joyful: Simulasi percakapan pemesanan hidangan dan wawasan budaya kuliner Jerman.',
+      },
+    ];
+  } else if (isLanguage) {
+    sem1Topics = [
+      {
+        title: `Bab 1: Ungkapan Komunikatif Salam, Sapaan & Identitas Diri (${cleanSubject})`,
+        element: 'Menyimak & Berbicara (Listening & Speaking)',
+        hours: 18,
+        assessment: 'Tes Praktik Berbicara Interaktif & Kuis Formatif Kosakata Dasar',
+        dl: `Joyful: Percakapan interaktif menggunakan ujaran komunikatif awal ${cleanSubject}.`,
+      },
+      {
+        title: `Bab 2: Kehidupan Sekolah, Aktivitas Belajar & Lingkungan Sekitar (${cleanSubject})`,
+        element: 'Membaca & Menulis (Reading & Writing)',
+        hours: 18,
+        assessment: 'Penugasan Teks Deskripsi Sederhana & Analisis Pola Kalimat',
+        dl: `Mindful: Membaca teks deskriptif dengan pemahaman makna dan intonasi yang tepat.`,
+      },
+    ];
+    sem2Topics = [
+      {
+        title: `Bab 3: Keluarga, Sahabat, dan Aktivitas Waktu Luang (${cleanSubject})`,
+        element: 'Berbicara & Menulis (Speaking & Writing)',
+        hours: 18,
+        assessment: 'Penyusunan Biodata / Profil Kreatif & Praktik Dialog Terstruktur',
+        dl: `Meaningful: Mengomunikasikan relasi sosial keluarga dan kegemaran personal secara santun.`,
+      },
+      {
+        title: `Bab 4: Keseharian, Budaya Penutur & Komunikasi Kontekstual (${cleanSubject})`,
+        element: 'Interaksi Komunikatif & Literasi Lintas Budaya',
+        hours: 18,
+        assessment: 'Asesmen Sumatif Proyek Simulasi Komunikasi Kontekstual & Ujian Tulis',
+        dl: `Joyful: Apresiasi budaya dan perayaan karya komunikasi bermakna peserta didik.`,
+      },
+    ];
+  }
+
   return {
     subject: cleanSubject,
     level,
     grade: numGrade,
     phase,
-    totalHoursPerYear: 108,
-    jpPerWeek: 3,
-    cpSummary: `Peserta didik Kelas ${numGrade} (${phase}) menguasai pemahaman esensial, keterampilan proses penyelidikan, dan penalaran kritis materi ${cleanSubject} berbasis kerangka Kurikulum Berbasis Deep Learning (Mindful, Meaningful, & Joyful Learning).`,
-    materialsSem1: sem1Topics.map((item, idx) => ({
-      semester: 1,
-      orderNumber: idx + 1,
-      tpCode: `TP.${numGrade}.1.${idx + 1}`,
-      tpName: `Peserta didik mampu memahami, menganalisis, dan memecahkan permasalahan terkait ${item.title} secara kritis, mandiri, dan bergotong royong.`,
-      essentialMaterial: item.title,
-      elementName: item.element,
-      allocatedHours: item.hours,
-      assessmentStrategy: item.assessment,
-      deepLearningMethod: item.dl,
-    })),
-    materialsSem2: sem2Topics.map((item, idx) => ({
-      semester: 2,
-      orderNumber: idx + 4,
-      tpCode: `TP.${numGrade}.2.${idx + 1}`,
-      tpName: `Peserta didik mampu mengkreasikan solusi inovatif, mengevaluasi data, dan menyajikan hasil penyelidikan terkait ${item.title} secara kreatif dan beradab.`,
-      essentialMaterial: item.title,
-      elementName: item.element,
-      allocatedHours: item.hours,
-      assessmentStrategy: item.assessment,
-      deepLearningMethod: item.dl,
-    })),
+    totalHoursPerYear: (sem1Topics.length + sem2Topics.length) * 18,
+    jpPerWeek: Math.max(2, Math.round(((sem1Topics.length + sem2Topics.length) * 18) / 36)),
+    cpSummary: `Peserta didik Kelas ${numGrade} (${phase}) menguasai pemahaman esensial, keterampilan proses komunikasi/penyelidikan, dan penalaran kritis materi ${cleanSubject} berbasis kerangka Kurikulum Berbasis Deep Learning (Mindful, Meaningful, & Joyful Learning).`,
+    materialsSem1: sem1Topics.map((item, idx) => {
+      const babNum = idx + 1;
+      const cleanTitle = item.title.replace(/^Bab\s*\d+\s*[:\-]\s*/i, '').trim();
+      const defaultTP = isGerman
+        ? (idx === 0
+            ? `Mengidentifikasi ungkapan sapaan, melafalkan ujaran (Aussprache), dan memperkenalkan diri (Begrüßung & Kennenlernen) dalam bahasa Jerman secara percaya diri.`
+            : `Menganalisis teks informasi dan mendeskripsikan kehidupan sekolah serta jadwal pelajaran (Schulleben & Stundenplan) dalam bahasa Jerman secara teliti.`)
+        : isLanguage
+        ? `Memahami kosakata, kaidah tata bahasa, dan mempraktikkan komunikasi lisan maupun tulis terkait ${cleanTitle} secara santun dan percaya diri.`
+        : `Peserta didik mampu memahami, menganalisis, dan memecahkan permasalahan terkait ${item.title} secara kritis, mandiri, dan bergotong royong.`;
+
+      return {
+        semester: 1,
+        orderNumber: babNum,
+        tpCode: `TP.${numGrade}.1.${babNum}`,
+        tpName: defaultTP,
+        essentialMaterial: item.title,
+        elementName: item.element,
+        allocatedHours: item.hours,
+        tpCount: 2,
+        assessmentStrategy: item.assessment,
+        deepLearningMethod: item.dl,
+      };
+    }),
+    materialsSem2: sem2Topics.map((item, idx) => {
+      const babNum = sem1Topics.length + idx + 1;
+      const cleanTitle = item.title.replace(/^Bab\s*\d+\s*[:\-]\s*/i, '').trim();
+      const defaultTP = isGerman
+        ? (idx === 0
+            ? `Menganalisis profil keluarga dan mendeskripsikan kegemaran (Familie & Hobbys) dalam teks lisan dan tulis bahasa Jerman secara santun.`
+            : `Menerapkan ungkapan komunikatif aktivitas harian, makanan minuman, serta wawasan budaya Jerman (Alltag & Essen) secara komunikatif.`)
+        : isLanguage
+        ? `Memproduksi teks interaksional, mengkreasikan dialog sederhana, dan merefleksikan nilai kontekstual materi ${cleanTitle} secara kolaboratif.`
+        : `Peserta didik mampu mengkreasikan solusi inovatif, mengevaluasi data, dan menyajikan hasil penyelidikan terkait ${item.title} secara kreatif dan beradab.`;
+
+      return {
+        semester: 2,
+        orderNumber: babNum,
+        tpCode: `TP.${numGrade}.2.${idx + 1}`,
+        tpName: defaultTP,
+        essentialMaterial: item.title,
+        elementName: item.element,
+        allocatedHours: item.hours,
+        tpCount: 2,
+        assessmentStrategy: item.assessment,
+        deepLearningMethod: item.dl,
+      };
+    }),
   };
 }
 

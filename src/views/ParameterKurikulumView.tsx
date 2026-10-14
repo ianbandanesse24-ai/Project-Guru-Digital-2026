@@ -48,6 +48,11 @@ const POPULAR_SUBJECTS = [
   'Informatika',
   'Bahasa Indonesia',
   'Bahasa Inggris',
+  'Bahasa Jerman',
+  'Bahasa Arab',
+  'Bahasa Jepang',
+  'Bahasa Mandarin',
+  'Bahasa Perancis',
   'Pendidikan Pancasila',
   'Sejarah',
   'Geografi',
@@ -156,6 +161,8 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
   const [viewCombinedText, setViewCombinedText] = useState<{ [key: string]: boolean }>({});
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showSubjectSelector, setShowSubjectSelector] = useState(false);
+  const [customSubjectInput, setCustomSubjectInput] = useState('');
 
   // Modal for adding chapter with automatic TP generation according to taught material
   const [addChapterModalSem, setAddChapterModalSem] = useState<1 | 2 | null>(null);
@@ -252,10 +259,26 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
 
   // Subject change handler
   const handleSubjectChange = (newSubject: string) => {
-    setSubject(newSubject);
-    const preset = getSubjectPresetByGrade(newSubject, level as EducationLevel, grade);
-    setMaterialsSem1((preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` })));
-    setMaterialsSem2((preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` })));
+    const cleanSub = newSubject.trim();
+    if (!cleanSub) return;
+    setSubject(cleanSub);
+    const preset = getSubjectPresetByGrade(cleanSub, level as EducationLevel, grade);
+    const sem1 = (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
+    const sem2 = (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
+    const targetJp = preset.jpPerWeek || jpPerWeek || 3;
+    if (preset.jpPerWeek && preset.jpPerWeek !== jpPerWeek) {
+      setJpPerWeek(preset.jpPerWeek);
+    }
+    setMaterialsSem1(sem1);
+    setMaterialsSem2(sem2);
+    setShowSubjectSelector(false);
+    setCustomSubjectInput('');
+    persistAndSyncParameters(
+      sem1,
+      sem2,
+      targetJp,
+      `Mata Pelajaran "${cleanSub}" berhasil dipilih & materi Bab/TP otomatis disinkronkan ke Distribusi Alokasi Waktu, PROSEM, PROTA, & seluruh perangkat ajar!`
+    );
   };
 
   // Chapter management handlers with automatic TP generation according to taught material
@@ -499,9 +522,12 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     const list = sem === 1 ? materialsSem1 : materialsSem2;
     const chapter = list[chapterIdx];
     if (!chapter) return;
-    const count = chapter.tpCount || 1;
-    const generated = generateAutoTPForMaterial(chapter.essentialMaterial, subject, grade, count);
+    const count = chapter.tpCount || 2;
+    const matText = chapter.essentialMaterial?.trim() || `Bab ${chapterIdx + 1}: ${subject}`;
+    const generated = generateAutoTPForMaterial(matText, subject, grade, count);
     handleDirectUpdateChapter(sem, chapterIdx, 'tpName', generated);
+    setSaveToast(`TP Bab ${chapterIdx + 1} ("${matText}") berhasil diperbarui otomatis & tersinkron!`);
+    setTimeout(() => setSaveToast(null), 3500);
   };
 
   const handleDirectDeleteChapter = (sem: 1 | 2, index: number) => {
@@ -536,6 +562,24 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
         } else if (field === 'meetingCount') {
           const meetings = Number(value) || 1;
           updated[index].allocatedHours = meetings * (jpPerWeek || 1);
+        } else if (field === 'essentialMaterial') {
+          const newMat = String(value || '').trim();
+          const curTP = String(updated[index].tpName || '').trim();
+          const isGenericOrEmpty =
+            !curTP ||
+            curTP.includes('Kajian Materi Pokok') ||
+            curTP.includes('Materi Pokok & Kajian') ||
+            curTP.includes('Konsep Dasar, Hakikat') ||
+            curTP.includes('Prinsip Operasional') ||
+            curTP.includes('Eksplorasi Kontekstual');
+          if (newMat && isGenericOrEmpty) {
+            updated[index].tpName = generateAutoTPForMaterial(
+              newMat,
+              subject,
+              grade,
+              updated[index].tpCount || 2
+            );
+          }
         }
         setMaterialsSem1(updated);
       }
@@ -549,6 +593,24 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
         } else if (field === 'meetingCount') {
           const meetings = Number(value) || 1;
           updated[index].allocatedHours = meetings * (jpPerWeek || 1);
+        } else if (field === 'essentialMaterial') {
+          const newMat = String(value || '').trim();
+          const curTP = String(updated[index].tpName || '').trim();
+          const isGenericOrEmpty =
+            !curTP ||
+            curTP.includes('Kajian Materi Pokok') ||
+            curTP.includes('Materi Pokok & Kajian') ||
+            curTP.includes('Konsep Dasar, Hakikat') ||
+            curTP.includes('Prinsip Operasional') ||
+            curTP.includes('Eksplorasi Kontekstual');
+          if (newMat && isGenericOrEmpty) {
+            updated[index].tpName = generateAutoTPForMaterial(
+              newMat,
+              subject,
+              grade,
+              updated[index].tpCount || 2
+            );
+          }
         }
         setMaterialsSem2(updated);
       }
@@ -847,11 +909,85 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
 
             {/* Parameter Badges Display */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                <span className="text-[10px] text-slate-500 block font-medium">Mata Pelajaran</span>
+              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs relative">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500 font-medium">Mata Pelajaran</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSubjectSelector(!showSubjectSelector)}
+                    className="text-[10px] text-blue-600 hover:text-blue-800 font-bold hover:underline"
+                    title="Ganti atau tulis mata pelajaran manual (misal: Bahasa Jerman)"
+                  >
+                    {showSubjectSelector ? 'Tutup' : 'Ganti/Tulis'}
+                  </button>
+                </div>
                 <span className="font-bold text-blue-700 text-sm truncate block mt-0.5" title={subject}>
                   {subject}
                 </span>
+
+                {showSubjectSelector && (
+                  <div className="absolute left-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-blue-200 p-3 z-30 space-y-2 text-xs animate-in fade-in zoom-in-95">
+                    <div className="flex items-center justify-between font-bold text-slate-800 border-b border-slate-100 pb-1.5">
+                      <span>Pilih / Tulis Mapel:</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowSubjectSelector(false)}
+                        className="text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">Daftar Mapel Populer:</label>
+                      <select
+                        value={POPULAR_SUBJECTS.includes(subject) ? subject : 'Lainnya'}
+                        onChange={(e) => {
+                          if (e.target.value !== 'Lainnya') {
+                            handleSubjectChange(e.target.value);
+                          }
+                        }}
+                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-semibold focus:outline-none focus:border-blue-600 text-xs"
+                      >
+                        {POPULAR_SUBJECTS.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                        <option value="Lainnya">-- Tulis Mapel Manual Lainnya --</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1 pt-1 border-t border-slate-100">
+                      <label className="block text-[10px] font-semibold text-slate-500">Tulis Manual (Contoh: Bahasa Jerman):</label>
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={customSubjectInput}
+                          onChange={(e) => setCustomSubjectInput(e.target.value)}
+                          placeholder="Misal: Bahasa Jerman"
+                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && customSubjectInput.trim()) {
+                              handleSubjectChange(customSubjectInput.trim());
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (customSubjectInput.trim()) {
+                              handleSubjectChange(customSubjectInput.trim());
+                            }
+                          }}
+                          className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shrink-0 cursor-pointer"
+                        >
+                          Terapkan
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
@@ -1124,7 +1260,26 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                                 onChange={(e) =>
                                   handleDirectUpdateChapter(1, idx, 'essentialMaterial', e.target.value)
                                 }
-                                placeholder="Misal: Bab 1: Pengukuran & Besaran Fisika"
+                                onBlur={(e) => {
+                                  const val = e.target.value.trim();
+                                  if (val) {
+                                    const curTP = (item.tpName || '').trim();
+                                    const isGeneric =
+                                      !curTP ||
+                                      curTP.includes('Kajian Materi Pokok') ||
+                                      curTP.includes('Materi Pokok & Kajian') ||
+                                      curTP.includes('Konsep Dasar, Hakikat') ||
+                                      curTP.includes('Prinsip Operasional') ||
+                                      curTP.includes('Eksplorasi Kontekstual');
+                                    if (isGeneric) {
+                                      const autoTP = generateAutoTPForMaterial(val, subject, grade, item.tpCount || 2);
+                                      handleDirectUpdateChapter(1, idx, 'tpName', autoTP);
+                                      setSaveToast(`TP Bab ${idx + 1} otomatis dirumuskan dari materi "${val}" & disinkronkan!`);
+                                      setTimeout(() => setSaveToast(null), 3000);
+                                    }
+                                  }
+                                }}
+                                placeholder={`Misal: Bab ${idx + 1}: ${subject}`}
                                 className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
                               />
                             </div>
@@ -1437,7 +1592,26 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                                 onChange={(e) =>
                                   handleDirectUpdateChapter(2, idx, 'essentialMaterial', e.target.value)
                                 }
-                                placeholder="Misal: Bab 5: Dinamika Gerak"
+                                onBlur={(e) => {
+                                  const val = e.target.value.trim();
+                                  if (val) {
+                                    const curTP = (item.tpName || '').trim();
+                                    const isGeneric =
+                                      !curTP ||
+                                      curTP.includes('Kajian Materi Pokok') ||
+                                      curTP.includes('Materi Pokok & Kajian') ||
+                                      curTP.includes('Konsep Dasar, Hakikat') ||
+                                      curTP.includes('Prinsip Operasional') ||
+                                      curTP.includes('Eksplorasi Kontekstual');
+                                    if (isGeneric) {
+                                      const autoTP = generateAutoTPForMaterial(val, subject, grade, item.tpCount || 2);
+                                      handleDirectUpdateChapter(2, idx, 'tpName', autoTP);
+                                      setSaveToast(`TP Bab ${idx + materialsSem1.length + 1} otomatis dirumuskan dari materi "${val}" & disinkronkan!`);
+                                      setTimeout(() => setSaveToast(null), 3000);
+                                    }
+                                  }
+                                }}
+                                placeholder={`Misal: Bab ${idx + materialsSem1.length + 1}: ${subject}`}
                                 className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
                               />
                             </div>

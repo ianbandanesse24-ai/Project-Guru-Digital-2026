@@ -182,11 +182,74 @@ export const getDefaultTPText = (
     'materi pokok';
 
   const subLower = (subjectName || '').toLowerCase();
-  const isMath = subLower.includes('matematika') || subLower.includes('aljabar') || subLower.includes('geometri');
-  const isLanguage = subLower.includes('bahasa') || subLower.includes('indonesia') || subLower.includes('inggris') || subLower.includes('sastra');
+  const isGerman = subLower.includes('jerman') || subLower.includes('deutsch') || subLower.includes('german');
+  const isArabic = subLower.includes('arab');
+  const isJapanese = subLower.includes('jepang') || subLower.includes('nihongo');
+  const isMandarin = subLower.includes('mandarin') || subLower.includes('tionghoa') || subLower.includes('chinese');
+  const isFrench = subLower.includes('perancis') || subLower.includes('prancis') || subLower.includes('french');
+  const isEnglish = subLower.includes('inggris') || subLower.includes('english');
+  const isForeignLanguage = isGerman || isArabic || isJapanese || isMandarin || isFrench || isEnglish;
+  const isLanguage = isForeignLanguage || subLower.includes('bahasa') || subLower.includes('indonesia') || subLower.includes('sastra') || subLower.includes('linguistik');
+  const isMath = subLower.includes('matematika') || subLower.includes('aljabar') || subLower.includes('geometri') || subLower.includes('kalkulus') || subLower.includes('statistika');
   const isScience = subLower.includes('fisika') || subLower.includes('kimia') || subLower.includes('biologi') || subLower.includes('ipa') || subLower.includes('sains');
   const isSocial = subLower.includes('sejarah') || subLower.includes('geografi') || subLower.includes('ekonomi') || subLower.includes('sosiologi') || subLower.includes('ips') || subLower.includes('pancasila') || subLower.includes('ppkn');
-  const isTech = subLower.includes('informatika') || subLower.includes('komputer') || subLower.includes('tik') || subLower.includes('rekayasa');
+  const isTech = subLower.includes('informatika') || subLower.includes('komputer') || subLower.includes('tik') || subLower.includes('rekayasa') || subLower.includes('koding');
+  const isArt = subLower.includes('seni') || subLower.includes('budaya') || subLower.includes('rupa') || subLower.includes('musik') || subLower.includes('tari') || subLower.includes('teater');
+  const isReligion = subLower.includes('agama') || subLower.includes('budi pekerti') || subLower.includes('islam') || subLower.includes('kristen') || subLower.includes('katolik');
+  const isSport = subLower.includes('pjok') || subLower.includes('jasmani') || subLower.includes('olahraga') || subLower.includes('kesehatan');
+  const isVocational = subLower.includes('prakarya') || subLower.includes('kewirausahaan') || subLower.includes('pkwu') || subLower.includes('kejuruan');
+
+  // Specialized German Language (Bahasa Jerman) Objectives
+  if (isGerman) {
+    switch (tpNumber) {
+      case 1:
+        return `Peserta didik mampu mengidentifikasi kosakata, melafalkan ujaran (Aussprache), dan memahami ungkapan komunikatif lisan (Hören) terkait materi ${cleanTopic} dalam situasi kehidupan sehari-hari secara percaya diri.`;
+      case 2:
+        return `Peserta didik mampu memahami ide pokok, informasi tersurat maupun tersirat, serta kaidah tata bahasa (Grammatik) dalam teks deskriptif/interaksional (Lesen) materi ${cleanTopic} secara teliti dan kritis.`;
+      case 3:
+        return `Peserta didik mampu berinteraksi secara lisan (Sprechen) dalam percakapan terstruktur dan menyampaikan informasi pribadi/faktual terkait materi ${cleanTopic} secara runtut dan santun.`;
+      case 4:
+        return `Peserta didik mampu memproduksi teks tertulis (Schreiben), formulir, atau pesan sederhana dengan menerapkan ejaan dan tata bahasa Jerman yang tepat terkait ${cleanTopic}.`;
+      case 5:
+        return `Peserta didik mampu mengevaluasi dan membandingkan wawasan lintas budaya (Interkulturelle Kompetenz) masyarakat penutur bahasa Jerman terkait materi ${cleanTopic} secara bijak dan inklusif.`;
+      case 6:
+        return `Peserta didik mampu mengkreasikan karya komunikasi kolaboratif (proyek role play / media digital sederhana berbahasa Jerman) seputar materi ${cleanTopic} berbasis pendekatan Deep Learning.`;
+      default:
+        return `Peserta didik mampu mengembangkan kemahiran literasi berbahasa Jerman yang komunikatif, bermakna, dan aplikatif terkait materi ${cleanTopic}.`;
+    }
+  }
+
+  // Specialized Arabic Language (Bahasa Arab) Objectives
+  if (isArabic) {
+    switch (tpNumber) {
+      case 1:
+        return `Peserta didik mampu menyimak (Istima'), mengidentifikasi mufrodat baru, dan memahami pesan tuturan lisan seputar materi ${cleanTopic}.`;
+      case 2:
+        return `Peserta didik mampu membaca (Qira'ah) dan menganalisis teks bacaan sederhana dengan kaidah tarkib/tata bahasa yang tepat pada materi ${cleanTopic}.`;
+      case 3:
+        return `Peserta didik mampu berbicara (Kalam) mempraktikkan hiwar/dialog komunikatif harian terkait materi ${cleanTopic} secara fasih.`;
+      case 4:
+        return `Peserta didik mampu menulis (Kitabah) susunan kalimat dan paragraf sederhana bahasa Arab terkait materi ${cleanTopic} secara rapi dan tepat.`;
+      default:
+        return `Peserta didik mampu mengintegrasikan kemahiran berbahasa Arab komunikatif dan berwawasan keilmuan pada materi ${cleanTopic}.`;
+    }
+  }
+
+  // General Foreign Language Objectives (Jepang, Mandarin, Perancis, dll)
+  if (isForeignLanguage) {
+    switch (tpNumber) {
+      case 1:
+        return `Peserta didik mampu mengidentifikasi ujaran, lafal kata, dan ungkapan komunikatif menyimak (listening) terkait materi ${cleanTopic} secara responsif.`;
+      case 2:
+        return `Peserta didik mampu menganalisis struktur kalimat, pola tata bahasa, dan makna teks bacaan (reading) materi ${cleanTopic} secara kritis.`;
+      case 3:
+        return `Peserta didik mampu melakukan interaksi lisan aktif dan berbicara (speaking) menyampaikan gagasan seputar materi ${cleanTopic} secara komunikatif dan percaya diri.`;
+      case 4:
+        return `Peserta didik mampu menyusun dan mempublikasikan teks/karangan tertulis (writing) terkait materi ${cleanTopic} dengan tata bahasa yang akurat.`;
+      default:
+        return `Peserta didik mampu menerapkan wawasan interkultural dan literasi komunikasi bermakna seputar materi ${cleanTopic}.`;
+    }
+  }
 
   if (isMath) {
     switch (tpNumber) {
@@ -262,6 +325,58 @@ export const getDefaultTPText = (
         return `Peserta didik mampu mengevaluasi dampak etis, keamanan data, dan peran transformasi digital terkait inovasi materi ${cleanTopic}.`;
       default:
         return `Peserta didik mampu mengembangkan artefak komputasional solutif dan kolaboratif pada materi ${cleanTopic}.`;
+    }
+  }
+
+  if (isArt) {
+    switch (tpNumber) {
+      case 1:
+        return `Peserta didik mampu mengamati, mengenali elemen dasar estetika, dan mendeskripsikan makna karya seni pada materi ${cleanTopic}.`;
+      case 2:
+        return `Peserta didik mampu mengeksplorasi teknik berkarya, media kreatif, dan mengekspresikan gagasan orisinal terkait ${cleanTopic}.`;
+      case 3:
+        return `Peserta didik mampu menciptakan karya seni bernilai estetis dan mempresentasikannya dalam pameran/apresiasi seputar materi ${cleanTopic}.`;
+      default:
+        return `Peserta didik mampu mengapresiasi keragaman seni budaya dan membangun kepekaan rasa melalui materi ${cleanTopic}.`;
+    }
+  }
+
+  if (isReligion) {
+    switch (tpNumber) {
+      case 1:
+        return `Peserta didik mampu memahami dalil, pesan moral, dan nilai-nilai keimanan yang terkandung dalam materi ${cleanTopic}.`;
+      case 2:
+        return `Peserta didik mampu menerapkan perilaku terpuji, toleransi, dan keteladanan akhlak mulia dalam konteks materi ${cleanTopic}.`;
+      case 3:
+        return `Peserta didik mampu merefleksikan nilai-nilai ibadah dan memperkuat integritas diri melalui pengamalan materi ${cleanTopic}.`;
+      default:
+        return `Peserta didik mampu menginternalisasi nilai religius dan budi pekerti luhur dalam materi ${cleanTopic}.`;
+    }
+  }
+
+  if (isSport) {
+    switch (tpNumber) {
+      case 1:
+        return `Peserta didik mampu memahami pola gerak dasar, taktik/strategi, dan prinsip kebugaran fisik pada aktivitas materi ${cleanTopic}.`;
+      case 2:
+        return `Peserta didik mampu mempraktikkan keterampilan gerak, sportivitas, dan disiplin dalam melakukan materi ${cleanTopic}.`;
+      case 3:
+        return `Peserta didik mampu mengevaluasi kebugaran jasmani dan membiasakan gaya hidup sehat aktif melalui materi ${cleanTopic}.`;
+      default:
+        return `Peserta didik mampu membudayakan gaya hidup sehat jasmani-rohani melalui aktivitas materi ${cleanTopic}.`;
+    }
+  }
+
+  if (isVocational) {
+    switch (tpNumber) {
+      case 1:
+        return `Peserta didik mampu menganalisis potensi sumber daya lokal, ide peluang usaha, dan desain produk pada materi ${cleanTopic}.`;
+      case 2:
+        return `Peserta didik mampu merencanakan, membuat prototipe karya, dan menghitung biaya produksi terkait materi ${cleanTopic}.`;
+      case 3:
+        return `Peserta didik mampu memasarkan, mengevaluasi mutu produk, dan merefleksikan jiwa kewirausahaan mandiri dalam materi ${cleanTopic}.`;
+      default:
+        return `Peserta didik mampu menumbuhkan daya kreasi wirausaha dan kemandirian produktif terkait materi ${cleanTopic}.`;
     }
   }
 

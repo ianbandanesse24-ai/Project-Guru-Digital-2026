@@ -5,6 +5,7 @@
  */
 
 import { StorageService } from './storage';
+import { parseTPList } from './curriculumData';
 
 export interface GenerateCurriculumParams {
   toolType?: string;
@@ -510,8 +511,10 @@ ${buildOfficialLembarPengesahan({
                 ? 'Bergotong Royong, Bernalar Kritis' 
                 : 'Kreatif, Komunikatif, Kebinekaan Global';
               
-              const baseText = (t === 1 && mat.tpName && !mat.tpName.includes('Peserta didik dapat')) 
-                ? mat.tpName 
+              const individualTPList = parseTPList(mat.tpName, numTPs, babName, subject);
+              const specificTP = individualTPList[t - 1] || (t === 1 ? mat.tpName : '');
+              const baseText = specificTP && specificTP.trim() && !specificTP.includes('Peserta didik dapat')
+                ? specificTP
                 : (t === 1 
                     ? `mengidentifikasi dan menganalisis karakteristik fundamental serta fenomena esensial terkait ${babName}` 
                     : t === 2 
