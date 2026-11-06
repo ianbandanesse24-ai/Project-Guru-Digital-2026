@@ -705,7 +705,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
       StorageService.setActiveMasterCP(updatedMaster);
       setActiveMasterCP(updatedMaster);
 
-      showNotif(`Berhasil mengunggah & mengekstraksi berkas "${file.name}" (${(file.size / 1024).toFixed(1)} KB). Master CP terpasang!`);
+      showNotif(`Berhasil mengunggah & mengekstraksi berkas "${file.name}" (${(file.size / 1024).toFixed(1)} KB). Capaian Pembelajaran terpasang!`);
     } catch (err: any) {
       console.error(err);
       showNotif('Gagal membaca file: ' + err.message, 'error');
@@ -1331,30 +1331,24 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
               <UserCheck className="w-6 h-6" />
             </div>
             <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
-              Profil Guru Mata Pelajaran & Analisis Master CP
+              Profil Guru Mata Pelajaran
             </h1>
           </div>
           <p className="text-xs text-slate-500 max-w-3xl leading-relaxed">
-            Pengisian Biodata Guru Pengampu, Jumlah Jam (JP), Target TP, Jenjang, Kelas, Fase, Mata Pelajaran, serta Upload & Analisis CP Resmi untuk Disinkronkan Otomatis ke Seluruh Perangkat Pembelajaran.
+            Pengisian Biodata Guru Pengampu, Satuan Pendidikan, Beban Jam (JP), Jenjang, Kelas, Fase, dan Mata Pelajaran untuk Disinkronkan Otomatis ke Seluruh Perangkat Pembelajaran.
           </p>
         </div>
 
-        {/* Action Controls */}
+        {/* Action Controls - Hanya 1 Tombol */}
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleSavePlan}
             disabled={isSaving}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition shadow-sm"
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition shadow-sm cursor-pointer disabled:opacity-50"
+            title="Simpan Profil Guru, Sekolah & Parameter Mapel"
           >
             <Save className="w-3.5 h-3.5" />
-            <span>{isSaving ? 'Menyimpan...' : 'Simpan Profil & Sinkronkan'}</span>
-          </button>
-          <button
-            onClick={() => setIsPresetModalOpen(true)}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Pilih Preset Mapel BSKAP</span>
+            <span>{isSaving ? 'Menyimpan...' : 'Simpan Profil Guru, Sekolah & Parameter Mapel'}</span>
           </button>
         </div>
       </div>
@@ -1382,7 +1376,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <div>
               <span className="text-xs font-bold text-slate-900">
-                Master CP Aktif Terhubung: {activeMasterCP.subject} • {activeMasterCP.phase} (Kelas {activeMasterCP.grade})
+                Capaian Pembelajaran (CP) Aktif Terhubung: {activeMasterCP.subject} • {activeMasterCP.phase} (Kelas {activeMasterCP.grade})
               </span>
               <p className="text-[11px] text-slate-500">
                 Guru: {activeMasterCP.teacherName || teacherName} • {activeMasterCP.timeAllocationPerWeek || timeAllocationPerWeek || '45 Menit'} ({jpPerWeek} JP/Minggu) • {materialsSem1.length + materialsSem2.length} TP Tersinkronisasi Otomatis
@@ -1854,10 +1848,10 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                     <div className="space-y-1">
                       <div className="text-xs font-bold text-blue-900 flex items-center space-x-1.5">
                         <CalendarDays className="w-4 h-4 text-blue-600" />
-                        <span>Upload Kaldik & Analisis Alokasi Waktu</span>
+                        <span>Upload Kalender Pendidikan</span>
                       </div>
                       <p className="text-[10px] text-slate-600">
-                        Unggah berkas Kaldik sekolah & hitung otomatis Rincian Pekan Efektif (RBE) dan Jam Pembelajaran KBM.
+                        Unggah berkas Kaldik resmi sekolah untuk memetakan agenda kegiatan, pekan kalender, dan libur semester.
                       </p>
                     </div>
                     {onNavigate && (
@@ -1866,7 +1860,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                         onClick={() => onNavigate("kalender_pendidikan")}
                         className="w-full py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center justify-center space-x-1 shadow-2xs transition cursor-pointer"
                       >
-                        <span>Buka Upload Kaldik & RBE</span>
+                        <span>Buka Upload Kalender Pendidikan</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     )}
@@ -1882,16 +1876,6 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                         {subject} • {level} (Kelas {grade}) • {phase} • {jpPerWeek} JP/Minggu ({jpPerWeek * 36} JP/Thn)
                       </p>
                     </div>
-                    {onNavigate && (
-                      <button
-                        type="button"
-                        onClick={() => onNavigate("parameter_kurikulum")}
-                        className="w-full py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center justify-center space-x-1 shadow-2xs transition cursor-pointer"
-                      >
-                        <span>Kelola Bab & TP</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    )}
                   </div>
                 </div>
 
@@ -2347,7 +2331,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Master CP & Profil Guru Berhasil Disinkronkan!
+                  Profil Guru Mata Pelajaran Berhasil Disinkronkan!
                 </h3>
                 <p className="text-xs text-slate-500">
                   {subject} ({level} - {phase}) • {teacherName}
