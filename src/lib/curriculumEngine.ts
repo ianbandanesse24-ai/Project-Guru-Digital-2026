@@ -33,6 +33,8 @@ export interface GenerateCurriculumParams {
   cpText?: string;
   distributionData?: any;
   kalenderData?: any;
+  kaldikData?: any;
+  customFormatConfig?: any;
   schoolProfile?: any;
   teacherName?: string;
   teacherNip?: string;
@@ -1272,8 +1274,50 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
       ];
 
       // Total 30 week slots per semester (6 months x 5 weeks)
-      // Define non-effective calendar weeks with tags and calendar colors
-      const weekSlots = isGanjil ? [
+      // Define non-effective calendar weeks with tags and calendar colors (honors synced custom kalenderData if available)
+      const activeSemKalender = isGanjil ? params.kalenderData?.semester1 : params.kalenderData?.semester2;
+      const customMonths = activeSemKalender?.months;
+
+      let weekSlots: { index: number; isEffective: boolean; tag?: string; bg?: string; color?: string }[] = [];
+
+      if (customMonths && Array.isArray(customMonths) && customMonths.length === 6) {
+        weekSlots = [];
+        customMonths.forEach((m: any, mIdx: number) => {
+          const nonEffW = Math.min(5, Math.max(0, Number(m.nonEffectiveWeeks) || 0));
+          const desc = String(m.description || m.nonEffectiveNotes || '').toUpperCase();
+
+          let defaultTag = isGanjil ? (mIdx === 0 ? 'LS' : mIdx === 2 ? 'PTS' : mIdx === 5 ? 'PAS' : 'LIBUR') : (mIdx === 0 ? 'LS' : mIdx === 2 ? 'PTS' : mIdx === 3 ? 'LHR' : mIdx === 5 ? 'RAPOR' : 'LIBUR');
+          let defaultBg = '#94a3b8';
+          let defaultColor = '#ffffff';
+
+          if (desc.includes('MPLS')) { defaultTag = 'MPLS'; defaultBg = '#90caf9'; defaultColor = '#000000'; }
+          else if (desc.includes('PTS') || desc.includes('STS') || desc.includes('ASTS') || desc.includes('TENGAH')) { defaultTag = 'PTS'; defaultBg = '#fef08a'; defaultColor = '#854d0e'; }
+          else if (desc.includes('PAS') || desc.includes('SAS') || desc.includes('ASAS') || desc.includes('AKHIR')) { defaultTag = 'PAS'; defaultBg = '#fed7aa'; defaultColor = '#9a3412'; }
+          else if (desc.includes('PAT')) { defaultTag = 'PAT'; defaultBg = '#fed7aa'; defaultColor = '#9a3412'; }
+          else if (desc.includes('RAPOR')) { defaultTag = 'RAPOR'; defaultBg = '#e2e8f0'; defaultColor = '#334155'; }
+          else if (desc.includes('LHR') || desc.includes('HARI RAYA') || desc.includes('LEBARAN')) { defaultTag = 'LHR'; defaultBg = '#fed7aa'; defaultColor = '#9a3412'; }
+          else if (desc.includes('LS') || desc.includes('LIBUR SEMESTER')) { defaultTag = 'LS'; defaultBg = '#94a3b8'; defaultColor = '#ffffff'; }
+
+          for (let w = 0; w < 5; w++) {
+            const slotIdx = mIdx * 5 + w;
+            let isNonEff = false;
+            if (mIdx === 0) {
+              isNonEff = w < nonEffW;
+            } else if (mIdx === 5) {
+              isNonEff = w >= (5 - nonEffW);
+            } else {
+              isNonEff = w >= (5 - nonEffW);
+            }
+
+            if (isNonEff && nonEffW > 0) {
+              weekSlots.push({ index: slotIdx, isEffective: false, tag: defaultTag, bg: defaultBg, color: defaultColor });
+            } else {
+              weekSlots.push({ index: slotIdx, isEffective: true });
+            }
+          }
+        });
+      } else {
+        weekSlots = isGanjil ? [
         // Juli (0..4)
         { index: 0, isEffective: false, tag: 'LS', bg: '#94a3b8', color: '#ffffff' },
         { index: 1, isEffective: false, tag: 'LS', bg: '#94a3b8', color: '#ffffff' },
@@ -1320,6 +1364,7 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
         { index: 28, isEffective: false, tag: 'LS', bg: '#94a3b8', color: '#ffffff' },
         { index: 29, isEffective: false, tag: 'LS', bg: '#94a3b8', color: '#ffffff' },
       ];
+      }
 
       const effectiveWeekIndices = weekSlots.filter(w => w.isEffective).map(w => w.index);
 

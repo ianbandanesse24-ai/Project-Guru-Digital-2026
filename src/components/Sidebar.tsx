@@ -35,6 +35,7 @@ import {
   UploadCloud,
   Calculator,
   Layers,
+  Table,
 } from 'lucide-react';
 import { UserAccount, AppTheme } from '../types';
 import { useOfflineSync } from '../lib/offlineManager';
@@ -146,10 +147,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'kalender_pendidikan',
-      label: 'Upload Kaldik & Analisis Alokasi Waktu',
+      label: 'Upload Kalender Pendidikan',
       icon: CalendarDays,
-      badge: 'Kaldik & RBE',
-      desc: 'Upload Kaldik & Rincian Pekan Efektif',
+      badge: 'Kaldik',
+      desc: 'Upload Dokumen Kaldik Sekolah',
     },
     {
       id: 'parameter_kurikulum',
@@ -159,70 +160,66 @@ export const Sidebar: React.FC<SidebarProps> = ({
       desc: 'Bab, Materi Pokok & Alokasi JP',
     },
     {
-      id: 'upload_cp_master',
-      label: 'Upload & Analisis CP Master',
-      icon: BookOpen,
-      desc: 'Upload Dokumen CP Resmi & Analisis',
-    },
-    {
-      id: 'analisis_cp_distribusi',
-      label: 'Matriks Distribusi CP & Bab',
-      icon: Layers,
-      desc: 'Tabel Pemetaan Bab TP & Jam',
-    },
-    {
       id: 'ai_analisis_cp',
-      label: '1. Analisis & Distribusi CP',
+      label: 'Analisis Capaian Pembelajaran (CP)',
       icon: FileSearch,
-      desc: 'Pemetaan Elemen CP & Distribusi Sem 1 & 2',
+      badge: 'Format Sendiri',
+      desc: 'Upload Format Sendiri & Analisis CP',
+    },
+    {
+      id: 'analisis_alokasi_waktu',
+      label: 'Analisis Alokasi Waktu',
+      icon: Table,
+      badge: 'Sinkron PROSEM',
+      desc: 'Upload Mandiri & Sinkron PROSEM',
     },
     {
       id: 'ai_tp',
-      label: '2. Tujuan Pembelajaran (TP)',
+      label: '1. Tujuan Pembelajaran (TP)',
       icon: Target,
       desc: 'Rumusan KKO Kompetensi',
     },
     {
       id: 'ai_atp',
-      label: '3. Alur TP (ATP)',
+      label: '2. Alur TP (ATP)',
       icon: GitMerge,
       desc: 'Alur Urutan & JP',
     },
     {
       id: 'ai_prota',
-      label: '4. Program Tahunan (PROTA)',
+      label: '3. Program Tahunan (PROTA)',
       icon: CalendarRange,
       desc: 'Rencana Alokasi 1 Tahun',
     },
     {
       id: 'ai_prosem',
-      label: '5. Program Semester (PROSEM)',
+      label: '4. Program Semester (PROSEM)',
       icon: CalendarCheck,
       desc: 'Matriks Pekan Efektif',
     },
     {
       id: 'ai_kktp',
-      label: '6. Kriteria Ketuntasan (KKTP)',
+      label: '5. Kriteria Ketuntasan (KKTP)',
       icon: CheckSquare,
       badge: 'Standar Mutu',
       desc: 'Rubrik & Interval Nilai',
     },
     {
       id: 'ai_modul_ajar',
-      label: '7. RPM (Rencana Pelaksanaan Modul)',
+      label: '6. RPM (Rencana Pelaksanaan Modul)',
       icon: FileText,
       badge: 'RPM',
       desc: 'Rencana Pelaksanaan Modul',
     },
     {
       id: 'ai_lkpd',
-      label: '8. Lembar Kerja Siswa (LKPD)',
+      label: '7. Lembar Kerja Siswa (LKPD)',
       icon: FileSpreadsheet,
       desc: 'Aktivitas Berdiferensiasi',
     },
     {
       id: 'ai_rubrik_penilaian',
-      label: '9. Rubrik Penilaian Terpadu',
+      label: '8. Rubrik Penilaian Terpadu',
       icon: HelpCircle,
       desc: 'Sinkron RPM / Modul Ajar',
     },
@@ -233,13 +230,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'admin_dashboard',
       label: 'Dashboard & Log Audit',
       icon: ShieldCheck,
-    },
-    {
-      id: 'upload_cp_master',
-      label: 'Upload CP Master',
-      icon: BookOpen,
-      badge: 'Admin Only',
-      desc: 'Upload & Analisis CP Master Terpusat',
     },
     {
       id: 'admin_api_key',
@@ -426,10 +416,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               const Icon = item.icon;
               const isActive =
                 activeView === item.id ||
-                (item.id === 'kalender_pendidikan' &&
-                  (activeView === 'upload_kalender' ||
-                    activeView === 'analisis_alokasi_waktu' ||
+                (item.id === 'kalender_pendidikan' && activeView === 'upload_kalender') ||
+                (item.id === 'analisis_alokasi_waktu' &&
+                  (activeView === 'analisis_alokasi_waktu' ||
                     activeView === 'alokasi_waktu' ||
+                    activeView === 'rbe' ||
                     activeView === 'ai_analisis_alokasi_waktu'));
               return (
                 <button

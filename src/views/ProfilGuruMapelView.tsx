@@ -1408,7 +1408,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
           }`}
         >
           <UserCheck className="w-4 h-4" />
-          <span>{isAdmin ? '1. Biodata, Parameter & Upload CP' : '1. Biodata & Parameter Guru'}</span>
+          <span>1. Biodata & Parameter Guru</span>
         </button>
 
         <button
@@ -1444,7 +1444,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
           }`}
         >
           <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-          <span>4. Pratinjau & Ekspor Matriks</span>
+          <span>4. Pratinjau & Ekspor Perangkat Ajar</span>
         </button>
 
         {isAdmin && (
@@ -2535,7 +2535,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                   onChange={(e) => {
                     const val = e.target.value;
                     const curTP = (modalItem.tpName || '').trim();
-                    const isGeneric = !curTP || curTP.includes('Materi Pokok') || curTP.includes('Kajian');
+                    const isGeneric = !curTP || curTP.includes('Materi Pokok') || curTP.includes('Kajian') || (val.trim().length > 2 && !curTP.toLowerCase().includes(val.trim().toLowerCase().substring(0, Math.min(8, val.trim().length))));
                     if (isGeneric && val.trim()) {
                       const autoTP = generateAutoTPForMaterial(val, subject, Number(grade) || 10, modalItem.tpCount || 2);
                       setModalItem({ ...modalItem, essentialMaterial: val, tpName: autoTP });
@@ -2545,9 +2545,13 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                   }}
                   onBlur={(e) => {
                     const val = e.target.value.trim();
-                    if (val && (!modalItem.tpName || !modalItem.tpName.trim())) {
-                      const autoTP = generateAutoTPForMaterial(val, subject, Number(grade) || 10, modalItem.tpCount || 2);
-                      setModalItem({ ...modalItem, tpName: autoTP });
+                    if (val) {
+                      const curTP = (modalItem.tpName || '').trim();
+                      const isGeneric = !curTP || curTP.includes('Materi Pokok') || curTP.includes('Kajian') || !curTP.toLowerCase().includes(val.toLowerCase().substring(0, Math.min(8, val.length)));
+                      if (isGeneric) {
+                        const autoTP = generateAutoTPForMaterial(val, subject, Number(grade) || 10, modalItem.tpCount || 2);
+                        setModalItem((prev) => ({ ...prev, tpName: autoTP }));
+                      }
                     }
                   }}
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-blue-600 font-bold"

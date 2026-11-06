@@ -21,6 +21,7 @@ import {
   BookMarked,
   CalendarDays,
   Search,
+  Table,
   UserCheck,
   Download,
   ShieldCheck,
@@ -174,11 +175,11 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
     },
     {
       id: 'kalender_pendidikan',
-      title: 'Upload Kaldik & Analisis Alokasi Waktu',
-      desc: 'Upload dokumen Kalender Pendidikan sekolah & ekstraksi analisis RBE alokasi waktu JP',
+      title: 'Upload Kalender Pendidikan',
+      desc: 'Upload berkas dokumen Kalender Pendidikan resmi sekolah (PDF, Excel, Word, Scan)',
       icon: CalendarDays,
       category: 'kaldik',
-      badge: 'Kaldik & RBE',
+      badge: 'Kaldik',
     },
     {
       id: 'parameter_kurikulum',
@@ -189,59 +190,36 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       badge: 'Deep Learning',
     },
     {
-      id: 'upload_cp_master',
-      title: 'Upload & Analisis CP Master',
-      desc: 'Upload dokumen Capaian Pembelajaran resmi dan analisis otomatis',
-      icon: BookOpen,
-      category: 'ai',
-      badge: 'Master CP',
-    },
-    {
-      id: 'analisis_cp_distribusi',
-      title: 'Matriks Distribusi CP & Bab',
-      desc: 'Pemetaan materi pokok, bab, dan pembagian semester ganjil-genap',
-      icon: Layers,
-      category: 'ai',
-      badge: 'Matriks TP',
-    },
-    {
-      id: 'ai_analisis_cp',
-      title: '1. Analisis CP Terbaru',
-      desc: 'Pemetaan elemen Capaian Pembelajaran dan integrasi kompetensi',
-      icon: FileSearch,
-      category: 'ai',
-    },
-    {
       id: 'ai_tp',
-      title: '2. Tujuan Pembelajaran (TP)',
+      title: '1. Tujuan Pembelajaran (TP)',
       desc: 'Perumusan kompetensi dan indikator ketercapaian Taksonomi Bloom',
       icon: Target,
       category: 'ai',
     },
     {
       id: 'ai_atp',
-      title: '3. Alur TP (ATP)',
+      title: '2. Alur TP (ATP)',
       desc: 'Penyusunan alur pembelajaran bertahap beserta alokasi jam pelajaran',
       icon: GitMerge,
       category: 'ai',
     },
     {
       id: 'ai_prota',
-      title: '4. Program Tahunan (PROTA)',
+      title: '3. Program Tahunan (PROTA)',
       desc: 'Distribusi dan pembagian materi pembelajaran untuk satu tahun ajaran',
       icon: CalendarRange,
       category: 'ai',
     },
     {
       id: 'ai_prosem',
-      title: '5. Program Semester (PROSEM)',
+      title: '4. Program Semester (PROSEM)',
       desc: 'Matriks alokasi jadwal pekan efektif dan rencana bulanan semester',
       icon: CalendarCheck,
       category: 'ai',
     },
     {
       id: 'ai_kktp',
-      title: '6. Kriteria Ketuntasan (KKTP)',
+      title: '5. Kriteria Ketuntasan (KKTP)',
       desc: 'Interval nilai, rubrik asesmen, dan deskripsi kriteria mutu belajar',
       icon: CheckSquare,
       category: 'ai',
@@ -249,7 +227,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
     },
     {
       id: 'ai_modul_ajar',
-      title: '7. RPM (Rencana Pelaksanaan Modul)',
+      title: '6. RPM (Rencana Pelaksanaan Modul)',
       desc: 'Penyusunan Rencana Pelaksanaan Modul dengan sintaks Deep Learning',
       icon: FileText,
       category: 'ai',
@@ -257,14 +235,14 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
     },
     {
       id: 'ai_lkpd',
-      title: '8. Lembar Kerja Siswa (LKPD)',
+      title: '7. Lembar Kerja Siswa (LKPD)',
       desc: 'Aktivitas pembelajaran berdiferensiasi dan penyelidikan terstruktur',
       icon: FileSpreadsheet,
       category: 'ai',
     },
     {
       id: 'ai_rubrik_penilaian',
-      title: '9. Rubrik Penilaian Terpadu',
+      title: '8. Rubrik Penilaian Terpadu',
       desc: 'Rubrik asesmen autentik formatif dan sumatif yang selaras dengan modul',
       icon: HelpCircle,
       category: 'ai',
@@ -410,51 +388,44 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-bold text-slate-300 flex items-center space-x-1.5">
                     <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Ekosistem 9 Modul Perangkat Ajar yang Otomatis Tersinkron:</span>
+                    <span>Ekosistem 8 Modul Perangkat Ajar yang Otomatis Tersinkron:</span>
                   </span>
                   <span className="text-[10px] text-emerald-400 font-bold hidden sm:inline">Status: Siap Digunakan / Dicetak</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 text-[10px]">
                   <button
-                    onClick={() => onNavigate('ai_analisis_cp')}
-                    className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
-                  >
-                    <span>1. Analisis CP</span>
-                    <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
-                  </button>
-                  <button
                     onClick={() => onNavigate('ai_tp')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>2. TP</span>
+                    <span>1. TP</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_atp')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>3. ATP</span>
+                    <span>2. ATP</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_prota')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>4. PROTA</span>
+                    <span>3. PROTA</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_prosem')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>5. PROSEM</span>
+                    <span>4. PROSEM</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_kktp')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>6. KKTP</span>
+                    <span>5. KKTP</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
@@ -462,21 +433,21 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                     className="px-2 py-1 rounded-lg bg-emerald-900/60 hover:bg-emerald-800/80 border border-emerald-500/50 text-emerald-200 font-bold transition flex items-center space-x-1 shadow-xs"
                   >
                     <AMDLogo size="xs" />
-                    <span>7. RPM Deep Learning</span>
+                    <span>6. RPM Deep Learning</span>
                     <ArrowRight className="w-2.5 h-2.5 text-emerald-300" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_lkpd')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>8. LKPD</span>
+                    <span>7. LKPD</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_rubrik_penilaian')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>9. Rubrik Penilaian</span>
+                    <span>8. Rubrik Penilaian</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                 </div>
@@ -491,7 +462,27 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                   className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs transition shadow-lg shadow-emerald-500/20 flex items-center space-x-1.5 cursor-pointer"
                 >
                   <Sliders className="w-3.5 h-3.5 text-slate-950" />
-                  <span>Buka Parameter Kurikulum</span>
+                  <span>Parameter Kurikulum</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-banner-analisis-cp"
+                  onClick={() => onNavigate('ai_analisis_cp')}
+                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition shadow-md shadow-blue-600/30 flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <FileSearch className="w-3.5 h-3.5 text-white" />
+                  <span>Analisis CP</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-banner-alokasi-waktu"
+                  onClick={() => onNavigate('analisis_alokasi_waktu')}
+                  className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs transition shadow-md shadow-teal-600/30 flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Table className="w-3.5 h-3.5 text-white" />
+                  <span>Analisis Alokasi Waktu (Sinkron PROSEM)</span>
                 </button>
 
                 <button
@@ -506,22 +497,12 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
 
                 <button
                   type="button"
-                  id="btn-banner-analisis-cp"
-                  onClick={() => onNavigate('ai_analisis_cp')}
-                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition border border-slate-700 flex items-center space-x-1.5 cursor-pointer"
-                >
-                  <FileSearch className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Lihat Analisis CP Lengkap</span>
-                </button>
-
-                <button
-                  type="button"
-                  id="btn-banner-upload-cp"
-                  onClick={() => onNavigate('upload_cp_master')}
+                  id="btn-banner-profil-guru"
+                  onClick={() => onNavigate('profil_guru_mapel')}
                   className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white font-semibold text-xs transition border border-slate-800 flex items-center space-x-1.5 cursor-pointer ml-auto"
                 >
-                  <FolderSync className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Kelola CP Master Lain</span>
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Profil Guru & Mapel</span>
                 </button>
               </div>
             </div>
@@ -579,7 +560,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
               className="inline-flex items-center justify-center space-x-2 px-4 py-2 rounded-lg bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 border border-slate-200 font-medium text-xs shadow-xs transition-all duration-150"
             >
               <CalendarDays className="w-4 h-4 text-slate-500" />
-              <span>Kalender & Alokasi JP</span>
+              <span>Upload Kalender Pendidikan</span>
             </button>
           </div>
         </div>

@@ -182,14 +182,15 @@ export const getDefaultTPText = (
     'materi pokok';
 
   const subLower = (subjectName || '').toLowerCase();
-  const isGerman = subLower.includes('jerman') || subLower.includes('deutsch') || subLower.includes('german');
-  const isArabic = subLower.includes('arab');
-  const isJapanese = subLower.includes('jepang') || subLower.includes('nihongo');
-  const isMandarin = subLower.includes('mandarin') || subLower.includes('tionghoa') || subLower.includes('chinese');
-  const isFrench = subLower.includes('perancis') || subLower.includes('prancis') || subLower.includes('french');
-  const isEnglish = subLower.includes('inggris') || subLower.includes('english');
+  const topLower = (topicTitle || '').toLowerCase();
+  const isGerman = subLower.includes('jerman') || subLower.includes('deutsch') || subLower.includes('german') || topLower.includes('jerman') || topLower.includes('deutsch');
+  const isArabic = subLower.includes('arab') || topLower.includes('arab');
+  const isJapanese = subLower.includes('jepang') || subLower.includes('nihongo') || topLower.includes('jepang');
+  const isMandarin = subLower.includes('mandarin') || subLower.includes('tionghoa') || subLower.includes('chinese') || topLower.includes('mandarin');
+  const isFrench = subLower.includes('perancis') || subLower.includes('prancis') || subLower.includes('french') || topLower.includes('perancis') || topLower.includes('prancis');
+  const isEnglish = subLower.includes('inggris') || subLower.includes('english') || topLower.includes('inggris') || topLower.includes('english');
   const isForeignLanguage = isGerman || isArabic || isJapanese || isMandarin || isFrench || isEnglish;
-  const isLanguage = isForeignLanguage || subLower.includes('bahasa') || subLower.includes('indonesia') || subLower.includes('sastra') || subLower.includes('linguistik');
+  const isLanguage = isForeignLanguage || subLower.includes('bahasa') || subLower.includes('indonesia') || subLower.includes('sastra') || subLower.includes('linguistik') || topLower.includes('bahasa');
   const isMath = subLower.includes('matematika') || subLower.includes('aljabar') || subLower.includes('geometri') || subLower.includes('kalkulus') || subLower.includes('statistika');
   const isScience = subLower.includes('fisika') || subLower.includes('kimia') || subLower.includes('biologi') || subLower.includes('ipa') || subLower.includes('sains');
   const isSocial = subLower.includes('sejarah') || subLower.includes('geografi') || subLower.includes('ekonomi') || subLower.includes('sosiologi') || subLower.includes('ips') || subLower.includes('pancasila') || subLower.includes('ppkn');

@@ -20,6 +20,7 @@ import {
   Compass,
   Sliders,
   CalendarDays,
+  Table,
   X,
   Sparkles,
   Smartphone,
@@ -163,11 +164,11 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
     {
       id: 'ai_analisis_cp',
       title: 'Analisis Capaian Pembelajaran (CP)',
-      status: activeMasterCP ? 'Tersinkronisasi' : 'Belum Dipetakan',
+      status: activeMasterCP ? 'Tersinkronisasi' : 'Format Siap Digunakan',
       description: activeMasterCP
         ? `${activeMasterCP.subject} (${activeMasterCP.phase} · ${(activeMasterCP.materialsSem1?.length || 0) + (activeMasterCP.materialsSem2?.length || 0)} Materi Pokok)`
-        : 'Pemetaan elemen CP BSKAP 020/2026 & pemisahan materi Sem 1 & 2',
-      isReady: Boolean(activeMasterCP),
+        : 'Pemetaan elemen CP BSKAP No. 020/2026 & upload format dokumen sekolah sendiri',
+      isReady: true,
       actionLabel: 'Analisis CP',
       viewId: 'ai_analisis_cp',
       accent: 'emerald',
@@ -209,18 +210,8 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
       viewId: 'kalender_pendidikan',
     },
     {
-      id: 'ai_analisis_cp',
-      stepNum: 1,
-      title: 'Analisis & Distribusi CP',
-      role: 'Master Acuan Kurikulum',
-      desc: 'Mendekomposisi elemen CP resmi BSKAP No. 020/2026 menjadi pemetaan materi esensial Semester 1 dan 2.',
-      badge: 'Single Source',
-      icon: FileSearch,
-      viewId: 'ai_analisis_cp',
-    },
-    {
       id: 'ai_tp',
-      stepNum: 2,
+      stepNum: 1,
       title: 'Tujuan Pembelajaran (TP)',
       role: 'Target Kompetensi Siswa',
       desc: 'Merumuskan kalimat TP dengan kaidah baku ABCD dan kata kerja operasional (KKO) Taksonomi Bloom revisi.',
@@ -230,7 +221,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
     },
     {
       id: 'ai_atp',
-      stepNum: 3,
+      stepNum: 2,
       title: 'Alur Tujuan (ATP 10 Kolom)',
       role: 'Sekuensial Pembelajaran',
       desc: 'Menyusun alur linier logis dari materi konkret ke abstrak, lengkap dengan estimasi alokasi jam tatap muka.',
@@ -240,7 +231,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
     },
     {
       id: 'ai_prota',
-      stepNum: 4,
+      stepNum: 3,
       title: 'Program Tahunan (PROTA)',
       role: 'Distribusi Alokasi 1 Tahun',
       desc: 'Pemetaan total beban belajar per materi pokok untuk satu tahun ajaran penuh (Semester Ganjil & Genap).',
@@ -250,7 +241,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
     },
     {
       id: 'ai_prosem',
-      stepNum: 5,
+      stepNum: 4,
       title: 'Program Semester (PROSEM)',
       role: 'Matriks Pekanan Berwarna',
       desc: 'Jadwal tatap muka mingguan, penempatan Asesmen Formatif/Sumatif, dan jeda tengah semester.',
@@ -260,7 +251,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
     },
     {
       id: 'ai_kktp',
-      stepNum: 6,
+      stepNum: 5,
       title: 'Kriteria Ketuntasan (KKTP)',
       role: 'Instrumen Standar Ketercapaian',
       desc: 'Menentukan interval skor, rubrik bertingkat 4 level, dan deskripsi ketercapaian tujuan pembelajaran.',
@@ -270,7 +261,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
     },
     {
       id: 'ai_modul_ajar',
-      stepNum: 7,
+      stepNum: 6,
       title: 'RPM / Modul Ajar Deep Learning',
       role: 'Rencana Pelaksanaan KBM',
       desc: 'Sintaks KBM 6 Fase (Mindful, Meaningful, & Joyful) Bagian A s.d. X lengkap dengan diferensiasi proses.',
@@ -280,7 +271,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
     },
     {
       id: 'ai_lkpd',
-      stepNum: 8,
+      stepNum: 7,
       title: 'LKPD Siswa Berdiferensiasi',
       role: 'Kanvas Penyelidikan Siswa',
       desc: 'Lembar kerja aktivitas inkuiri, diagram sketsa kolaboratif, dan refleksi 3-2-1 yang sinkron dengan RPM.',
@@ -290,7 +281,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
     },
     {
       id: 'ai_rubrik_penilaian',
-      stepNum: 9,
+      stepNum: 8,
       title: 'Rubrik Penilaian Terpadu',
       role: 'Asesmen Otentik 3 Pilar',
       desc: 'Rubrik sikap Profil Pelajar (6C), lembar observasi performa LKPD, dan kisi-kisi soal sumatif HOTS.',
@@ -447,10 +438,10 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('ai_analisis_cp')}
-                className="px-5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 text-xs font-semibold transition flex items-center justify-center space-x-2 border border-slate-700 cursor-pointer"
+                className="px-5 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white text-xs font-semibold transition flex items-center justify-center space-x-2 border border-blue-500 shadow-xs cursor-pointer"
               >
-                <FileSearch className="w-4 h-4 text-blue-400" />
-                <span>Analisis &amp; Distribusi CP</span>
+                <FileSearch className="w-4 h-4 text-white" />
+                <span>Analisis CP (Upload Format Sendiri)</span>
               </button>
             </div>
           </div>
@@ -680,10 +671,10 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
                 {
                   id: 'ai_analisis_cp',
                   title: 'Analisis CP',
-                  desc: 'Dekomposisi BSKAP',
+                  desc: 'Upload Format Sendiri',
                   icon: FileSearch,
-                  color: 'text-emerald-600 bg-emerald-50 border-emerald-200 hover:border-emerald-400',
-                  badge: 'Semester 1 & 2',
+                  color: 'text-blue-600 bg-blue-50 border-blue-200 hover:border-blue-400',
+                  badge: 'Format Sendiri',
                 },
                 {
                   id: 'ai_tp',
@@ -907,11 +898,11 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
               {currentUser.role === 'admin' && (
                 <button
                   type="button"
-                  onClick={() => onNavigate('upload_cp_master')}
+                  onClick={() => onNavigate('parameter_kurikulum')}
                   className="px-3.5 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-xs font-semibold flex items-center space-x-1.5 shrink-0 transition"
                 >
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Kelola Master CP</span>
+                  <Sliders className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Parameter Kurikulum</span>
                 </button>
               )}
             </div>
@@ -986,10 +977,10 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
 
                     <button
                       type="button"
-                      onClick={() => onNavigate('ai_analisis_cp')}
+                      onClick={() => onNavigate('parameter_kurikulum')}
                       className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-[11px] font-semibold transition cursor-pointer"
                     >
-                      Gunakan CP
+                      Gunakan Parameter
                     </button>
                   </div>
                 </div>
@@ -1181,7 +1172,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
                 type="button"
                 onClick={() => {
                   setPreviewCP(null);
-                  onNavigate('ai_analisis_cp');
+                  onNavigate('parameter_kurikulum');
                 }}
                 className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition cursor-pointer"
               >

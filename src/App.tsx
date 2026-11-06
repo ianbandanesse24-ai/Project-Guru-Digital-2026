@@ -44,11 +44,11 @@ import { SaranView } from './views/SaranView';
 import { WelcomeSyncView } from './views/WelcomeSyncView';
 import { SupabaseSyncView } from './views/SupabaseSyncView';
 import { KelasSiswaView } from './views/KelasSiswaView';
-import { AnalisisCPDistributionView } from './views/AnalisisCPDistributionView';
 import { ProfilGuruMapelView } from './views/ProfilGuruMapelView';
 import { ParameterKurikulumView } from './views/ParameterKurikulumView';
 import { KalenderPendidikanView } from './views/KalenderPendidikanView';
-import { UploadCPMasterView } from './views/UploadCPMasterView';
+import { AnalisisAlokasiWaktuView } from './views/AnalisisAlokasiWaktuView';
+import { AnalisisCPView } from './views/AnalisisCPView';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() =>
@@ -210,48 +210,51 @@ export default function App() {
         return { label: 'Profil Guru Mata Pelajaran', category: 'Kurikulum & Perangkat' };
       case 'kalender_pendidikan':
       case 'upload_kalender':
-      case 'analisis_alokasi_waktu':
-      case 'alokasi_waktu':
-      case 'ai_analisis_alokasi_waktu':
-        return { label: 'Upload Kaldik & Analisis Alokasi Waktu', category: 'Kurikulum & Perangkat' };
+        return { label: 'Upload Kalender Pendidikan', category: 'Kurikulum & Perangkat' };
       case 'parameter_kurikulum':
       case 'parameter_belajar':
-      case 'analisis_cp_distribusi':
-      case 'cp_distribusi':
       case 'pembagian_materi':
       case 'deep_learning':
         return { label: 'Parameter Kurikulum & Bab TP', category: 'Kurikulum & Perangkat' };
       case 'ai_analisis_cp':
       case 'analisis_cp':
       case 'cp':
-        return { label: '1. Analisis CP Terbaru', category: 'Kurikulum & Perangkat' };
+      case 'upload_cp':
+      case 'upload_cp_master':
+      case 'analisis_cp_distribusi':
+      case 'ai_analisis_cp_distribusi':
+        return { label: 'Analisis Capaian Pembelajaran (CP)', category: 'Kurikulum & Perangkat' };
+      case 'analisis_alokasi_waktu':
+      case 'alokasi_waktu':
+      case 'ai_analisis_alokasi_waktu':
+        return { label: 'Analisis Alokasi Waktu (Upload Format Sendiri & RBE)', category: 'Kurikulum & Perangkat' };
       case 'ai_tp':
       case 'tp':
-        return { label: '2. Tujuan Pembelajaran (TP)', category: 'Kurikulum & Perangkat' };
+        return { label: '1. Tujuan Pembelajaran (TP)', category: 'Kurikulum & Perangkat' };
       case 'ai_atp':
       case 'atp':
-        return { label: '3. Alur TP (ATP)', category: 'Kurikulum & Perangkat' };
+        return { label: '2. Alur TP (ATP)', category: 'Kurikulum & Perangkat' };
       case 'ai_prota':
       case 'prota':
-        return { label: '4. Program Tahunan (PROTA)', category: 'Kurikulum & Perangkat' };
+        return { label: '3. Program Tahunan (PROTA)', category: 'Kurikulum & Perangkat' };
       case 'ai_prosem':
       case 'prosem':
-        return { label: '5. Program Semester (PROSEM)', category: 'Kurikulum & Perangkat' };
+        return { label: '4. Program Semester (PROSEM)', category: 'Kurikulum & Perangkat' };
       case 'ai_kktp':
       case 'kktp':
-        return { label: '6. Kriteria Ketuntasan (KKTP)', category: 'Kurikulum & Perangkat' };
+        return { label: '5. Kriteria Ketuntasan (KKTP)', category: 'Kurikulum & Perangkat' };
       case 'ai_modul_ajar':
       case 'rpm':
       case 'modul_ajar':
-        return { label: '7. RPM (Rencana Pelaksanaan Modul)', category: 'Kurikulum & Perangkat' };
+        return { label: '6. RPM (Rencana Pelaksanaan Modul)', category: 'Kurikulum & Perangkat' };
       case 'ai_lkpd':
       case 'lkpd':
-        return { label: '8. Lembar Kerja Siswa (LKPD)', category: 'Kurikulum & Perangkat' };
+        return { label: '7. Lembar Kerja Siswa (LKPD)', category: 'Kurikulum & Perangkat' };
       case 'ai_rubrik_penilaian':
       case 'ai_asesmen':
       case 'rubrik':
       case 'rubrik_penilaian':
-        return { label: '9. Rubrik Penilaian Terpadu', category: 'Kurikulum & Perangkat' };
+        return { label: '8. Rubrik Penilaian Terpadu', category: 'Kurikulum & Perangkat' };
       case 'admin_dashboard':
       case 'admin_activity_logs':
         return { label: 'Log Audit & Dashboard', category: 'Admin Panel' };
@@ -317,18 +320,18 @@ export default function App() {
     ) {
       return <KelasSiswaView />;
     }
-    if (activeView === 'admin_upload_cp' || activeView === 'upload_cp' || activeView === 'upload_cp_master') {
-      return <UploadCPMasterView onNavigate={handleNavigateView} />;
-    }
     if (
+      activeView === 'admin_upload_cp' ||
+      activeView === 'upload_cp' ||
+      activeView === 'upload_cp_master' ||
       activeView === 'analisis_cp_distribusi' ||
       activeView === 'ai_analisis_cp_distribusi' ||
-      activeView === 'cp_distribusi'
+      activeView === 'cp_distribusi' ||
+      activeView === 'ai_analisis_cp' ||
+      activeView === 'analisis_cp' ||
+      activeView === 'cp'
     ) {
-      return <AnalisisCPDistributionView onNavigate={handleNavigateView} />;
-    }
-    if (activeView === 'ai_analisis_cp' || activeView === 'analisis_cp' || activeView === 'cp') {
-      return <AIAssistantView key="analisis_cp" initialDocType="ai_analisis_cp" onNavigate={handleNavigateView} />;
+      return <AnalisisCPView onNavigate={handleNavigateView} />;
     }
     if (activeView === 'ai_tp' || activeView === 'tp') {
       return <AIAssistantView key="tp" initialDocType="ai_tp" onNavigate={handleNavigateView} />;
@@ -367,18 +370,16 @@ export default function App() {
     }
     if (
       activeView === 'kalender_pendidikan' ||
-      activeView === 'upload_kalender' ||
+      activeView === 'upload_kalender'
+    ) {
+      return <KalenderPendidikanView initialTab="upload" onNavigate={handleNavigateView} />;
+    }
+    if (
       activeView === 'analisis_alokasi_waktu' ||
       activeView === 'alokasi_waktu' ||
       activeView === 'ai_analisis_alokasi_waktu'
     ) {
-      const initialTab =
-        activeView === 'analisis_alokasi_waktu' ||
-        activeView === 'alokasi_waktu' ||
-        activeView === 'ai_analisis_alokasi_waktu'
-          ? 'analisis'
-          : 'upload';
-      return <KalenderPendidikanView initialTab={initialTab} onNavigate={handleNavigateView} />;
+      return <AnalisisAlokasiWaktuView onNavigate={handleNavigateView} />;
     }
     if (
       activeView === 'parameter_kurikulum' ||

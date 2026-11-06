@@ -571,7 +571,9 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
             curTP.includes('Materi Pokok & Kajian') ||
             curTP.includes('Konsep Dasar, Hakikat') ||
             curTP.includes('Prinsip Operasional') ||
-            curTP.includes('Eksplorasi Kontekstual');
+            curTP.includes('Eksplorasi Kontekstual') ||
+            curTP.includes('materi pokok') ||
+            (newMat.length > 2 && !curTP.toLowerCase().includes(newMat.toLowerCase().substring(0, Math.min(8, newMat.length))));
           if (newMat && isGenericOrEmpty) {
             updated[index].tpName = generateAutoTPForMaterial(
               newMat,
@@ -602,7 +604,9 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
             curTP.includes('Materi Pokok & Kajian') ||
             curTP.includes('Konsep Dasar, Hakikat') ||
             curTP.includes('Prinsip Operasional') ||
-            curTP.includes('Eksplorasi Kontekstual');
+            curTP.includes('Eksplorasi Kontekstual') ||
+            curTP.includes('materi pokok') ||
+            (newMat.length > 2 && !curTP.toLowerCase().includes(newMat.toLowerCase().substring(0, Math.min(8, newMat.length))));
           if (newMat && isGenericOrEmpty) {
             updated[index].tpName = generateAutoTPForMaterial(
               newMat,
@@ -814,12 +818,12 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
               : 'text-slate-700 hover:bg-white'
           }`}
         >
-          <Table className="w-4 h-4" />
-          <span>2. Upload Kalender Pendidikan & (otomatis) analisis Alokasi Waktu (RBE)</span>
+          <CalendarDays className="w-4 h-4" />
+          <span>2. Upload Kalender Pendidikan</span>
           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
             mainSection === 'upload_analisis_rbe' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
           }`}>
-            {jpPerWeek} JP/Mgg
+            Kaldik
           </span>
         </button>
 
@@ -1270,7 +1274,9 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                                       curTP.includes('Materi Pokok & Kajian') ||
                                       curTP.includes('Konsep Dasar, Hakikat') ||
                                       curTP.includes('Prinsip Operasional') ||
-                                      curTP.includes('Eksplorasi Kontekstual');
+                                      curTP.includes('Eksplorasi Kontekstual') ||
+                                      curTP.includes('materi pokok') ||
+                                      (val.length > 2 && !curTP.toLowerCase().includes(val.toLowerCase().substring(0, Math.min(8, val.length))));
                                     if (isGeneric) {
                                       const autoTP = generateAutoTPForMaterial(val, subject, grade, item.tpCount || 2);
                                       handleDirectUpdateChapter(1, idx, 'tpName', autoTP);
@@ -1602,7 +1608,9 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                                       curTP.includes('Materi Pokok & Kajian') ||
                                       curTP.includes('Konsep Dasar, Hakikat') ||
                                       curTP.includes('Prinsip Operasional') ||
-                                      curTP.includes('Eksplorasi Kontekstual');
+                                      curTP.includes('Eksplorasi Kontekstual') ||
+                                      curTP.includes('materi pokok') ||
+                                      (val.length > 2 && !curTP.toLowerCase().includes(val.toLowerCase().substring(0, Math.min(8, val.length))));
                                     if (isGeneric) {
                                       const autoTP = generateAutoTPForMaterial(val, subject, grade, item.tpCount || 2);
                                       handleDirectUpdateChapter(2, idx, 'tpName', autoTP);
