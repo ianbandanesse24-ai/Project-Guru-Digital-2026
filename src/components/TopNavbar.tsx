@@ -102,7 +102,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       label: 'Asisten & Setup',
       icon: Compass,
       items: [
-        { id: 'welcome_sync', label: 'Pusat Sinkronisasi & Setup', badge: 'Sync' },
+        { id: 'welcome_sync', label: 'Ucapan Selamat Datang', badge: 'Halo' },
         { id: 'saran', label: 'Kotak Saran & Masukan' },
       ],
     },

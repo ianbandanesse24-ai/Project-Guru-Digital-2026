@@ -179,7 +179,7 @@ export default function App() {
       case 'dashboard':
         return { label: 'Dashboard & Ikhtisar', category: 'Utama' };
       case 'welcome_sync':
-        return { label: 'Pusat Sinkronisasi', category: 'Sistem' };
+        return { label: 'Ucapan Selamat Datang', category: 'Utama' };
       case 'kelas_siswa':
       case 'siswa_kelas':
       case 'input_siswa':
