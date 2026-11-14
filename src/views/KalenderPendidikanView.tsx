@@ -23,6 +23,7 @@ import {
 import { KalenderPendidikanData, KalenderMonthAnalysis, SemesterType } from '../types';
 import { StorageService, DEFAULT_KALENDER_PENDIDIKAN, addStorageListener } from '../lib/storage';
 import { UniversalFileParser } from '../lib/universalFileParser';
+import { AlokasiWaktuParser } from '../lib/alokasiWaktuParser';
 import { handleNumberInputFocus, parseNumberInput } from '../lib/inputUtils';
 
 export interface KalenderPendidikanViewProps {
@@ -191,28 +192,49 @@ export const KalenderPendidikanView: React.FC<KalenderPendidikanViewProps> = ({
     setSaveToast('Sedang menganalisis struktur kalender pendidikan...');
 
     setTimeout(() => {
-      const updated: KalenderPendidikanData = {
+      const schoolProf = StorageService.getSchoolProfile();
+      const jpPerWeek = Number(schoolProf?.jpPerWeek || kalenderData.semester1?.jpPerWeek || 3);
+      const baseData: KalenderPendidikanData = {
         ...kalenderData,
         tahunAjaran: academicYear,
         academicYear: academicYear,
         catatanKhusus: uploadNotes,
+      };
+      const analyzed = AlokasiWaktuParser.analyzeFromKaldik(baseData, jpPerWeek);
+      const updated: KalenderPendidikanData = {
+        ...baseData,
+        semester1: analyzed.semester1,
+        semester2: analyzed.semester2,
+        kaldikAnalysis: analyzed,
+        activeSourceMode: 'kaldik',
         lastUpdated: new Date().toISOString(),
       };
       setKalenderData(updated);
       StorageService.saveKalenderPendidikan(updated);
+      window.dispatchEvent(new CustomEvent('kaldik-updated', { detail: updated }));
       setIsAnalyzing(false);
-      setSaveToast(`✅ Analisis Kalender Pendidikan TP ${academicYear} selesai! Data siap disinkronkan ke Alokasi Waktu.`);
+      setSaveToast(`✅ Analisis Kalender Pendidikan TP ${academicYear} selesai! Data siap digunakan pada menu Analisis Alokasi Waktu.`);
       setTimeout(() => setSaveToast(null), 3500);
-    }, 500);
+    }, 450);
   };
 
   // 2. Tombol Sinkron ke Alokasi Waktu: Menyimpan & menyinkronkan langsung ke menu Analisis Alokasi Waktu
   const handleSyncToAlokasiWaktu = () => {
-    const updated: KalenderPendidikanData = {
+    const schoolProf = StorageService.getSchoolProfile();
+    const jpPerWeek = Number(schoolProf?.jpPerWeek || kalenderData.semester1?.jpPerWeek || 3);
+    const baseData: KalenderPendidikanData = {
       ...kalenderData,
       tahunAjaran: academicYear,
       academicYear: academicYear,
       catatanKhusus: uploadNotes,
+    };
+    const analyzed = AlokasiWaktuParser.analyzeFromKaldik(baseData, jpPerWeek);
+    const updated: KalenderPendidikanData = {
+      ...baseData,
+      semester1: analyzed.semester1,
+      semester2: analyzed.semester2,
+      kaldikAnalysis: analyzed,
+      activeSourceMode: 'kaldik',
       lastUpdated: new Date().toISOString(),
     };
 
@@ -228,7 +250,7 @@ export const KalenderPendidikanView: React.FC<KalenderPendidikanViewProps> = ({
       if (onNavigate) {
         onNavigate('analisis_alokasi_waktu');
       }
-    }, 600);
+    }, 500);
   };
 
   const activeSemData = selectedSemester === 'Ganjil' ? kalenderData.semester1 : kalenderData.semester2;

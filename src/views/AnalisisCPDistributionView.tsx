@@ -1041,6 +1041,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
         modelOption: selectedPerangkatModel,
         meetingCount: computedMeetings,
         academicYear,
+        kalenderData: StorageService.getKalenderPendidikan(),
         useCustomFormat: customFormatConfig.useCustomFormat,
         customFormatNotes: customFormatConfig.customFormatNotes,
         customFormatFile: customFormatConfig.formatFile,

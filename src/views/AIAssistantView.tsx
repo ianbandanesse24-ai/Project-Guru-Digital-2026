@@ -189,7 +189,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                d.subject.toLowerCase() === targetSub.toLowerCase() &&
                d.grade === targetGrade
       );
-      if (existing && existing.content && existing.content.trim().length > 100) {
+      if (targetDoc !== 'prosem' && existing && existing.content && existing.content.trim().length > 100) {
         return existing.content;
       }
       return generateExpertCurriculumDocument({
@@ -200,6 +200,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
         grade: targetGrade,
         phase: targetLvl === 'SMA' ? (targetGrade === 10 ? 'Fase E' : 'Fase F') : 'Fase D',
         semester: targetSem,
+        kalenderData: StorageService.getKalenderPendidikan(),
       });
     } catch {
       return '';
@@ -405,6 +406,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
     window.addEventListener('school-profile-updated', handleCPEvent);
     window.addEventListener('curriculum-parameters-synced', handleCPEvent);
     window.addEventListener('curriculum-materials-changed', handleCPEvent);
+    window.addEventListener('kaldik-updated', handleCPEvent);
 
     return () => {
       unsubscribe();
@@ -412,6 +414,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
       window.removeEventListener('school-profile-updated', handleCPEvent);
       window.removeEventListener('curriculum-parameters-synced', handleCPEvent);
       window.removeEventListener('curriculum-materials-changed', handleCPEvent);
+      window.removeEventListener('kaldik-updated', handleCPEvent);
     };
   }, []);
 
@@ -780,7 +783,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
              d.subject.toLowerCase() === subject.toLowerCase() &&
              d.grade === grade
     );
-    if (existing && existing.content && existing.content.trim().length > 100) {
+    if (cleanType !== 'prosem' && existing && existing.content && existing.content.trim().length > 100) {
       setGeneratedMarkdown(existing.content);
     } else {
       const generated = buildInstantDocument(cleanType);
@@ -805,7 +808,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
              d.subject.toLowerCase() === subject.toLowerCase() &&
              d.grade === grade
     );
-    if (existing && existing.content && existing.content.trim().length > 100) {
+    if (targetDoc !== 'prosem' && existing && existing.content && existing.content.trim().length > 100) {
       setGeneratedMarkdown(existing.content);
     } else {
       try {
@@ -1761,7 +1764,8 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                 {docType === 'prosem' && (() => {
                   const kaldik = StorageService.getKalenderPendidikan();
                   const currentSemPlan = semester === 'Genap' ? kaldik.semester2 : kaldik.semester1;
-                  const customFile = kaldik.fileName || kaldik.uploadedFile?.fileName;
+                  const isUploadMandiri = kaldik.activeSourceMode === 'upload_mandiri';
+                  const customFile = kaldik.uploadedAlokasiWaktu?.fileName || kaldik.fileName || kaldik.uploadedFile?.fileName;
                   const totalEffWeeks = currentSemPlan?.totalEffectiveWeeks || 18;
                   const totalHours = totalEffWeeks * (hoursPerMeeting || 3);
 
@@ -1771,11 +1775,17 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                         <div className="flex items-center space-x-2">
                           <CalendarCheck className="w-4 h-4 text-emerald-700 shrink-0" />
                           <span className="font-bold text-emerald-950">
-                            Tersinkron dengan Analisis Alokasi Waktu (RBE)
+                            Acuan PROSEM Tersinkron: Analisis Alokasi Waktu
                           </span>
                         </div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          {customFile ? `Berkas: ${customFile}` : 'Format Baku Kaldik'}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          isUploadMandiri && customFile
+                            ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
+                            : 'bg-blue-100 text-blue-800 border-blue-300'
+                        }`}>
+                          {isUploadMandiri && customFile
+                            ? `Pilihan 2: Upload Mandiri (${customFile})`
+                            : `Pilihan 1: Hasil Analisis KALDIK`}
                         </span>
                       </div>
 
@@ -1789,7 +1799,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                             onClick={() => onNavigate('analisis_alokasi_waktu')}
                             className="text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer text-[11px] flex items-center space-x-1"
                           >
-                            <span>Ubah / Upload Mandiri →</span>
+                            <span>Pilih KALDIK / Upload Mandiri →</span>
                           </button>
                         )}
                       </div>

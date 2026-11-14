@@ -496,6 +496,27 @@ export interface KalenderPendidikanData {
   notes?: string;
   catatanKhusus?: string;
   customFormatConfig?: any;
+  activeSourceMode?: 'kaldik' | 'upload_mandiri';
+  syncedToProsemAt?: string;
+  kaldikAnalysis?: {
+    semester1: KalenderSemesterPlan;
+    semester2: KalenderSemesterPlan;
+    generatedAt: string;
+    sourceLabel?: string;
+  };
+  uploadedAlokasiWaktu?: {
+    fileName: string;
+    fileSize: number;
+    fileType: string;
+    uploadedAt: string;
+    extractedText?: string;
+    tableMarkdown?: string;
+    semester1: KalenderSemesterPlan;
+    semester2: KalenderSemesterPlan;
+    detectedJpPerWeek?: number;
+    detectedAcademicYear?: string;
+    confidenceScore?: number;
+  };
   lastUpdated?: string;
 }
 

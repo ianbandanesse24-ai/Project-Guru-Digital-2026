@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Table,
   UploadCloud,
@@ -17,15 +18,15 @@ import {
   Zap,
   Sliders,
   Download,
-  AlertCircle,
   FileCheck,
   Eye,
-  ArrowRight,
-  Clock,
   BookOpen,
-  Layers,
   FileUp,
   X,
+  Trash2,
+  Calculator,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   KalenderPendidikanData,
@@ -39,25 +40,33 @@ import { generateExpertCurriculumDocument } from '../lib/curriculumEngine';
 import { getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
 import { DocumentPdfPreview } from '../components/DocumentPdfPreview';
 import { CustomFormatSelector, CustomFormatConfig } from '../components/CustomFormatSelector';
-import { RbeAnalysisSection } from '../components/RbeAnalysisSection';
 import { AlokasiWaktuParser, CustomAlokasiWaktuParseResult } from '../lib/alokasiWaktuParser';
+import { handleNumberInputFocus, parseNumberInput } from '../lib/inputUtils';
 
 interface AnalisisAlokasiWaktuViewProps {
   onNavigate?: (viewId: string) => void;
-  initialTab?: 'upload_format' | 'tabel_rbe' | 'pratinjau_dokumen';
+  initialTab?: string;
 }
 
 export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> = ({
   onNavigate,
-  initialTab = 'upload_format',
 }) => {
-  const [activeTab, setActiveTab] = useState<'upload_format' | 'tabel_rbe' | 'pratinjau_dokumen'>(initialTab);
-  const [selectedSemester, setSelectedSemester] = useState<'Ganjil' | 'Genap'>('Ganjil');
-
   // Load Kaldik data & custom format config from storage
   const [kalenderData, setKalenderData] = useState<KalenderPendidikanData>(() =>
     StorageService.getKalenderPendidikan()
   );
+
+  // 2 Pilihan Pembuatan Analisis Alokasi Waktu:
+  // 'kaldik' = Pilihan 1 (Hasil analisis & generate dari KALDIK dalam 1 dokumen yang bisa disimpan dalam bentuk tabel)
+  // 'upload_mandiri' = Pilihan 2 (Upload sendiri analisis alokasi waktu dalam bentuk dokumen)
+  const [selectedChoice, setSelectedChoice] = useState<'kaldik' | 'upload_mandiri'>(() =>
+    kalenderData.activeSourceMode === 'upload_mandiri' ? 'upload_mandiri' : 'kaldik'
+  );
+
+  // Tampilan di dalam pilihan: 'tabel' (1 dokumen tabel Sem 1 + Sem 2 + Rekap) atau 'dokumen' (Pratinjau Dokumen Cetak)
+  const [kaldikViewMode, setKaldikViewMode] = useState<'tabel' | 'dokumen'>('tabel');
+  const [uploadViewMode, setUploadViewMode] = useState<'tabel' | 'dokumen_asli' | 'pratinjau'>('tabel');
+  const [showFormatSettings, setShowFormatSettings] = useState<boolean>(false);
 
   const [customFormatConfig, setCustomFormatConfig] = useState<CustomFormatConfig>(() => {
     return (
@@ -69,15 +78,18 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
     );
   });
 
+  const [isGeneratingKaldik, setIsGeneratingKaldik] = useState<boolean>(false);
+  const [hasGeneratedKaldik, setHasGeneratedKaldik] = useState<boolean>(() => Boolean(kalenderData.kaldikAnalysis));
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [saveToast, setSaveToast] = useState<string | null>(null);
 
-  // File Upload states for self-made analysis
+  // File Upload states for Pilihan 2 (Upload Mandiri)
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const [uploadResult, setUploadResult] = useState<CustomAlokasiWaktuParseResult | null>(null);
   const [showSyncSuccessModal, setShowSyncSuccessModal] = useState<boolean>(false);
+  const [lastSyncedModeLabel, setLastSyncedModeLabel] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // School Profile & Master CP metadata
@@ -85,14 +97,18 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
   const masterCP = StorageService.getActiveMasterCP();
 
   const [subject, setSubject] = useState<string>(masterCP?.subject || schoolProfile.subject || 'Fisika');
-  const [level, setLevel] = useState<EducationLevel>((masterCP?.level as EducationLevel) || (schoolProfile.level as EducationLevel) || 'SMA');
+  const [level, setLevel] = useState<EducationLevel>(
+    (masterCP?.level as EducationLevel) || (schoolProfile.level as EducationLevel) || 'SMA'
+  );
   const [grade, setGrade] = useState<number>(Number(masterCP?.grade || schoolProfile.grade) || 10);
-  const [jpPerWeek, setJpPerWeek] = useState<number>(masterCP?.jpPerWeek || Number(schoolProfile.jpPerWeek) || 3);
+  const [jpPerWeek, setJpPerWeek] = useState<number>(
+    Number(schoolProfile.jpPerWeek || masterCP?.jpPerWeek || kalenderData.semester1?.jpPerWeek) || 3
+  );
   const [academicYear, setAcademicYear] = useState<string>(
     kalenderData.tahunAjaran || schoolProfile.academicYear || masterCP?.academicYear || '2025/2026'
   );
 
-  // Materials / Chapters for reference
+  // Materials / Chapters for reference in Distribusi JP table
   const [materialsSem1, setMaterialsSem1] = useState<CPMaterialItem[]>(() => {
     if (masterCP?.materialsSem1 && masterCP.materialsSem1.length > 0) return masterCP.materialsSem1;
     const preset = getSubjectPresetByGrade(subject, level, grade);
@@ -105,7 +121,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
     return (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
   });
 
-  // Keep state synced with storage events
+  // Sync with global storage changes
   useEffect(() => {
     const handleStorageUpdate = () => {
       const freshKaldik = StorageService.getKalenderPendidikan();
@@ -113,12 +129,17 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
       if (freshKaldik.customFormatConfig) {
         setCustomFormatConfig(freshKaldik.customFormatConfig);
       }
+      if (freshKaldik.kaldikAnalysis) {
+        setHasGeneratedKaldik(true);
+      }
+      const freshProfile = StorageService.getSchoolProfile();
       const freshMaster = StorageService.getActiveMasterCP();
+      if (freshProfile?.jpPerWeek) setJpPerWeek(Number(freshProfile.jpPerWeek));
       if (freshMaster) {
         if (freshMaster.subject) setSubject(freshMaster.subject);
         if (freshMaster.level) setLevel(freshMaster.level as EducationLevel);
         if (freshMaster.grade) setGrade(Number(freshMaster.grade));
-        if (freshMaster.jpPerWeek) setJpPerWeek(freshMaster.jpPerWeek);
+        if (freshMaster.jpPerWeek && !freshProfile?.jpPerWeek) setJpPerWeek(freshMaster.jpPerWeek);
         if (freshMaster.materialsSem1) setMaterialsSem1(freshMaster.materialsSem1);
         if (freshMaster.materialsSem2) setMaterialsSem2(freshMaster.materialsSem2);
       }
@@ -137,46 +158,131 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
     };
   }, []);
 
-  // Update Custom Format Configuration
-  const handleCustomFormatChange = (newConfig: CustomFormatConfig) => {
-    setCustomFormatConfig(newConfig);
-    const updated: KalenderPendidikanData = {
-      ...kalenderData,
-      customFormatConfig: newConfig,
-      lastUpdated: new Date().toISOString(),
-    };
-    setKalenderData(updated);
-    StorageService.saveKalenderPendidikan(updated);
-    setSaveToast(
-      newConfig.useCustomFormat
-        ? 'Format khusus alokasi waktu aktif & disinkronkan ke seluruh dokumen!'
-        : 'Format alokasi waktu dikembalikan ke standar resmi.'
-    );
-    setTimeout(() => setSaveToast(null), 3500);
+  // Derive Semester 1 & 2 plans specifically for Choice 1 (KALDIK) and Choice 2 (Upload Mandiri)
+  const kaldikSem1: KalenderSemesterPlan =
+    kalenderData.kaldikAnalysis?.semester1 || kalenderData.semester1;
+  const kaldikSem2: KalenderSemesterPlan =
+    kalenderData.kaldikAnalysis?.semester2 || kalenderData.semester2;
+
+  const uploadedInfo = kalenderData.uploadedAlokasiWaktu;
+  const uploadedSem1: KalenderSemesterPlan =
+    uploadedInfo?.semester1 || kalenderData.semester1;
+  const uploadedSem2: KalenderSemesterPlan =
+    uploadedInfo?.semester2 || kalenderData.semester2;
+
+  // Working plans for the currently selected choice
+  const workingSem1: KalenderSemesterPlan =
+    selectedChoice === 'upload_mandiri' && uploadedInfo ? uploadedSem1 : kaldikSem1;
+  const workingSem2: KalenderSemesterPlan =
+    selectedChoice === 'upload_mandiri' && uploadedInfo ? uploadedSem2 : kaldikSem2;
+
+  const workingKaldikPreviewData: KalenderPendidikanData = {
+    ...kalenderData,
+    tahunAjaran: academicYear,
+    academicYear,
+    activeSourceMode: selectedChoice,
+    semester1: workingSem1,
+    semester2: workingSem2,
   };
 
-  // Upload Self-made Analysis File Handler
+  // Generate 1 unified Markdown document for the active choice
+  const previewMarkdown = generateExpertCurriculumDocument({
+    toolType: 'analisis_alokasi_waktu',
+    docType: 'analisis_alokasi_waktu',
+    subject,
+    level,
+    grade,
+    academicYear,
+    semester: '1 Tahun',
+    kalenderData: workingKaldikPreviewData,
+    kaldikData: workingKaldikPreviewData,
+    customFormatConfig,
+    useCustomFormat: customFormatConfig.useCustomFormat,
+    customFormatNotes: customFormatConfig.customFormatNotes,
+    customFormatFile: customFormatConfig.formatFile,
+    phase:
+      level === 'SMA'
+        ? grade === 10
+          ? 'Fase E'
+          : 'Fase F'
+        : level === 'SMP'
+        ? 'Fase D'
+        : grade <= 2
+        ? 'Fase A'
+        : grade <= 4
+        ? 'Fase B'
+        : 'Fase C',
+  });
+
+  // ============================================================================
+  // PILIHAN 1: ANALISIS & GENERATE DARI KALDIK MENJADI 1 DOKUMEN TABEL
+  // ============================================================================
+  const handleGenerateFromKaldik = () => {
+    setIsGeneratingKaldik(true);
+    setSaveToast('Menganalisis Kalender Pendidikan (KALDIK) & menyusun 1 dokumen tabel...');
+
+    setTimeout(() => {
+      const analyzed = AlokasiWaktuParser.analyzeFromKaldik(kalenderData, jpPerWeek);
+      const updated: KalenderPendidikanData = {
+        ...kalenderData,
+        tahunAjaran: academicYear,
+        academicYear,
+        kaldikAnalysis: analyzed,
+        semester1: analyzed.semester1,
+        semester2: analyzed.semester2,
+        activeSourceMode: 'kaldik',
+        lastUpdated: new Date().toISOString(),
+      };
+
+      setKalenderData(updated);
+      StorageService.saveKalenderPendidikan(updated);
+      setHasGeneratedKaldik(true);
+      setIsGeneratingKaldik(false);
+      setSaveToast(
+        `Analisis dari KALDIK selesai! Sem 1: ${analyzed.semester1.totalEffectiveWeeks} Pekan Efektif (${analyzed.semester1.totalEffectiveHours} JP) • Sem 2: ${analyzed.semester2.totalEffectiveWeeks} Pekan Efektif (${analyzed.semester2.totalEffectiveHours} JP).`
+      );
+      setTimeout(() => setSaveToast(null), 4500);
+    }, 350);
+  };
+
+  // ============================================================================
+  // PILIHAN 2: UPLOAD MANDIRI DOKUMEN ANALISIS ALOKASI WAKTU
+  // ============================================================================
   const handleFileUpload = async (file: File) => {
     if (!file) return;
     setIsUploading(true);
     try {
-      const parseResult = await AlokasiWaktuParser.parseCustomAnalysisFile(file, kalenderData, jpPerWeek);
+      const parseResult = await AlokasiWaktuParser.parseCustomAnalysisFile(
+        file,
+        kalenderData,
+        jpPerWeek
+      );
       setUploadResult(parseResult);
+
+      const newJp =
+        parseResult.detectedJpPerWeek && parseResult.detectedJpPerWeek > 0
+          ? parseResult.detectedJpPerWeek
+          : jpPerWeek;
 
       const updatedKaldik: KalenderPendidikanData = {
         ...kalenderData,
         tahunAjaran: parseResult.detectedAcademicYear || academicYear,
+        academicYear: parseResult.detectedAcademicYear || academicYear,
         semester1: parseResult.semester1,
         semester2: parseResult.semester2,
-        fileName: file.name,
-        fileType: file.type || 'document',
-        fileSize: file.size,
-        uploadedAt: new Date().toISOString(),
-        uploadedFile: {
+        activeSourceMode: 'upload_mandiri',
+        uploadedAlokasiWaktu: {
           fileName: file.name,
           fileSize: file.size,
-          fileType: file.type,
+          fileType: file.type || 'document',
           uploadedAt: new Date().toISOString(),
+          extractedText: parseResult.extractedText,
+          tableMarkdown: parseResult.tableMarkdown,
+          semester1: parseResult.semester1,
+          semester2: parseResult.semester2,
+          detectedJpPerWeek: newJp,
+          detectedAcademicYear: parseResult.detectedAcademicYear,
+          confidenceScore: parseResult.confidenceScore,
         },
         customFormatConfig: {
           ...customFormatConfig,
@@ -187,19 +293,29 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
             type: file.type,
             lastModified: file.lastModified,
           },
-          customFormatNotes: `Diunggah mandiri oleh guru: ${file.name}. RBE diekstraksi dan disinkronkan ke PROSEM.`,
+          customFormatNotes: `Diunggah mandiri oleh guru: ${file.name}. Diekstraksi & dijadikan acuan PROSEM.`,
         },
+        syncedToProsemAt: new Date().toISOString(),
         lastUpdated: new Date().toISOString(),
       };
 
       setKalenderData(updatedKaldik);
       StorageService.saveKalenderPendidikan(updatedKaldik);
 
-      if (parseResult.detectedJpPerWeek && parseResult.detectedJpPerWeek !== jpPerWeek) {
-        setJpPerWeek(parseResult.detectedJpPerWeek);
+      if (newJp !== jpPerWeek) {
+        setJpPerWeek(newJp);
       }
 
-      setSaveToast(`Analisis alokasi waktu mandiri "${file.name}" berhasil diekstraksi & tersinkron!`);
+      window.dispatchEvent(new CustomEvent('kaldik-updated', { detail: updatedKaldik }));
+      window.dispatchEvent(
+        new CustomEvent('curriculum-parameters-synced', { detail: updatedKaldik })
+      );
+
+      setSelectedChoice('upload_mandiri');
+      setLastSyncedModeLabel(`Pilihan 2: Upload Dokumen Mandiri (${file.name})`);
+      setSaveToast(
+        `Dokumen "${file.name}" berhasil dibaca & siap dijadikan acuan pembuatan PROSEM!`
+      );
       setShowSyncSuccessModal(true);
     } catch (err: any) {
       console.error('File parse error:', err);
@@ -212,6 +328,23 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
     }
   };
 
+  const handleRemoveUploadedAlokasi = () => {
+    const updated: KalenderPendidikanData = {
+      ...kalenderData,
+      uploadedAlokasiWaktu: undefined,
+      activeSourceMode: 'kaldik',
+      semester1: kaldikSem1,
+      semester2: kaldikSem2,
+      lastUpdated: new Date().toISOString(),
+    };
+    setUploadResult(null);
+    setKalenderData(updated);
+    StorageService.saveKalenderPendidikan(updated);
+    window.dispatchEvent(new CustomEvent('kaldik-updated', { detail: updated }));
+    setSaveToast('Dokumen upload mandiri dihapus. Acuan kembali ke Pilihan 1 (Hasil KALDIK).');
+    setTimeout(() => setSaveToast(null), 3000);
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
@@ -220,33 +353,24 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
     }
   };
 
-  // Direct Sync to PROSEM Trigger
-  const handleSyncToProsem = () => {
-    const updated: KalenderPendidikanData = {
-      ...kalenderData,
-      customFormatConfig,
-      tahunAjaran: academicYear,
-      lastUpdated: new Date().toISOString(),
-    };
-    StorageService.saveKalenderPendidikan(updated);
-
-    // Dispatch custom events for PROSEM
-    window.dispatchEvent(new CustomEvent('kaldik-updated', { detail: updated }));
-    window.dispatchEvent(new CustomEvent('curriculum-parameters-synced', { detail: updated }));
-
-    setSavedSuccess(true);
-    setShowSyncSuccessModal(true);
-  };
-
-  // Month data change handler
-  const handleMonthChange = (
-    semester: 'semester1' | 'semester2',
+  // ============================================================================
+  // EDIT BARIS TABEL (BERLAKU UNTUK PILIHAN 1 ATAU PILIHAN 2)
+  // ============================================================================
+  const handleMonthChangeForChoice = (
+    choice: 'kaldik' | 'upload_mandiri',
+    semesterKey: 'semester1' | 'semester2',
     monthIndex: number,
     field: 'totalWeeks' | 'nonEffectiveWeeks' | 'description',
     val: string
   ) => {
-    const updated = { ...kalenderData };
-    const months = [...updated[semester].months];
+    const basePlan =
+      choice === 'upload_mandiri' && kalenderData.uploadedAlokasiWaktu
+        ? kalenderData.uploadedAlokasiWaktu[semesterKey]
+        : choice === 'kaldik' && kalenderData.kaldikAnalysis
+        ? kalenderData.kaldikAnalysis[semesterKey]
+        : kalenderData[semesterKey];
+
+    const months = [...basePlan.months];
     const target = { ...months[monthIndex] };
 
     if (field === 'totalWeeks') {
@@ -265,71 +389,265 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
     const totalWeeks = months.reduce((acc, m) => acc + m.totalWeeks, 0);
     const nonEffectiveWeeks = months.reduce((acc, m) => acc + m.nonEffectiveWeeks, 0);
     const totalEffectiveWeeks = months.reduce((acc, m) => acc + m.effectiveWeeks, 0);
+    const reserve = Number(basePlan.reservedHours) || 6;
 
-    updated[semester] = {
-      ...updated[semester],
+    const updatedPlan: KalenderSemesterPlan = {
+      ...basePlan,
       months,
       totalWeeks,
+      totalCalendarWeeks: totalWeeks,
       nonEffectiveWeeks,
+      totalNonEffectiveWeeks: nonEffectiveWeeks,
       totalEffectiveWeeks,
+      jpPerWeek,
       totalEffectiveHours: totalEffectiveWeeks * jpPerWeek,
-      netTeachingHours: Math.max(0, totalEffectiveWeeks * jpPerWeek - 6),
+      totalJpSemester: totalEffectiveWeeks * jpPerWeek,
+      reservedHours: reserve,
+      netTeachingHours: Math.max(0, totalEffectiveWeeks * jpPerWeek - reserve),
     };
+
+    const updated: KalenderPendidikanData = {
+      ...kalenderData,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    if (choice === 'upload_mandiri' && kalenderData.uploadedAlokasiWaktu) {
+      updated.uploadedAlokasiWaktu = {
+        ...kalenderData.uploadedAlokasiWaktu,
+        [semesterKey]: updatedPlan,
+      };
+      if (kalenderData.activeSourceMode === 'upload_mandiri') {
+        updated[semesterKey] = updatedPlan;
+      }
+    } else {
+      const existingKaldikAnalysis = kalenderData.kaldikAnalysis || {
+        semester1: kalenderData.semester1,
+        semester2: kalenderData.semester2,
+        generatedAt: new Date().toISOString(),
+        sourceLabel: `Kalender Pendidikan TP ${academicYear}`,
+      };
+      updated.kaldikAnalysis = {
+        ...existingKaldikAnalysis,
+        [semesterKey]: updatedPlan,
+      };
+      if (kalenderData.activeSourceMode !== 'upload_mandiri') {
+        updated[semesterKey] = updatedPlan;
+      }
+    }
 
     setKalenderData(updated);
     StorageService.saveKalenderPendidikan(updated);
   };
 
-  // Save full data
+  // ============================================================================
+  // SIMPAN & SINKRONKAN KE PROSEM (MENDUKUNG PILIHAN 1 MAUPUN PILIHAN 2)
+  // ============================================================================
+  const handleSyncChoiceToProsem = (modeToSync: 'kaldik' | 'upload_mandiri' = selectedChoice) => {
+    if (modeToSync === 'upload_mandiri' && !kalenderData.uploadedAlokasiWaktu) {
+      setSaveToast('Silakan unggah dokumen analisis alokasi waktu Anda terlebih dahulu pada Pilihan 2.');
+      setTimeout(() => setSaveToast(null), 3500);
+      return;
+    }
+
+    const syncedSem1 =
+      modeToSync === 'upload_mandiri' && kalenderData.uploadedAlokasiWaktu
+        ? kalenderData.uploadedAlokasiWaktu.semester1
+        : kalenderData.kaldikAnalysis?.semester1 || kalenderData.semester1;
+
+    const syncedSem2 =
+      modeToSync === 'upload_mandiri' && kalenderData.uploadedAlokasiWaktu
+        ? kalenderData.uploadedAlokasiWaktu.semester2
+        : kalenderData.kaldikAnalysis?.semester2 || kalenderData.semester2;
+
+    const nowIso = new Date().toISOString();
+    const updated: KalenderPendidikanData = {
+      ...kalenderData,
+      customFormatConfig,
+      tahunAjaran: academicYear,
+      academicYear,
+      activeSourceMode: modeToSync,
+      semester1: { ...syncedSem1, jpPerWeek },
+      semester2: { ...syncedSem2, jpPerWeek },
+      syncedToProsemAt: nowIso,
+      lastUpdated: nowIso,
+    };
+
+    setKalenderData(updated);
+    StorageService.saveKalenderPendidikan(updated);
+
+    window.dispatchEvent(new CustomEvent('kaldik-updated', { detail: updated }));
+    window.dispatchEvent(new CustomEvent('curriculum-parameters-synced', { detail: updated }));
+
+    const label =
+      modeToSync === 'upload_mandiri'
+        ? `Pilihan 2: Upload Dokumen Mandiri (${kalenderData.uploadedAlokasiWaktu?.fileName})`
+        : `Pilihan 1: Hasil Analisis & Generate dari KALDIK`;
+
+    setLastSyncedModeLabel(label);
+    setSavedSuccess(true);
+    setShowSyncSuccessModal(true);
+    setTimeout(() => setSavedSuccess(false), 3000);
+  };
+
   const handleSaveData = () => {
     const updated: KalenderPendidikanData = {
       ...kalenderData,
       customFormatConfig,
       tahunAjaran: academicYear,
+      academicYear,
+      semester1: workingSem1,
+      semester2: workingSem2,
+      activeSourceMode: selectedChoice,
       lastUpdated: new Date().toISOString(),
     };
+    setKalenderData(updated);
     StorageService.saveKalenderPendidikan(updated);
     setSavedSuccess(true);
-    setSaveToast('Data Analisis Alokasi Waktu & Format Kustom berhasil disimpan permanen!');
+    setSaveToast('Tabel Analisis Alokasi Waktu berhasil disimpan permanen di sistem!');
     setTimeout(() => {
       setSavedSuccess(false);
       setSaveToast(null);
     }, 3000);
   };
 
-  // Active semester calculation metrics
-  const activeSemData: KalenderSemesterPlan =
-    selectedSemester === 'Ganjil' ? kalenderData.semester1 : kalenderData.semester2;
-  const totalEffJP = activeSemData.totalEffectiveWeeks * jpPerWeek;
-  const reserveJP = 6;
-  const kbmEffJP = Math.max(0, totalEffJP - reserveJP);
+  // ============================================================================
+  // EKSPOR 1 DOKUMEN DALAM BENTUK TABEL (EXCEL, WORD, PRINT/PDF)
+  // ============================================================================
+  const handleExportTableExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const sourceText =
+      selectedChoice === 'upload_mandiri' && uploadedInfo
+        ? `Upload Mandiri (${uploadedInfo.fileName})`
+        : `Hasil Analisis KALDIK TP ${academicYear}`;
 
-  // Generate formatted markdown preview
-  const previewMarkdown = generateExpertCurriculumDocument({
-    toolType: 'analisis_alokasi_waktu',
-    docType: 'analisis_alokasi_waktu',
-    subject,
-    level,
-    grade,
-    semester: selectedSemester,
-    kalenderData,
-    kaldikData: kalenderData,
-    customFormatConfig,
-    useCustomFormat: customFormatConfig.useCustomFormat,
-    customFormatNotes: customFormatConfig.customFormatNotes,
-    customFormatFile: customFormatConfig.formatFile,
-    phase: level === 'SMA' ? (grade === 10 ? 'Fase E' : 'Fase F') : level === 'SMP' ? 'Fase D' : 'Fase A',
-  });
+    // Sheet 1: 1 Dokumen Tabel Lengkap (Sem 1 + Sem 2 + Rekapitulasi)
+    const combinedRows: any[][] = [
+      ['ANALISIS ALOKASI WAKTU & RINCIAN PEKAN EFEKTIF (RBE) — 1 DOKUMEN TABEL LENGKAP'],
+      [`Satuan Pendidikan: ${schoolProfile.schoolName || '-'} | Mapel: ${subject} | Kelas ${grade} (${level})`],
+      [`Tahun Pelajaran: ${academicYear} | Beban Mengajar: ${jpPerWeek} JP/Minggu | Sumber: ${sourceText}`],
+      [],
+      ['A. TABEL ANALISIS PEKAN EFEKTIF SEMESTER 1 (GANJIL)'],
+      ['No', 'Bulan', 'Jumlah Pekan Kalender', 'Pekan Tidak Efektif', 'Pekan Efektif KBM (RBE)', 'Total JP (RBE × JP/Mg)', 'Keterangan Agenda & Kalender'],
+      ...workingSem1.months.map((m, idx) => [
+        idx + 1,
+        m.monthName,
+        m.totalWeeks,
+        m.nonEffectiveWeeks,
+        m.effectiveWeeks,
+        m.effectiveWeeks * jpPerWeek,
+        m.description || '',
+      ]),
+      [
+        'TOTAL',
+        'Semester 1 (Ganjil)',
+        workingSem1.totalWeeks,
+        workingSem1.nonEffectiveWeeks,
+        workingSem1.totalEffectiveWeeks,
+        workingSem1.totalEffectiveWeeks * jpPerWeek,
+        `Cadangan Asesmen: 6 JP | Jam Efektif KBM: ${Math.max(0, workingSem1.totalEffectiveWeeks * jpPerWeek - 6)} JP`,
+      ],
+      [],
+      ['B. TABEL ANALISIS PEKAN EFEKTIF SEMESTER 2 (GENAP)'],
+      ['No', 'Bulan', 'Jumlah Pekan Kalender', 'Pekan Tidak Efektif', 'Pekan Efektif KBM (RBE)', 'Total JP (RBE × JP/Mg)', 'Keterangan Agenda & Kalender'],
+      ...workingSem2.months.map((m, idx) => [
+        idx + 1,
+        m.monthName,
+        m.totalWeeks,
+        m.nonEffectiveWeeks,
+        m.effectiveWeeks,
+        m.effectiveWeeks * jpPerWeek,
+        m.description || '',
+      ]),
+      [
+        'TOTAL',
+        'Semester 2 (Genap)',
+        workingSem2.totalWeeks,
+        workingSem2.nonEffectiveWeeks,
+        workingSem2.totalEffectiveWeeks,
+        workingSem2.totalEffectiveWeeks * jpPerWeek,
+        `Cadangan Asesmen: 6 JP | Jam Efektif KBM: ${Math.max(0, workingSem2.totalEffectiveWeeks * jpPerWeek - 6)} JP`,
+      ],
+      [],
+      ['C. REKAPITULASI ALOKASI WAKTU 1 TAHUN PELAJARAN'],
+      ['Semester', 'Total Pekan Kalender', 'Pekan Tidak Efektif', 'Pekan Efektif (RBE)', 'Total Jam Pelajaran (JP)', 'Cadangan Asesmen (JP)', 'Jam Efektif Tatap Muka (JP)'],
+      [
+        'Semester 1 (Ganjil)',
+        workingSem1.totalWeeks,
+        workingSem1.nonEffectiveWeeks,
+        workingSem1.totalEffectiveWeeks,
+        workingSem1.totalEffectiveWeeks * jpPerWeek,
+        6,
+        Math.max(0, workingSem1.totalEffectiveWeeks * jpPerWeek - 6),
+      ],
+      [
+        'Semester 2 (Genap)',
+        workingSem2.totalWeeks,
+        workingSem2.nonEffectiveWeeks,
+        workingSem2.totalEffectiveWeeks,
+        workingSem2.totalEffectiveWeeks * jpPerWeek,
+        6,
+        Math.max(0, workingSem2.totalEffectiveWeeks * jpPerWeek - 6),
+      ],
+      [
+        'TOTAL 1 TAHUN',
+        workingSem1.totalWeeks + workingSem2.totalWeeks,
+        workingSem1.nonEffectiveWeeks + workingSem2.nonEffectiveWeeks,
+        workingSem1.totalEffectiveWeeks + workingSem2.totalEffectiveWeeks,
+        (workingSem1.totalEffectiveWeeks + workingSem2.totalEffectiveWeeks) * jpPerWeek,
+        12,
+        Math.max(0, workingSem1.totalEffectiveWeeks * jpPerWeek - 6) +
+          Math.max(0, workingSem2.totalEffectiveWeeks * jpPerWeek - 6),
+      ],
+    ];
 
-  const handleCopyMarkdown = () => {
-    navigator.clipboard.writeText(previewMarkdown);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    const wsCombined = XLSX.utils.aoa_to_sheet(combinedRows);
+    wsCombined['!cols'] = [
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 48 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsCombined, 'Tabel Alokasi Waktu Lengkap');
+
+    // Sheet 2: Distribusi JP per Bab
+    const babRows: any[][] = [
+      ['DISTRIBUSI ALOKASI WAKTU PER BAB / LINGKUP MATERI'],
+      [`Mata Pelajaran: ${subject} | Kelas ${grade} (${level}) | ${jpPerWeek} JP/Minggu`],
+      [],
+      ['Semester', 'No', 'Kode TP', 'Bab / Lingkup Materi Pokok', 'Alokasi JP', 'Jumlah Pertemuan'],
+      ...materialsSem1.map((m, idx) => [
+        'Semester 1 (Ganjil)',
+        idx + 1,
+        m.tpCode || `TP.${grade}.1.${idx + 1}`,
+        m.essentialMaterial || m.tpName || `Bab ${idx + 1}`,
+        Number(m.allocatedHours) || 18,
+        Math.max(1, Math.round((Number(m.allocatedHours) || 18) / (jpPerWeek || 1))),
+      ]),
+      ...materialsSem2.map((m, idx) => [
+        'Semester 2 (Genap)',
+        idx + 1,
+        m.tpCode || `TP.${grade}.2.${idx + 1}`,
+        m.essentialMaterial || m.tpName || `Bab ${idx + 1}`,
+        Number(m.allocatedHours) || 18,
+        Math.max(1, Math.round((Number(m.allocatedHours) || 18) / (jpPerWeek || 1))),
+      ]),
+    ];
+    const wsBab = XLSX.utils.aoa_to_sheet(babRows);
+    wsBab['!cols'] = [{ wch: 20 }, { wch: 6 }, { wch: 14 }, { wch: 42 }, { wch: 14 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, wsBab, 'Distribusi JP per Bab');
+
+    const fileName = `Analisis_Alokasi_Waktu_Tabel_${subject.replace(/\s+/g, '_')}_${academicYear.replace('/', '-')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    setSaveToast(`Tabel Excel "${fileName}" berhasil diunduh!`);
+    setTimeout(() => setSaveToast(null), 3500);
   };
 
   const handleExportWord = () => {
     const profile = StorageService.getSchoolProfile();
-    const fileName = `Analisis_Alokasi_Waktu_${subject.replace(/\s+/g, '_')}_Sem_${selectedSemester}`;
+    const fileName = `Analisis_Alokasi_Waktu_${subject.replace(/\s+/g, '_')}_${academicYear.replace('/', '-')}`;
     ExportService.exportToWord(
       `ANALISIS ALOKASI WAKTU - ${subject.toUpperCase()}`,
       previewMarkdown,
@@ -338,53 +656,399 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
         subject,
         grade,
         level,
-        semester: selectedSemester,
+        semester: 'Ganjil',
         docType: 'analisis_alokasi_waktu',
       },
       fileName
     );
   };
 
-  const handleExportExcel = () => {
-    const sem = selectedSemester === 'Ganjil' ? kalenderData.semester1 : kalenderData.semester2;
-    const tableData = sem.months.map((m, idx) => ({
-      No: idx + 1,
-      Bulan: m.monthName,
-      'Total Pekan': m.totalWeeks,
-      'Pekan Tdk Efektif': m.nonEffectiveWeeks,
-      'Pekan Efektif KBM': m.effectiveWeeks,
-      'Keterangan Agenda': m.description,
-    }));
-
-    tableData.push({
-      No: 'TOTAL' as any,
-      Bulan: `Semester ${selectedSemester}`,
-      'Total Pekan': sem.totalWeeks,
-      'Pekan Tdk Efektif': sem.nonEffectiveWeeks,
-      'Pekan Efektif KBM': sem.totalEffectiveWeeks,
-      'Keterangan Agenda': `Total Jam Efektif: ${sem.totalEffectiveWeeks * jpPerWeek} JP (KBM: ${kbmEffJP} JP, Cadangan: ${reserveJP} JP)`,
-    });
-
-    ExportService.exportToExcel(
-      tableData,
-      `Analisis_Alokasi_Waktu_${subject.replace(/\s+/g, '_')}_Sem_${selectedSemester}`,
-      `Alokasi Waktu Sem ${selectedSemester}`,
-      {
-        docTitle: `ANALISIS ALOKASI WAKTU SEMESTER ${selectedSemester.toUpperCase()} - ${subject.toUpperCase()}`,
-        academicYear,
-        teacherName: schoolProfile.teacherName || 'Guru Pengampu',
-      }
-    );
+  const handleCopyMarkdown = () => {
+    navigator.clipboard.writeText(previewMarkdown);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handlePrint = () => {
     window.print();
   };
 
+  const handleCustomFormatChange = (newConfig: CustomFormatConfig) => {
+    setCustomFormatConfig(newConfig);
+    const updated: KalenderPendidikanData = {
+      ...kalenderData,
+      customFormatConfig: newConfig,
+      lastUpdated: new Date().toISOString(),
+    };
+    setKalenderData(updated);
+    StorageService.saveKalenderPendidikan(updated);
+    setSaveToast(
+      newConfig.useCustomFormat
+        ? 'Format khusus dokumen aktif & disinkronkan!'
+        : 'Format dikembalikan ke standar resmi.'
+    );
+    setTimeout(() => setSaveToast(null), 3500);
+  };
+
+  // Helper renderer for 1-Document Unified Editable Table (Sem 1 + Sem 2 + Rekapitulasi + Bab)
+  const renderUnifiedEditableTableDocument = (choice: 'kaldik' | 'upload_mandiri') => {
+    const sem1 = choice === 'upload_mandiri' && uploadedInfo ? uploadedSem1 : kaldikSem1;
+    const sem2 = choice === 'upload_mandiri' && uploadedInfo ? uploadedSem2 : kaldikSem2;
+
+    const s1TotalEffJP = sem1.totalEffectiveWeeks * jpPerWeek;
+    const s2TotalEffJP = sem2.totalEffectiveWeeks * jpPerWeek;
+    const s1Reserve = Number(sem1.reservedHours) || 6;
+    const s2Reserve = Number(sem2.reservedHours) || 6;
+    const s1NetJP = Math.max(0, s1TotalEffJP - s1Reserve);
+    const s2NetJP = Math.max(0, s2TotalEffJP - s2Reserve);
+
+    const renderSemesterTable = (
+      title: string,
+      semKey: 'semester1' | 'semester2',
+      plan: KalenderSemesterPlan,
+      effJP: number,
+      reserve: number,
+      netJP: number
+    ) => (
+      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center space-x-2">
+            <Calendar className="w-4 h-4 text-blue-600" />
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900">{title}</h3>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+              {plan.totalEffectiveWeeks} Pekan Efektif ({effJP} JP)
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-bold">
+              KBM Bersih: {netJP} JP (Cadangan {reserve} JP)
+            </span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-700">
+            <thead className="bg-slate-50/80 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
+              <tr>
+                <th className="p-2.5 w-10 text-center">No</th>
+                <th className="p-2.5 w-40">Bulan</th>
+                <th className="p-2.5 w-28 text-center">Jml Pekan</th>
+                <th className="p-2.5 w-28 text-center text-rose-600">Tdk Efektif</th>
+                <th className="p-2.5 w-28 text-center text-emerald-700">Efektif (RBE)</th>
+                <th className="p-2.5 w-24 text-center text-blue-700">Total JP</th>
+                <th className="p-2.5">Keterangan Agenda &amp; Hari Libur</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium">
+              {plan.months.map((m, idx) => (
+                <tr key={idx} className="hover:bg-slate-50/70 transition">
+                  <td className="p-2.5 text-center text-slate-400 font-bold">{idx + 1}</td>
+                  <td className="p-2.5 font-bold text-slate-900">{m.monthName}</td>
+                  <td className="p-2.5 text-center">
+                    <input
+                      type="number"
+                      min="0"
+                      max="6"
+                      value={m.totalWeeks}
+                      onFocus={handleNumberInputFocus}
+                      onChange={(e) =>
+                        handleMonthChangeForChoice(
+                          choice,
+                          semKey,
+                          idx,
+                          'totalWeeks',
+                          String(parseNumberInput(e.target.value, 0, 0, 6))
+                        )
+                      }
+                      className="w-14 text-center bg-white border border-slate-300 rounded-md py-1 px-1 text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none"
+                    />
+                  </td>
+                  <td className="p-2.5 text-center">
+                    <input
+                      type="number"
+                      min="0"
+                      max="6"
+                      value={m.nonEffectiveWeeks}
+                      onFocus={handleNumberInputFocus}
+                      onChange={(e) =>
+                        handleMonthChangeForChoice(
+                          choice,
+                          semKey,
+                          idx,
+                          'nonEffectiveWeeks',
+                          String(parseNumberInput(e.target.value, 0, 0, 6))
+                        )
+                      }
+                      className="w-14 text-center bg-rose-50 border border-rose-300 rounded-md py-1 px-1 text-xs font-bold text-rose-700 focus:border-rose-500 focus:outline-none"
+                    />
+                  </td>
+                  <td className="p-2.5 text-center">
+                    <span className="inline-block w-14 py-1 px-1 rounded-md bg-emerald-50 border border-emerald-300 text-emerald-700 font-black text-xs text-center">
+                      {m.effectiveWeeks}
+                    </span>
+                  </td>
+                  <td className="p-2.5 text-center font-bold text-blue-700">
+                    {m.effectiveWeeks * jpPerWeek} JP
+                  </td>
+                  <td className="p-2.5">
+                    <input
+                      type="text"
+                      value={m.description || ''}
+                      onChange={(e) =>
+                        handleMonthChangeForChoice(choice, semKey, idx, 'description', e.target.value)
+                      }
+                      className="w-full bg-white border border-slate-300 rounded-md py-1 px-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
+                      placeholder="Keterangan agenda..."
+                    />
+                  </td>
+                </tr>
+              ))}
+              <tr className="bg-slate-100/80 font-bold text-slate-900 border-t-2 border-slate-200">
+                <td colSpan={2} className="p-2.5 text-right uppercase text-blue-800 text-[11px]">
+                  Total {semKey === 'semester1' ? 'Semester 1' : 'Semester 2'}:
+                </td>
+                <td className="p-2.5 text-center">{plan.totalWeeks} Pkn</td>
+                <td className="p-2.5 text-center text-rose-700">{plan.nonEffectiveWeeks} Pkn</td>
+                <td className="p-2.5 text-center text-emerald-700 font-black">
+                  {plan.totalEffectiveWeeks} Pkn
+                </td>
+                <td className="p-2.5 text-center text-blue-800 font-black">{effJP} JP</td>
+                <td className="p-2.5 text-[11px] text-slate-600">
+                  {plan.totalEffectiveWeeks} Pekan Efektif × {jpPerWeek} JP/Mg = {effJP} JP (Bersih KBM: {netJP} JP)
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="space-y-4">
+        {/* 1. Tabel Semester 1 & Semester 2 dalam 1 Dokumen */}
+        {renderSemesterTable(
+          'Tabel 1: Rincian Pekan Efektif (RBE) — Semester 1 (Ganjil)',
+          'semester1',
+          sem1,
+          s1TotalEffJP,
+          s1Reserve,
+          s1NetJP
+        )}
+
+        {renderSemesterTable(
+          'Tabel 2: Rincian Pekan Efektif (RBE) — Semester 2 (Genap)',
+          'semester2',
+          sem2,
+          s2TotalEffJP,
+          s2Reserve,
+          s2NetJP
+        )}
+
+        {/* 2. Tabel Rekapitulasi 1 Tahun Pelajaran */}
+        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+          <div className="px-4 py-3 bg-indigo-50/70 border-b border-indigo-200 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Calculator className="w-4 h-4 text-indigo-700" />
+              <h3 className="text-xs sm:text-sm font-bold text-indigo-950">
+                Tabel 3: Rekapitulasi Alokasi Waktu 1 Tahun Pelajaran ({academicYear})
+              </h3>
+            </div>
+            <span className="text-[11px] font-bold text-indigo-700">
+              {subject} • Kelas {grade} ({level})
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-700">
+              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold border-b border-slate-200">
+                <tr>
+                  <th className="p-2.5">Semester</th>
+                  <th className="p-2.5 text-center">Pekan Kalender</th>
+                  <th className="p-2.5 text-center text-rose-600">Tdk Efektif</th>
+                  <th className="p-2.5 text-center text-emerald-700">Efektif (RBE)</th>
+                  <th className="p-2.5 text-center text-blue-700">Total Jam (JP)</th>
+                  <th className="p-2.5 text-center text-amber-700">Cadangan</th>
+                  <th className="p-2.5 text-center text-indigo-800">Tatap Muka KBM</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                <tr>
+                  <td className="p-2.5 font-bold text-slate-900">Semester 1 (Ganjil)</td>
+                  <td className="p-2.5 text-center">{sem1.totalWeeks} Pekan</td>
+                  <td className="p-2.5 text-center text-rose-600">{sem1.nonEffectiveWeeks} Pekan</td>
+                  <td className="p-2.5 text-center font-bold text-emerald-700">
+                    {sem1.totalEffectiveWeeks} Pekan
+                  </td>
+                  <td className="p-2.5 text-center font-bold text-blue-700">{s1TotalEffJP} JP</td>
+                  <td className="p-2.5 text-center text-amber-700">{s1Reserve} JP</td>
+                  <td className="p-2.5 text-center font-black text-indigo-800">{s1NetJP} JP</td>
+                </tr>
+                <tr>
+                  <td className="p-2.5 font-bold text-slate-900">Semester 2 (Genap)</td>
+                  <td className="p-2.5 text-center">{sem2.totalWeeks} Pekan</td>
+                  <td className="p-2.5 text-center text-rose-600">{sem2.nonEffectiveWeeks} Pekan</td>
+                  <td className="p-2.5 text-center font-bold text-emerald-700">
+                    {sem2.totalEffectiveWeeks} Pekan
+                  </td>
+                  <td className="p-2.5 text-center font-bold text-blue-700">{s2TotalEffJP} JP</td>
+                  <td className="p-2.5 text-center text-amber-700">{s2Reserve} JP</td>
+                  <td className="p-2.5 text-center font-black text-indigo-800">{s2NetJP} JP</td>
+                </tr>
+                <tr className="bg-indigo-50/60 font-black text-slate-900 border-t-2 border-indigo-200">
+                  <td className="p-2.5 text-indigo-900">TOTAL 1 TAHUN</td>
+                  <td className="p-2.5 text-center">{sem1.totalWeeks + sem2.totalWeeks} Pekan</td>
+                  <td className="p-2.5 text-center text-rose-700">
+                    {sem1.nonEffectiveWeeks + sem2.nonEffectiveWeeks} Pekan
+                  </td>
+                  <td className="p-2.5 text-center text-emerald-800">
+                    {sem1.totalEffectiveWeeks + sem2.totalEffectiveWeeks} Pekan
+                  </td>
+                  <td className="p-2.5 text-center text-blue-800">
+                    {s1TotalEffJP + s2TotalEffJP} JP
+                  </td>
+                  <td className="p-2.5 text-center text-amber-800">{s1Reserve + s2Reserve} JP</td>
+                  <td className="p-2.5 text-center text-indigo-950">{s1NetJP + s2NetJP} JP</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 3. Tabel Distribusi JP per Bab (Acuan PROSEM) */}
+        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+          <div className="px-4 py-3 bg-emerald-50/70 border-b border-emerald-200 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center space-x-2">
+              <BookOpen className="w-4 h-4 text-emerald-700" />
+              <h3 className="text-xs sm:text-sm font-bold text-emerald-950">
+                Tabel 4: Distribusi Alokasi JP per Bab / Materi Pokok (Acuan PROSEM)
+              </h3>
+            </div>
+            <span className="text-[11px] font-semibold text-emerald-800">
+              {materialsSem1.length + materialsSem2.length} Bab Terdaftar • {jpPerWeek} JP/Minggu
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-700">
+              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold border-b border-slate-200">
+                <tr>
+                  <th className="p-2.5 w-28">Semester</th>
+                  <th className="p-2.5 w-24">Kode TP</th>
+                  <th className="p-2.5">Bab / Lingkup Materi Pokok</th>
+                  <th className="p-2.5 w-28 text-center">Alokasi JP</th>
+                  <th className="p-2.5 w-32 text-center">Jml Pertemuan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {materialsSem1.map((m, idx) => {
+                  const jp = Number(m.allocatedHours) || 18;
+                  const mtg = Math.max(1, Math.round(jp / (jpPerWeek || 1)));
+                  return (
+                    <tr key={`s1-${idx}`} className="hover:bg-slate-50/60">
+                      <td className="p-2.5 font-bold text-blue-700">Sem 1 (Ganjil)</td>
+                      <td className="p-2.5 font-mono text-[11px] text-slate-600">
+                        {m.tpCode || `TP.${grade}.1.${idx + 1}`}
+                      </td>
+                      <td className="p-2.5 font-semibold text-slate-900">
+                        {m.essentialMaterial || m.tpName}
+                      </td>
+                      <td className="p-2.5 text-center font-bold text-emerald-700">{jp} JP</td>
+                      <td className="p-2.5 text-center text-slate-700">{mtg} Pertemuan</td>
+                    </tr>
+                  );
+                })}
+                {materialsSem2.map((m, idx) => {
+                  const jp = Number(m.allocatedHours) || 18;
+                  const mtg = Math.max(1, Math.round(jp / (jpPerWeek || 1)));
+                  return (
+                    <tr key={`s2-${idx}`} className="hover:bg-slate-50/60">
+                      <td className="p-2.5 font-bold text-indigo-700">Sem 2 (Genap)</td>
+                      <td className="p-2.5 font-mono text-[11px] text-slate-600">
+                        {m.tpCode || `TP.${grade}.2.${idx + 1}`}
+                      </td>
+                      <td className="p-2.5 font-semibold text-slate-900">
+                        {m.essentialMaterial || m.tpName}
+                      </td>
+                      <td className="p-2.5 text-center font-bold text-emerald-700">{jp} JP</td>
+                      <td className="p-2.5 text-center text-slate-700">{mtg} Pertemuan</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Reusable save-as-table & sync toolbar
+  const renderTableActionBar = (choice: 'kaldik' | 'upload_mandiri') => (
+    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider mr-1">
+          Simpan dalam Bentuk Tabel &amp; Dokumen:
+        </span>
+        <button
+          type="button"
+          onClick={handleSaveData}
+          className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer shadow-2xs"
+        >
+          {savedSuccess ? (
+            <Check className="w-3.5 h-3.5 text-emerald-600" />
+          ) : (
+            <Save className="w-3.5 h-3.5 text-blue-600" />
+          )}
+          <span>{savedSuccess ? 'Tersimpan!' : 'Simpan Tabel ke Sistem'}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleExportTableExcel}
+          className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer"
+        >
+          <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Simpan Tabel Excel (.xlsx)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleExportWord}
+          className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer"
+        >
+          <FileText className="w-3.5 h-3.5 text-blue-600" />
+          <span>Simpan Dokumen Word (.doc)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handlePrint}
+          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer"
+        >
+          <Printer className="w-3.5 h-3.5" />
+          <span>Cetak / PDF</span>
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => handleSyncChoiceToProsem(choice)}
+        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center space-x-1.5 shadow-sm transition active:scale-95 cursor-pointer"
+      >
+        <RefreshCw className="w-3.5 h-3.5" />
+        <span>
+          {choice === 'kaldik'
+            ? 'Sinkronkan Hasil KALDIK ke PROSEM'
+            : 'Sinkronkan Dokumen Mandiri ke PROSEM'}
+        </span>
+      </button>
+    </div>
+  );
+
+  const activeModeInStorage = kalenderData.activeSourceMode || 'kaldik';
+
   return (
     <div className="space-y-5 max-w-7xl mx-auto pb-16">
       {/* ========================================================================= */}
-      {/* 1. HEADER BANNER: ANALISIS ALOKASI WAKTU & SINKRON PROSEM */}
+      {/* 1. HEADER BANNER: ANALISIS ALOKASI WAKTU (RBE & UPLOAD MANDIRI) */}
       {/* ========================================================================= */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -395,22 +1059,20 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
-                  Analisis Alokasi Waktu (RBE & Upload Mandiri)
+                  Analisis Alokasi Waktu (RBE &amp; Upload Mandiri)
                 </h1>
                 <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                  <RefreshCw className="w-3 h-3 text-emerald-600 animate-spin-slow" />
-                  Sinkron ke PROSEM
-                </span>
-                <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
-                  <Zap className="w-3 h-3 text-amber-500" />
-                  Upload Format Sendiri
+                  <RefreshCw className="w-3 h-3 text-emerald-600" />
+                  Acuan Pembuatan PROSEM
                 </span>
                 <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                   {subject} • Kelas {grade} ({level})
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
-                Unggah berkas analisis alokasi waktu yang telah Anda buat sendiri (Excel, Word, PDF, atau Foto Scan) untuk diekstraksi secara cerdas. Hasil pekan efektif (RBE) dan alokasi JP tatap muka langsung disinkronkan ke <strong>PROSEM (Program Semester)</strong>, PROTA, dan Modul Ajar.
+                Tersedia <strong>2 pilihan pembuatan analisis alokasi waktu</strong>: (1){' '}
+                <strong>Generate otomatis dari KALDIK</strong> dalam 1 dokumen yang dapat disimpan sebagai tabel, atau (2){' '}
+                <strong>Upload mandiri dokumen analisis</strong> Anda sendiri. Kedua pilihan ini dapat disinkronkan langsung sebagai acuan pembuatan <strong>PROSEM</strong>.
               </p>
             </div>
           </div>
@@ -418,58 +1080,64 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
           <div className="flex items-center space-x-2 shrink-0">
             <button
               type="button"
-              onClick={handleSyncToProsem}
-              className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition active:scale-95 cursor-pointer"
-              title="Sinkronkan alokasi waktu langsung ke PROSEM"
+              onClick={() => handleSyncChoiceToProsem(selectedChoice)}
+              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+              title="Jadikan pilihan aktif saat ini sebagai acuan pembuatan PROSEM"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Sinkronkan ke PROSEM</span>
             </button>
-            <button
-              type="button"
-              onClick={handleSaveData}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition active:scale-95 cursor-pointer"
-            >
-              {savedSuccess ? <Check className="w-3.5 h-3.5 text-white" /> : <Save className="w-3.5 h-3.5" />}
-              <span>{savedSuccess ? 'Tersimpan!' : 'Simpan Data'}</span>
-            </button>
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('ai_prosem')}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition active:scale-95 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>Buka PROSEM</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Status Chip Bar */}
+        {/* Status Acuan PROSEM Aktif */}
         <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-slate-500 font-semibold flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-              Status Sinkronisasi PROSEM:
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              Acuan Aktif PROSEM Saat Ini:
             </span>
-            {kalenderData.fileName || kalenderData.uploadedFile ? (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold gap-1 text-[11px]">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Tersinkron Berkas Mandiri:</span>
-                <span className="font-normal text-emerald-700">
-                  {kalenderData.fileName || kalenderData.uploadedFile?.fileName}
-                </span>
-              </span>
-            ) : customFormatConfig.useCustomFormat ? (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold gap-1 text-[11px]">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Format Khusus Sekolah Aktif</span>
+            {activeModeInStorage === 'upload_mandiri' && uploadedInfo ? (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-800 font-bold gap-1 text-[11px]">
+                <FileCheck className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Pilihan 2 — Upload Mandiri ({uploadedInfo.fileName})</span>
               </span>
             ) : (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-800 font-bold gap-1 text-[11px]">
-                <FileCheck className="w-3.5 h-3.5 text-blue-600" />
-                <span>Format Standar Kemendikbudristek & Kaldik</span>
+                <CalendarDays className="w-3.5 h-3.5 text-blue-600" />
+                <span>Pilihan 1 — Analisis &amp; Generate dari KALDIK ({academicYear})</span>
               </span>
             )}
           </div>
 
           <div className="flex items-center space-x-2 text-slate-600 font-medium text-[11px]">
-            <span>Beban: <strong className="text-slate-900">{jpPerWeek} JP/Minggu</strong></span>
+            <span>
+              Beban: <strong className="text-slate-900">{jpPerWeek} JP/Minggu</strong>
+            </span>
             <span>•</span>
-            <span>Sem 1: <strong className="text-emerald-700">{kalenderData.semester1.totalEffectiveWeeks} Pekan ({kalenderData.semester1.totalEffectiveWeeks * jpPerWeek} JP)</strong></span>
+            <span>
+              Sem 1:{' '}
+              <strong className="text-emerald-700">
+                {kalenderData.semester1.totalEffectiveWeeks} Pekan ({kalenderData.semester1.totalEffectiveWeeks * jpPerWeek} JP)
+              </strong>
+            </span>
             <span>•</span>
-            <span>Sem 2: <strong className="text-emerald-700">{kalenderData.semester2.totalEffectiveWeeks} Pekan ({kalenderData.semester2.totalEffectiveWeeks * jpPerWeek} JP)</strong></span>
+            <span>
+              Sem 2:{' '}
+              <strong className="text-emerald-700">
+                {kalenderData.semester2.totalEffectiveWeeks} Pekan ({kalenderData.semester2.totalEffectiveWeeks * jpPerWeek} JP)
+              </strong>
+            </span>
           </div>
         </div>
       </div>
@@ -484,7 +1152,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
           <button
             type="button"
             onClick={() => setSaveToast(null)}
-            className="text-emerald-700 hover:text-emerald-900 font-bold text-xs"
+            className="text-emerald-700 hover:text-emerald-900 font-bold text-xs cursor-pointer"
           >
             ✕
           </button>
@@ -492,84 +1160,265 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
       )}
 
       {/* ========================================================================= */}
-      {/* 2. THREE CORE NAVIGATION TABS */}
+      {/* 2. DUA PILIHAN PEMBUATAN ANALISIS ALOKASI WAKTU */}
       {/* ========================================================================= */}
-      <div className="bg-slate-100 p-1.5 rounded-2xl flex flex-wrap items-center gap-1.5 border border-slate-200">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* PILIHAN 1: HASIL ANALISIS & GENERATE DARI KALDIK */}
         <button
           type="button"
-          onClick={() => setActiveTab('upload_format')}
-          className={`flex-1 min-w-[200px] px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition cursor-pointer ${
-            activeTab === 'upload_format'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-white/80'
+          onClick={() => setSelectedChoice('kaldik')}
+          className={`text-left p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+            selectedChoice === 'kaldik'
+              ? 'bg-blue-50/70 border-blue-600 shadow-sm'
+              : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-slate-50/60'
           }`}
         >
-          <UploadCloud className="w-4 h-4" />
-          <span>1. Upload Alokasi Mandiri & Sinkron PROSEM</span>
-          {(kalenderData.fileName || customFormatConfig.useCustomFormat) && (
-            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse ml-1" />
-          )}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start space-x-3">
+              <div
+                className={`p-2.5 rounded-xl shrink-0 ${
+                  selectedChoice === 'kaldik'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-blue-50 text-blue-600 border border-blue-200'
+                }`}
+              >
+                <CalendarDays className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                    Pilihan 1
+                  </span>
+                  {activeModeInStorage === 'kaldik' && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      ✓ Acuan PROSEM Aktif
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-sm font-bold text-slate-900 mt-1">
+                  Analisis &amp; Generate dari KALDIK (1 Dokumen Tabel)
+                </h2>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  Menganalisis data Kalender Pendidikan (KALDIK) menjadi <strong>1 dokumen lengkap</strong> Analisis Alokasi Waktu Semester 1 &amp; 2 yang dapat diedit dan disimpan dalam bentuk tabel (Excel / Word / PDF).
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] font-semibold">
+            <span className="text-slate-600">
+              Sem 1: <strong className="text-blue-700">{kaldikSem1.totalEffectiveWeeks} Pkn</strong> • Sem 2:{' '}
+              <strong className="text-blue-700">{kaldikSem2.totalEffectiveWeeks} Pkn</strong>
+            </span>
+            <span className={selectedChoice === 'kaldik' ? 'text-blue-700 font-bold' : 'text-slate-500'}>
+              {selectedChoice === 'kaldik' ? 'Sedang Dibuka ●' : 'Klik untuk Memilih →'}
+            </span>
+          </div>
         </button>
 
+        {/* PILIHAN 2: UPLOAD SENDIRI ANALISIS ALOKASI WAKTU DALAM BENTUK DOKUMEN */}
         <button
           type="button"
-          onClick={() => setActiveTab('tabel_rbe')}
-          className={`flex-1 min-w-[200px] px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition cursor-pointer ${
-            activeTab === 'tabel_rbe'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-white/80'
+          onClick={() => setSelectedChoice('upload_mandiri')}
+          className={`text-left p-5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-3 ${
+            selectedChoice === 'upload_mandiri'
+              ? 'bg-indigo-50/70 border-indigo-600 shadow-sm'
+              : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50/60'
           }`}
         >
-          <Table className="w-4 h-4" />
-          <span>2. Matriks Rincian Pekan Efektif (RBE)</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-            activeTab === 'tabel_rbe' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-          }`}>
-            {activeSemData.totalEffectiveWeeks} Pekan Efektif
-          </span>
-        </button>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start space-x-3">
+              <div
+                className={`p-2.5 rounded-xl shrink-0 ${
+                  selectedChoice === 'upload_mandiri'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-indigo-50 text-indigo-600 border border-indigo-200'
+                }`}
+              >
+                <UploadCloud className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                    Pilihan 2
+                  </span>
+                  {activeModeInStorage === 'upload_mandiri' && uploadedInfo && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      ✓ Acuan PROSEM Aktif
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-sm font-bold text-slate-900 mt-1">
+                  Upload Mandiri Dokumen Analisis Alokasi Waktu
+                </h2>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  Unggah sendiri dokumen Analisis Alokasi Waktu buatan Anda (<strong>Excel, Word, PDF, atau Scan</strong>). Hasil ekstraksi dapat dilihat, disimpan sebagai tabel, dan disinkronkan ke <strong>PROSEM</strong>.
+                </p>
+              </div>
+            </div>
+          </div>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('pratinjau_dokumen')}
-          className={`flex-1 min-w-[200px] px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition cursor-pointer ${
-            activeTab === 'pratinjau_dokumen'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-700 hover:bg-white/80'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          <span>3. Pratinjau & Ekspor Dokumen</span>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-            activeTab === 'pratinjau_dokumen' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-          }`}>
-            Word / PDF
-          </span>
+          <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] font-semibold">
+            <span className="text-slate-600 truncate max-w-[260px]">
+              {uploadedInfo ? (
+                <>
+                  Berkas: <strong className="text-indigo-700">{uploadedInfo.fileName}</strong>
+                </>
+              ) : (
+                'Belum ada dokumen mandiri diunggah'
+              )}
+            </span>
+            <span
+              className={
+                selectedChoice === 'upload_mandiri' ? 'text-indigo-700 font-bold' : 'text-slate-500'
+              }
+            >
+              {selectedChoice === 'upload_mandiri' ? 'Sedang Dibuka ●' : 'Klik untuk Memilih →'}
+            </span>
+          </div>
         </button>
       </div>
 
       {/* ========================================================================= */}
-      {/* TAB 1: UPLOAD ALOKASI WAKTU MANDIRI & SINKRON KE PROSEM */}
+      {/* KONTEN PILIHAN 1: HASIL ANALISIS & GENERATE DARI KALDIK (1 DOKUMEN TABEL) */}
       {/* ========================================================================= */}
-      {activeTab === 'upload_format' && (
-        <div className="space-y-5 animate-in fade-in">
-          {/* Main Upload Zone for Teacher's Own Analysis File */}
-          <div className="bg-white border-2 border-dashed border-blue-300 hover:border-blue-500 rounded-2xl p-6 transition-colors shadow-xs">
+      {selectedChoice === 'kaldik' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-5 animate-in fade-in">
+          {/* Panel Generate dari KALDIK */}
+          <div className="bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-500" />
+                <h2 className="text-sm font-bold text-slate-900">
+                  Pilihan 1 — Analisis &amp; Generate Otomatis dari Kalender Pendidikan (KALDIK)
+                </h2>
+                {hasGeneratedKaldik && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    ✓ Tergenerate (1 Dokumen Lengkap)
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Sumber KALDIK:{' '}
+                <strong>
+                  {kalenderData.fileName ||
+                    kalenderData.uploadedFile?.fileName ||
+                    `Kalender Pendidikan Standar TP ${academicYear}`}
+                </strong>{' '}
+                • Beban Mapel: <strong>{jpPerWeek} JP/Minggu</strong>. Klik tombol di kanan untuk menganalisis ulang KALDIK menjadi 1 dokumen tabel utuh.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {onNavigate && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('kalender_pendidikan')}
+                  className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer"
+                >
+                  <CalendarDays className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Ubah KALDIK</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleGenerateFromKaldik}
+                disabled={isGeneratingKaldik}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center space-x-1.5 shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                <Zap className={`w-3.5 h-3.5 text-amber-300 ${isGeneratingKaldik ? 'animate-spin' : ''}`} />
+                <span>
+                  {isGeneratingKaldik
+                    ? 'Menganalisis KALDIK...'
+                    : 'Analisis & Generate dari KALDIK'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-Toggle View: Tabel Lengkap vs Pratinjau Dokumen */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setKaldikViewMode('tabel')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer ${
+                  kaldikViewMode === 'tabel'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Table className="w-3.5 h-3.5" />
+                <span>1 Dokumen Bentuk Tabel (Sem 1, Sem 2 &amp; Rekap)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setKaldikViewMode('dokumen')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer ${
+                  kaldikViewMode === 'dokumen'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Pratinjau Dokumen Resmi Lengkap</span>
+              </button>
+            </div>
+
+            {kaldikViewMode === 'dokumen' && (
+              <button
+                type="button"
+                onClick={handleCopyMarkdown}
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center space-x-1.5 border border-slate-300 transition cursor-pointer"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? 'Tersalin!' : 'Salin Teks Dokumen'}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Save & Sync Toolbar */}
+          {renderTableActionBar('kaldik')}
+
+          {/* Content View */}
+          {kaldikViewMode === 'tabel' ? (
+            renderUnifiedEditableTableDocument('kaldik')
+          ) : (
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+              <DocumentPdfPreview
+                content={previewMarkdown}
+                title={`Analisis Alokasi Waktu ${subject} - TP ${academicYear}`}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* KONTEN PILIHAN 2: UPLOAD MANDIRI ANALISIS ALOKASI WAKTU DOKUMEN */}
+      {/* ========================================================================= */}
+      {selectedChoice === 'upload_mandiri' && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-5 animate-in fade-in">
+          {/* Main Upload Zone */}
+          <div className="border-2 border-dashed border-indigo-300 hover:border-indigo-500 rounded-2xl p-6 transition-colors bg-indigo-50/20">
             <div className="max-w-3xl mx-auto text-center space-y-4">
-              <div className="inline-flex p-3 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200">
-                <FileUp className="w-8 h-8" />
+              <div className="inline-flex p-3 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-200">
+                <FileUp className="w-7 h-7" />
               </div>
 
               <div>
-                <h2 className="text-base font-bold text-slate-900">
-                  Upload Analisis Alokasi Waktu Yang Telah Dibuat Sendiri
+                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                  Pilihan 2 — Upload Dokumen Sendiri
+                </span>
+                <h2 className="text-base font-bold text-slate-900 mt-1.5">
+                  Upload Analisis Alokasi Waktu dalam Bentuk Dokumen
                 </h2>
                 <p className="text-xs text-slate-500 mt-1 max-w-xl mx-auto leading-relaxed">
-                  Unggah berkas analisis alokasi waktu sekolah Anda dalam format <strong>Excel (.xlsx, .xls, .csv)</strong>, <strong>Word (.docx)</strong>, <strong>PDF</strong>, atau <strong>Foto Scan</strong>. Sistem otomatis membaca rincian pekan efektif per bulan dan menyelaraskannya dengan PROSEM.
+                  Unggah dokumen analisis alokasi waktu yang telah Anda buat sendiri (<strong>Excel .xlsx/.xls/.csv</strong>, <strong>Word .docx</strong>, <strong>PDF</strong>, atau <strong>Foto Scan</strong>). Sistem mengekstrak rincian pekan efektif dan langsung menjadikannya acuan pembuatan <strong>PROSEM</strong>.
                 </p>
               </div>
 
-              {/* Drag and Drop Box */}
+              {/* Drag & Drop Box */}
               <div
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -579,8 +1428,8 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                 onDrop={handleDrop}
                 className={`p-6 rounded-xl border-2 border-dashed transition-all cursor-pointer ${
                   isDragOver
-                    ? 'border-blue-600 bg-blue-50/60 scale-[1.01]'
-                    : 'border-slate-300 hover:border-blue-400 bg-slate-50/50'
+                    ? 'border-indigo-600 bg-indigo-50/70 scale-[1.01]'
+                    : 'border-slate-300 hover:border-indigo-400 bg-white'
                 }`}
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -597,69 +1446,67 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                 />
 
                 <div className="flex flex-col items-center space-y-2">
-                  <UploadCloud className={`w-8 h-8 ${isDragOver ? 'text-blue-600' : 'text-slate-400'}`} />
+                  <UploadCloud
+                    className={`w-8 h-8 ${isDragOver ? 'text-indigo-600' : 'text-slate-400'}`}
+                  />
                   <div className="text-xs font-semibold text-slate-700">
-                    <span className="text-blue-600 underline font-bold">Pilih berkas dari komputer</span> atau seret dan lepas berkas ke sini
+                    <span className="text-indigo-600 underline font-bold">
+                      Klik untuk memilih dokumen dari komputer
+                    </span>{' '}
+                    atau seret dan lepas berkas ke sini
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    Mendukung Excel (.xlsx, .xls), Word (.docx), PDF, CSV, dan Gambar Scan (Maks 20MB)
+                    Mendukung Excel (.xlsx, .xls), Word (.docx), PDF, CSV, TXT, dan Foto Scan (Maks 20MB)
                   </p>
                 </div>
 
                 {isUploading && (
-                  <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-200 flex items-center justify-center space-x-2 text-xs font-bold text-blue-700">
-                    <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-                    <span>Menganalisis matriks pekan efektif & menyelaraskan ke PROSEM...</span>
+                  <div className="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-200 flex items-center justify-center space-x-2 text-xs font-bold text-indigo-700">
+                    <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" />
+                    <span>Membaca dokumen &amp; mengekstraksi tabel alokasi waktu ke PROSEM...</span>
                   </div>
                 )}
               </div>
 
-              {/* Template Download & Help Actions */}
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => AlokasiWaktuParser.downloadAlokasiWaktuExcelTemplate(academicYear, subject)}
+                  onClick={() =>
+                    AlokasiWaktuParser.downloadAlokasiWaktuExcelTemplate(academicYear, subject)
+                  }
                   className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer"
-                  title="Unduh contoh template Excel yang siap diisi"
                 >
                   <Download className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Unduh Contoh Format Excel (.xlsx)</span>
                 </button>
-                {onNavigate && (
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('kalender_pendidikan')}
-                    className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer"
-                  >
-                    <CalendarDays className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Buka Kalender Pendidikan Sekolah</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Uploaded File Summary & Synced Status Card */}
-          {(kalenderData.fileName || kalenderData.uploadedFile || uploadResult) && (
-            <div className="bg-emerald-50/70 border border-emerald-300 rounded-2xl p-5 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Uploaded Document Summary & Extracted Data */}
+          {(uploadedInfo || uploadResult) && (
+            <div className="space-y-4">
+              <div className="bg-emerald-50/70 border border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center space-x-3">
                   <div className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-xs">
-                    <FileSpreadsheet className="w-5 h-5" />
+                    <FileCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-sm font-bold text-emerald-950">
-                        Berkas Analisis Alokasi Waktu Mandiri Aktif
+                        Dokumen Mandiri Terunggah:{' '}
+                        {uploadedInfo?.fileName || uploadResult?.fileName}
                       </h3>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
-                        Tersinkron PROSEM
-                      </span>
+                      {uploadedInfo?.confidenceScore && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                          Kecocokan {uploadedInfo.confidenceScore}%
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs text-emerald-800 mt-0.5 font-medium">
-                      {kalenderData.fileName || kalenderData.uploadedFile?.fileName || 'Analisis_Alokasi_Waktu_Guru.xlsx'}
-                      {kalenderData.fileSize ? ` • ${(kalenderData.fileSize / 1024).toFixed(1)} KB` : ''}
-                      {kalenderData.uploadedAt ? ` • Diunggah: ${new Date(kalenderData.uploadedAt).toLocaleDateString('id-ID')}` : ''}
+                    <p className="text-xs text-emerald-800 mt-0.5">
+                      Sem 1: <strong>{uploadedSem1.totalEffectiveWeeks} Pekan</strong> • Sem 2:{' '}
+                      <strong>{uploadedSem2.totalEffectiveWeeks} Pekan</strong> • Beban:{' '}
+                      <strong>{jpPerWeek} JP/Minggu</strong>
                     </p>
                   </div>
                 </div>
@@ -667,84 +1514,129 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                 <div className="flex items-center space-x-2 shrink-0">
                   <button
                     type="button"
-                    onClick={() => setActiveTab('tabel_rbe')}
-                    className="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold transition flex items-center space-x-1 shadow-2xs cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold cursor-pointer"
                   >
-                    <span>Lihat Matriks RBE</span>
-                    <ChevronRight className="w-4 h-4 text-emerald-700" />
+                    Ganti Dokumen
                   </button>
-                  {onNavigate && (
-                    <button
-                      type="button"
-                      onClick={() => onNavigate('ai_prosem')}
-                      className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition flex items-center space-x-1.5 shadow-xs cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                      <span>Buka Hasil di PROSEM →</span>
-                    </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveUploadedAlokasi}
+                    className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sub-Toggle View inside Pilihan 2 */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setUploadViewMode('tabel')}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer ${
+                      uploadViewMode === 'tabel'
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Table className="w-3.5 h-3.5" />
+                    <span>Tabel Hasil Ekstraksi (Siap Simpan &amp; Sinkron)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUploadViewMode('dokumen_asli')}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer ${
+                      uploadViewMode === 'dokumen_asli'
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Isi Teks / Tabel Dokumen Asli</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUploadViewMode('pratinjau')}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition cursor-pointer ${
+                      uploadViewMode === 'pratinjau'
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Pratinjau Dokumen Resmi</span>
+                  </button>
+                </div>
+              </div>
+
+              {renderTableActionBar('upload_mandiri')}
+
+              {uploadViewMode === 'tabel' && renderUnifiedEditableTableDocument('upload_mandiri')}
+
+              {uploadViewMode === 'dokumen_asli' && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Konten yang Diekstrak dari Dokumen Unggahan
+                  </h4>
+                  {uploadedInfo?.tableMarkdown || uploadResult?.tableMarkdown ? (
+                    <DocumentPdfPreview
+                      content={uploadedInfo?.tableMarkdown || uploadResult?.tableMarkdown || ''}
+                      title={`Ekstraksi Tabel - ${uploadedInfo?.fileName || uploadResult?.fileName}`}
+                    />
+                  ) : (
+                    <pre className="whitespace-pre-wrap text-xs text-slate-700 bg-white p-4 rounded-lg border border-slate-200 max-h-[450px] overflow-y-auto font-mono">
+                      {uploadedInfo?.extractedText ||
+                        uploadResult?.extractedText ||
+                        'Tidak ada pratinjau teks yang diekstrak. Gunakan tab Tabel Hasil Ekstraksi untuk memverifikasi angka pekan efektif.'}
+                    </pre>
                   )}
                 </div>
-              </div>
+              )}
 
-              {/* Extraction Metrics Highlights */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-emerald-200/80">
-                <div className="bg-white p-3 rounded-xl border border-emerald-200">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Pekan Efektif Sem 1</span>
-                  <div className="text-base font-black text-emerald-800">
-                    {kalenderData.semester1.totalEffectiveWeeks} Pekan
-                  </div>
-                  <span className="text-[11px] text-slate-500">
-                    {kalenderData.semester1.totalEffectiveWeeks * jpPerWeek} JP Tatap Muka
-                  </span>
+              {uploadViewMode === 'pratinjau' && (
+                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
+                  <DocumentPdfPreview
+                    content={previewMarkdown}
+                    title={`Analisis Alokasi Waktu (Upload Mandiri) - ${subject}`}
+                  />
                 </div>
-
-                <div className="bg-white p-3 rounded-xl border border-emerald-200">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Pekan Efektif Sem 2</span>
-                  <div className="text-base font-black text-emerald-800">
-                    {kalenderData.semester2.totalEffectiveWeeks} Pekan
-                  </div>
-                  <span className="text-[11px] text-slate-500">
-                    {kalenderData.semester2.totalEffectiveWeeks * jpPerWeek} JP Tatap Muka
-                  </span>
-                </div>
-
-                <div className="bg-white p-3 rounded-xl border border-emerald-200">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Beban Mengajar</span>
-                  <div className="text-base font-black text-blue-700">
-                    {jpPerWeek} JP / Minggu
-                  </div>
-                  <span className="text-[11px] text-slate-500">Tersinkron profil mapel</span>
-                </div>
-
-                <div className="bg-white p-3 rounded-xl border border-emerald-200">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Total 1 Tahun</span>
-                  <div className="text-base font-black text-indigo-700">
-                    {(kalenderData.semester1.totalEffectiveWeeks + kalenderData.semester2.totalEffectiveWeeks) * jpPerWeek} JP
-                  </div>
-                  <span className="text-[11px] text-slate-500">
-                    {kalenderData.semester1.totalEffectiveWeeks + kalenderData.semester2.totalEffectiveWeeks} Pekan Efektif KBM
-                  </span>
-                </div>
-              </div>
+              )}
             </div>
           )}
+        </div>
+      )}
 
-          {/* Section: Custom Document Formatting Selector */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center space-x-2 border-b border-slate-100 pb-3">
-              <div className="p-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-700">
-                <Sliders className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  Kustomisasi Tata Letak &amp; Format Kop Alokasi Waktu Sekolah
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Pilih preset format resmi atau aktifkan format dokumen khas sekolah Anda.
-                </p>
-              </div>
+      {/* ========================================================================= */}
+      {/* OPSIONAL: PENGATURAN FORMAT KOP & TATA LETAK KHUSUS */}
+      {/* ========================================================================= */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowFormatSettings(!showFormatSettings)}
+          className="w-full px-5 py-3.5 flex items-center justify-between text-left hover:bg-slate-50 transition cursor-pointer"
+        >
+          <div className="flex items-center space-x-2.5">
+            <Sliders className="w-4 h-4 text-indigo-600" />
+            <div>
+              <h3 className="text-xs font-bold text-slate-800">
+                Pengaturan Format &amp; Kop Dokumen Sekolah (Opsional)
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Sesuaikan tata letak atau kop dokumen jika diperlukan sebelum ekspor Word / PDF.
+              </p>
             </div>
-
+          </div>
+          {showFormatSettings ? (
+            <ChevronUp className="w-4 h-4 text-slate-500" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-slate-500" />
+          )}
+        </button>
+        {showFormatSettings && (
+          <div className="p-5 border-t border-slate-200">
             <CustomFormatSelector
               value={customFormatConfig}
               onChange={handleCustomFormatChange}
@@ -752,270 +1644,11 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
               docTypeName="Analisis Alokasi Waktu (RBE)"
             />
           </div>
-
-          {/* Quick Actions Footer */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white border border-slate-200 rounded-xl shadow-xs">
-            <div className="text-xs text-slate-500">
-              Perubahan pada analisis alokasi waktu otomatis menjadi acuan matriks pekan di PROSEM (Program Semester).
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                type="button"
-                onClick={handleSyncToProsem}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-xs transition cursor-pointer"
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>Simpan &amp; Sinkronkan ke PROSEM</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('tabel_rbe')}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-xs transition cursor-pointer"
-              >
-                <span>Lihat Tabel RBE</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ========================================================================= */}
-      {/* TAB 2: TABEL ANALISIS ALOKASI WAKTU & RBE */}
-      {/* ========================================================================= */}
-      {activeTab === 'tabel_rbe' && (
-        <div className="space-y-5 animate-in fade-in">
-          {/* Semester Selector Header */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center space-x-3">
-              <span className="text-xs font-bold text-slate-700">Pilih Semester:</span>
-              <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setSelectedSemester('Ganjil')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    selectedSemester === 'Ganjil'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Semester 1 (Ganjil)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedSemester('Genap')}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    selectedSemester === 'Genap'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Semester 2 (Genap)
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <button
-                type="button"
-                onClick={handleSyncToProsem}
-                className="px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-300 rounded-lg text-xs font-bold flex items-center space-x-1 transition cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
-                <span>Sinkronkan ke PROSEM</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleExportExcel}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-emerald-800 border border-slate-300 rounded-lg text-xs font-bold flex items-center space-x-1 transition cursor-pointer"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Ekspor Excel</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleExportWord}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-blue-800 border border-slate-300 rounded-lg text-xs font-bold flex items-center space-x-1 transition cursor-pointer"
-              >
-                <FileText className="w-3.5 h-3.5 text-blue-600" />
-                <span>Ekspor Word</span>
-              </button>
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-lg text-xs font-bold flex items-center space-x-1 transition cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5 text-slate-600" />
-                <span>Cetak / PDF</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Core Interactive RBE Component */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-            <RbeAnalysisSection
-              activeSemData={activeSemData}
-              selectedSemester={selectedSemester}
-              jpPerWeek={jpPerWeek}
-              totalEffJP={totalEffJP}
-              reserveJP={reserveJP}
-              kbmEffJP={kbmEffJP}
-              handleMonthChange={handleMonthChange}
-              onExportWord={handleExportWord}
-              onExportExcel={handleExportExcel}
-              onPrint={handlePrint}
-              onNavigate={onNavigate}
-            />
-          </div>
-
-          {/* Navigation to Document Preview */}
-          <div className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl shadow-xs">
-            <button
-              type="button"
-              onClick={() => setActiveTab('upload_format')}
-              className="px-3.5 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold flex items-center space-x-1 cursor-pointer"
-            >
-              <span>← Kembali ke Upload Format Mandiri</span>
-            </button>
-            <div className="flex items-center space-x-2">
-              <button
-                type="button"
-                onClick={handleSyncToProsem}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-xs transition cursor-pointer"
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>Sinkronkan ke PROSEM</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('pratinjau_dokumen')}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-xs transition cursor-pointer"
-              >
-                <span>Lanjut ke Pratinjau Dokumen</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 3: PRATINJAU DOKUMEN & CETAK */}
-      {/* ========================================================================= */}
-      {activeTab === 'pratinjau_dokumen' && (
-        <div className="space-y-5 animate-in fade-in">
-          {/* Action Header */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-1.5">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-bold text-slate-800">
-                  Pratinjau Dokumen Analisis Alokasi Waktu — Semester {selectedSemester}
-                </span>
-              </div>
-              <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-lg border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setSelectedSemester('Ganjil')}
-                  className={`px-3 py-1 rounded text-xs font-semibold cursor-pointer ${
-                    selectedSemester === 'Ganjil' ? 'bg-white text-blue-700 shadow-2xs font-bold' : 'text-slate-600'
-                  }`}
-                >
-                  Sem 1
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedSemester('Genap')}
-                  className={`px-3 py-1 rounded text-xs font-semibold cursor-pointer ${
-                    selectedSemester === 'Genap' ? 'bg-white text-blue-700 shadow-2xs font-bold' : 'text-slate-600'
-                  }`}
-                >
-                  Sem 2
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <button
-                type="button"
-                onClick={handleCopyMarkdown}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center space-x-1.5 border border-slate-300 transition cursor-pointer"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? 'Tersalin!' : 'Salin Teks'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleExportWord}
-                className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center space-x-1.5 border border-blue-200 transition cursor-pointer"
-              >
-                <FileText className="w-3.5 h-3.5 text-blue-600" />
-                <span>Word (.doc)</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleExportExcel}
-                className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center space-x-1.5 border border-emerald-200 transition cursor-pointer"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Excel (.xlsx)</span>
-              </button>
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs flex items-center space-x-1.5 transition cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Cetak Dokumen</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Document Renderer */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <DocumentPdfPreview
-              content={previewMarkdown}
-              title={`Analisis Alokasi Waktu ${subject} - Semester ${selectedSemester}`}
-            />
-          </div>
-
-          {/* Quick Flow to Downstream Documents */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white border border-slate-200 rounded-xl shadow-xs">
-            <button
-              type="button"
-              onClick={() => setActiveTab('tabel_rbe')}
-              className="px-3.5 py-2 text-slate-600 hover:text-slate-800 text-xs font-semibold flex items-center space-x-1 cursor-pointer"
-            >
-              <span>← Kembali ke Tabel RBE</span>
-            </button>
-
-            {onNavigate && (
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => onNavigate('parameter_kurikulum')}
-                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 flex items-center space-x-1.5 transition cursor-pointer"
-                >
-                  <Sliders className="w-3.5 h-3.5 text-slate-600" />
-                  <span>Ke Parameter Kurikulum</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('ai_prosem')}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center space-x-1.5 transition cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Buka PROSEM (Program Semester)</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 4. MODAL KONFIRMASI SINKRONISASI KE PROSEM */}
+      {/* MODAL KONFIRMASI SINKRONISASI KE PROSEM */}
       {/* ========================================================================= */}
       {showSyncSuccessModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
@@ -1030,7 +1663,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                     Alokasi Waktu Berhasil Disinkronkan ke PROSEM!
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Data pekan efektif dan alokasi JP siap diterapkan pada matriks Program Semester.
+                    Data pekan efektif dan alokasi JP siap dijadikan acuan matriks Program Semester.
                   </p>
                 </div>
               </div>
@@ -1043,32 +1676,34 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
               </button>
             </div>
 
-            {/* Synced Summary Box */}
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2.5 text-xs">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="text-slate-500 font-medium">Mata Pelajaran &amp; Kelas:</span>
-                <span className="font-bold text-slate-800">{subject} • Kelas {grade} ({level})</span>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200 gap-2">
+                <span className="text-slate-500 font-medium">Sumber Acuan Aktif:</span>
+                <span className="font-bold text-indigo-700 text-right">
+                  {lastSyncedModeLabel ||
+                    (kalenderData.activeSourceMode === 'upload_mandiri'
+                      ? `Pilihan 2: Upload Mandiri (${uploadedInfo?.fileName})`
+                      : 'Pilihan 1: Hasil Analisis & Generate dari KALDIK')}
+                </span>
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="text-slate-500 font-medium">Beban Mengajar:</span>
-                <span className="font-bold text-blue-700">{jpPerWeek} JP / Minggu</span>
+                <span className="text-slate-500 font-medium">Mata Pelajaran &amp; Kelas:</span>
+                <span className="font-bold text-slate-800">
+                  {subject} • Kelas {grade} ({level})
+                </span>
               </div>
               <div className="flex justify-between items-center pb-2 border-b border-slate-200">
                 <span className="text-slate-500 font-medium">Semester 1 (Ganjil):</span>
                 <span className="font-bold text-emerald-700">
-                  {kalenderData.semester1.totalEffectiveWeeks} Pekan Efektif ({kalenderData.semester1.totalEffectiveWeeks * jpPerWeek} JP)
-                </span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="text-slate-500 font-medium">Semester 2 (Genap):</span>
-                <span className="font-bold text-emerald-700">
-                  {kalenderData.semester2.totalEffectiveWeeks} Pekan Efektif ({kalenderData.semester2.totalEffectiveWeeks * jpPerWeek} JP)
+                  {kalenderData.semester1.totalEffectiveWeeks} Pekan Efektif (
+                  {kalenderData.semester1.totalEffectiveWeeks * jpPerWeek} JP)
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Sumber Berkas:</span>
-                <span className="font-semibold text-slate-700 truncate max-w-[220px]">
-                  {kalenderData.fileName || kalenderData.uploadedFile?.fileName || 'Analisis Mandiri / Kaldik'}
+                <span className="text-slate-500 font-medium">Semester 2 (Genap):</span>
+                <span className="font-bold text-emerald-700">
+                  {kalenderData.semester2.totalEffectiveWeeks} Pekan Efektif (
+                  {kalenderData.semester2.totalEffectiveWeeks * jpPerWeek} JP)
                 </span>
               </div>
             </div>

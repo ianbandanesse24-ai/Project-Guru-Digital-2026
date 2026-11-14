@@ -14,6 +14,8 @@ export interface CustomAlokasiWaktuParseResult {
   semester1: KalenderSemesterPlan;
   semester2: KalenderSemesterPlan;
   extractedNotes?: string;
+  extractedText?: string;
+  tableMarkdown?: string;
   confidenceScore: number;
   message: string;
   summary: {
@@ -295,6 +297,8 @@ export class AlokasiWaktuParser {
       semester1: sem1Plan,
       semester2: sem2Plan,
       extractedNotes: parsedDoc.summaryText,
+      extractedText: parsedDoc.extractedText,
+      tableMarkdown: parsedDoc.tableMarkdown,
       confidenceScore: confidence,
       message: `Berkas "${file.name}" berhasil diekstraksi dan dipetakan ke RBE Semester Ganjil & Genap (${confidence}% kecocokan struktur).`,
       summary: {
@@ -307,6 +311,93 @@ export class AlokasiWaktuParser {
         sem2EffectiveWeeks: s2EffWeeks,
         sem2EffJP: s2EffWeeks * detectedJp,
       },
+    };
+  }
+
+  /**
+   * Analyzes Educational Calendar (KALDIK) monthly data and generates synchronized RBE Semester 1 & 2 plans.
+   */
+  static analyzeFromKaldik(
+    kaldik: KalenderPendidikanData,
+    jpPerWeek: number = 3
+  ): {
+    semester1: KalenderSemesterPlan;
+    semester2: KalenderSemesterPlan;
+    generatedAt: string;
+    sourceLabel: string;
+  } {
+    const yr = kaldik.tahunAjaran || kaldik.academicYear || '2025/2026';
+
+    const analyzeMonths = (
+      months: KalenderMonthAnalysis[],
+      semesterLabel: 'Ganjil' | 'Genap'
+    ): KalenderSemesterPlan => {
+      const processedMonths: KalenderMonthAnalysis[] = months.map((m) => {
+        const totalW = Math.max(1, Number(m.totalWeeks) || 4);
+        const desc = (m.description || m.nonEffectiveNotes || '').toLowerCase();
+
+        // Estimate non-effective weeks if description has clear markers and current nonEffectiveWeeks is 0
+        let nonEffW = Math.min(totalW, Math.max(0, Number(m.nonEffectiveWeeks) || 0));
+        if (nonEffW === 0 && desc.trim().length > 0 && !desc.includes('kbm efektif penuh')) {
+          let inferred = 0;
+          if (desc.includes('libur akhir tahun') || desc.includes('libur semester')) inferred += 2;
+          else if (desc.includes('idul fitri') || desc.includes('lebaran')) inferred += 2;
+          else if (desc.includes('libur awal')) inferred += 1;
+
+          if (desc.includes('mpls') || desc.includes('matsama')) inferred += 1;
+          if (desc.includes('asts') || desc.includes('pts') || desc.includes('tengah semester')) inferred += 1;
+          if (desc.includes('asas') || desc.includes('pas') || desc.includes('sas') || desc.includes('ujian')) inferred += 1;
+          if (desc.includes('rapor')) inferred += 1;
+
+          if (inferred > 0) {
+            nonEffW = Math.min(totalW, inferred);
+          }
+        }
+
+        const effW = Math.max(0, totalW - nonEffW);
+        return {
+          ...m,
+          totalWeeks: totalW,
+          nonEffectiveWeeks: nonEffW,
+          effectiveWeeks: effW,
+        };
+      });
+
+      const totalWeeks = processedMonths.reduce((acc, m) => acc + m.totalWeeks, 0);
+      const nonEffectiveWeeks = processedMonths.reduce((acc, m) => acc + m.nonEffectiveWeeks, 0);
+      const totalEffectiveWeeks = processedMonths.reduce((acc, m) => acc + m.effectiveWeeks, 0);
+      const totalEffectiveHours = totalEffectiveWeeks * jpPerWeek;
+      const reservedHours = 6;
+
+      return {
+        semester: semesterLabel,
+        semesterName: semesterLabel,
+        academicYear: yr,
+        months: processedMonths,
+        totalWeeks,
+        totalCalendarWeeks: totalWeeks,
+        nonEffectiveWeeks,
+        totalNonEffectiveWeeks: nonEffectiveWeeks,
+        totalEffectiveWeeks,
+        jpPerWeek,
+        totalEffectiveHours,
+        totalJpSemester: totalEffectiveHours,
+        reservedHours,
+        netTeachingHours: Math.max(0, totalEffectiveHours - reservedHours),
+      };
+    };
+
+    const sem1 = analyzeMonths(kaldik.semester1.months, 'Ganjil');
+    const sem2 = analyzeMonths(kaldik.semester2.months, 'Genap');
+    const sourceFile = kaldik.fileName || kaldik.uploadedFile?.fileName;
+
+    return {
+      semester1: sem1,
+      semester2: sem2,
+      generatedAt: new Date().toISOString(),
+      sourceLabel: sourceFile
+        ? `Kalender Pendidikan (${sourceFile})`
+        : `Kalender Pendidikan Standar TP ${yr}`,
     };
   }
 

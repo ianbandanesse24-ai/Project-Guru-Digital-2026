@@ -902,11 +902,71 @@ ${buildOfficialLembarPengesahan({
     case 'analisis_alokasi_waktu':
     case 'alokasi_waktu':
     case 'rbe': {
-      const sem1EffWeeks = params.kalenderData?.semester1?.totalEffectiveWeeks || 19;
-      const sem2EffWeeks = params.kalenderData?.semester2?.totalEffectiveWeeks || 18;
-      const jpPerWk = params.kalenderData?.semester1?.jpPerWeek || (level === 'SD' ? 4 : 3);
+      const resolvedKaldik = params.kalenderData || StorageService.getKalenderPendidikan();
+      const sem1Plan = resolvedKaldik?.semester1;
+      const sem2Plan = resolvedKaldik?.semester2;
+      const sem1Months = Array.isArray(sem1Plan?.months) && sem1Plan.months.length > 0 ? sem1Plan.months : [];
+      const sem2Months = Array.isArray(sem2Plan?.months) && sem2Plan.months.length > 0 ? sem2Plan.months : [];
+
+      const jpPerWk = Number(sem1Plan?.jpPerWeek || syncedContext.jpPerWeek) || (level === 'SD' ? 4 : 3);
+      const sem1TotalCalWeeks = sem1Months.length > 0
+        ? sem1Months.reduce((s: number, m: any) => s + (Number(m.totalWeeks) || 0), 0)
+        : (Number(sem1Plan?.totalWeeks) || 26);
+      const sem1NonEffWeeks = sem1Months.length > 0
+        ? sem1Months.reduce((s: number, m: any) => s + (Number(m.nonEffectiveWeeks) || 0), 0)
+        : (Number(sem1Plan?.nonEffectiveWeeks) || 7);
+      const sem1EffWeeks = sem1Months.length > 0
+        ? sem1Months.reduce((s: number, m: any) => s + (Number(m.effectiveWeeks) || 0), 0)
+        : (Number(sem1Plan?.totalEffectiveWeeks) || Math.max(0, sem1TotalCalWeeks - sem1NonEffWeeks));
+
+      const sem2TotalCalWeeks = sem2Months.length > 0
+        ? sem2Months.reduce((s: number, m: any) => s + (Number(m.totalWeeks) || 0), 0)
+        : (Number(sem2Plan?.totalWeeks) || 26);
+      const sem2NonEffWeeks = sem2Months.length > 0
+        ? sem2Months.reduce((s: number, m: any) => s + (Number(m.nonEffectiveWeeks) || 0), 0)
+        : (Number(sem2Plan?.nonEffectiveWeeks) || 8);
+      const sem2EffWeeks = sem2Months.length > 0
+        ? sem2Months.reduce((s: number, m: any) => s + (Number(m.effectiveWeeks) || 0), 0)
+        : (Number(sem2Plan?.totalEffectiveWeeks) || Math.max(0, sem2TotalCalWeeks - sem2NonEffWeeks));
+
       const sem1TotalJp = sem1EffWeeks * jpPerWk;
       const sem2TotalJp = sem2EffWeeks * jpPerWk;
+      const sem1ReserveJp = Number(sem1Plan?.reservedHours) || 6;
+      const sem2ReserveJp = Number(sem2Plan?.reservedHours) || 6;
+      const sem1NetJp = Math.max(0, sem1TotalJp - sem1ReserveJp);
+      const sem2NetJp = Math.max(0, sem2TotalJp - sem2ReserveJp);
+
+      const isUploadMandiri = resolvedKaldik?.activeSourceMode === 'upload_mandiri';
+      const uploadedFileLabel = resolvedKaldik?.uploadedAlokasiWaktu?.fileName || resolvedKaldik?.fileName;
+      const kaldikFileLabel = resolvedKaldik?.kaldikAnalysis?.sourceLabel || (resolvedKaldik?.fileName ? `Kalender Pendidikan (${resolvedKaldik.fileName})` : `Kalender Pendidikan Standar TP ${resolvedAcademicYear}`);
+      const sourceDescription = isUploadMandiri && uploadedFileLabel
+        ? `Upload Mandiri Dokumen Guru (${uploadedFileLabel})`
+        : kaldikFileLabel;
+
+      const buildMonthRows = (months: any[], fallbackRows: string) => {
+        if (!months || months.length === 0) return fallbackRows;
+        return months.map((m: any, idx: number) => {
+          const tw = Number(m.totalWeeks) || 0;
+          const nonEff = Number(m.nonEffectiveWeeks) || 0;
+          const eff = Number(m.effectiveWeeks) ?? Math.max(0, tw - nonEff);
+          const desc = (m.description || m.nonEffectiveNotes || 'KBM Efektif').replace(/\|/g, '/');
+          return `| ${idx + 1} | **${m.monthName}** | ${tw} Pekan | ${nonEff} Pekan | ${eff} Pekan | ${desc} |`;
+        }).join('\n');
+      };
+
+      const sem1RowsMd = buildMonthRows(sem1Months, `| 1 | **Juli ${startYear}** | 5 Pekan | 2 Pekan | 3 Pekan | Libur Akhir TP & MPLS |
+| 2 | **Agustus ${startYear}** | 4 Pekan | 0 Pekan | 4 Pekan | KBM Efektif Penuh |
+| 3 | **September ${startYear}** | 5 Pekan | 1 Pekan | 4 Pekan | Asesmen Sumatif Tengah Semester (ASTS) |
+| 4 | **Oktober ${startYear}** | 4 Pekan | 0 Pekan | 4 Pekan | KBM Efektif & Pekan P5 |
+| 5 | **November ${startYear}** | 4 Pekan | 0 Pekan | 4 Pekan | KBM Efektif Penuh |
+| 6 | **Desember ${startYear}** | 4 Pekan | 4 Pekan | 0 Pekan | ASAS, Pengolahan Nilai, Rapor & Libur Semester 1 |`);
+
+      const sem2RowsMd = buildMonthRows(sem2Months, `| 1 | **Januari ${endYear}** | 5 Pekan | 1 Pekan | 4 Pekan | Libur Awal Semester Genap & KBM |
+| 2 | **Februari ${endYear}** | 4 Pekan | 0 Pekan | 4 Pekan | KBM Efektif Penuh |
+| 3 | **Maret ${endYear}** | 4 Pekan | 1 Pekan | 3 Pekan | ASTS Genap & Libur Awal Ramadhan |
+| 4 | **April ${endYear}** | 5 Pekan | 2 Pekan | 3 Pekan | Libur Hari Raya Idul Fitri & Cuti Bersama |
+| 5 | **Mei ${endYear}** | 4 Pekan | 1 Pekan | 3 Pekan | Asesmen Sumatif Akhir Jenjang |
+| 6 | **Juni ${endYear}** | 4 Pekan | 3 Pekan | 1 Pekan | ASAS Genap, Rapor & Libur Akhir TP |`);
 
       const customSchoolHeader = params.customFormatNotes
         ? `\n> 📋 **FORMAT DOKUMEN KHUSUS SEKOLAH DIAKTIFKAN**\n> Dokumen ini disusun dan distrukturkan menyesuaikan format baku resmi satuan pendidikan.\n\n`
@@ -923,6 +983,7 @@ ${customSchoolHeader}
 * **Mata Pelajaran:** **${subject}**
 * **Fase / Kelas:** **${phase} / Kelas ${grade} (${level})**
 * **Tahun Pelajaran:** **${resolvedAcademicYear}**
+* **Sumber Acuan Analisis:** **${sourceDescription}** *(Tersinkron ke PROSEM)*
 * **Pendekatan & Model:** **Deep Learning (Mindful, Meaningful, & Joyful Learning)**
 * **Alokasi Jam per Pekan:** **${jpPerWk} JP / Minggu**
 * **Penyusun / Guru Pengampu:** ${teacherName} (NIP. ${teacherNip})
@@ -936,16 +997,16 @@ ${customSchoolHeader}
 |          SKEMA STRUKTUR DISTRIBUSI ALOKASI WAKTU TAHUN PELAJARAN ${resolvedAcademicYear}                 |
 |                   PENDEKATAN DEEP LEARNING (BERKESADARAN, BERMAKNA, & MENYENANGKAN)               |
 |                                                                                                   |
-|  [ TOTAL 52 PEKAN KALENDER PENDIDIKAN ]                                                           |
+|  [ TOTAL ${sem1TotalCalWeeks + sem2TotalCalWeeks} PEKAN KALENDER PENDIDIKAN ]                                                           |
 |  ├─────────────────────────────────────────────────┬───────────────────────────────────────────┤  |
 |  ▼                                                 ▼                                           |  |
-|  [ SEMESTER GANJIL: 26 PEKAN ]                     [ SEMESTER GENAP: 26 PEKAN ]                |  |
-|  ├── Pekan Tidak Efektif : 7 Pekan                 ├── Pekan Tidak Efektif : 8 Pekan           |  |
+|  [ SEMESTER GANJIL: ${sem1TotalCalWeeks} PEKAN ]                     [ SEMESTER GENAP: ${sem2TotalCalWeeks} PEKAN ]                |  |
+|  ├── Pekan Tidak Efektif : ${sem1NonEffWeeks} Pekan                 ├── Pekan Tidak Efektif : ${sem2NonEffWeeks} Pekan           |  |
 |  └── Pekan Efektif KBM   : ${sem1EffWeeks} Pekan (${sem1TotalJp} JP)          └── Pekan Efektif KBM   : ${sem2EffWeeks} Pekan (${sem2TotalJp} JP)    |  |
-|      ├── 1. Mindful Foundation    : ${Math.round((sem1TotalJp - 6) * 0.25)} JP (Eksplorasi)        ├── 1. Mindful Foundation    : ${Math.round((sem2TotalJp - 6) * 0.25)} JP (Eksplorasi)    |  |
-|      ├── 2. Meaningful Inquiry    : ${Math.round((sem1TotalJp - 6) * 0.50)} JP (Investigasi)       ├── 2. Meaningful Inquiry    : ${Math.round((sem2TotalJp - 6) * 0.50)} JP (Investigasi)   |  |
-|      ├── 3. Joyful Creation       : ${Math.round((sem1TotalJp - 6) * 0.25)} JP (Gelar Karya)       ├── 3. Joyful Creation       : ${Math.round((sem2TotalJp - 6) * 0.25)} JP (Gelar Karya)   |  |
-|      └── Cadangan & Asesmen Sumatif: 6 JP (2 Pekan)        └── Cadangan & Asesmen Sumatif: 6 JP (2 Pekan)     |  |
+|      ├── 1. Mindful Foundation    : ${Math.round(sem1NetJp * 0.25)} JP (Eksplorasi)        ├── 1. Mindful Foundation    : ${Math.round(sem2NetJp * 0.25)} JP (Eksplorasi)    |  |
+|      ├── 2. Meaningful Inquiry    : ${Math.round(sem1NetJp * 0.50)} JP (Investigasi)       ├── 2. Meaningful Inquiry    : ${Math.round(sem2NetJp * 0.50)} JP (Investigasi)   |  |
+|      ├── 3. Joyful Creation       : ${Math.round(sem1NetJp * 0.25)} JP (Gelar Karya)       ├── 3. Joyful Creation       : ${Math.round(sem2NetJp * 0.25)} JP (Gelar Karya)   |  |
+|      └── Cadangan & Asesmen Sumatif: ${sem1ReserveJp} JP                  └── Cadangan & Asesmen Sumatif: ${sem2ReserveJp} JP               |  |
 +---------------------------------------------------------------------------------------------------+
 \`\`\`
 
@@ -953,15 +1014,10 @@ ${customSchoolHeader}
 
 ### C. ANALISIS RINCIAN PEKAN EFEKTIF SEMESTER 1 (GANJIL)
 #### 1. Distribusi Jumlah Pekan Semester 1 (Juli s.d. Desember ${startYear})
-| No | Nama Bulan | Jumlah Pekan Kalender | Pekan Tidak Efektif | Pekan Efektif KBM | Keterangan Pekan Tidak Efektif (Kalender Pendidikan) |
+| No | Nama Bulan | Jumlah Pekan Kalender | Pekan Tidak Efektif | Pekan Efektif KBM | Keterangan Agenda & Pekan Tidak Efektif |
 | :-: | :--- | :-: | :-: | :-: | :--- |
-| 1 | **Juli ${startYear}** | 5 Pekan | 2 Pekan | 3 Pekan | Libur Akhir TP ${startYear - 1}/${startYear} (P1-P2) & MPLS / Matsama (P3) |
-| 2 | **Agustus ${startYear}** | 4 Pekan | 0 Pekan | 4 Pekan | KBM Efektif Penuh (Peringatan HUT RI ke-80) |
-| 3 | **September ${startYear}** | 5 Pekan | 1 Pekan | 4 Pekan | Asesmen Tengah Semester / ASTS Ganjil (Pekan 4) |
-| 4 | **Oktober ${startYear}** | 4 Pekan | 0 Pekan | 4 Pekan | KBM Efektif & Pekan Projek Penguatan Karakter Profil Pelajar |
-| 5 | **November ${startYear}** | 4 Pekan | 0 Pekan | 4 Pekan | KBM Efektif Penuh |
-| 6 | **Desember ${startYear}** | 4 Pekan | 4 Pekan | 0 Pekan | ASAS (P1), Remedial & Nilai (P2), Rapor (P3), Libur Sem 1 (P4) |
-| **TOTAL** | **Semester 1 (Ganjil)** | **26 Pekan** | **7 Pekan** | **${sem1EffWeeks} Pekan** | **Total Pekan Efektif KBM: ${sem1EffWeeks} Pekan** |
+${sem1RowsMd}
+| **TOTAL** | **Semester 1 (Ganjil)** | **${sem1TotalCalWeeks} Pekan** | **${sem1NonEffWeeks} Pekan** | **${sem1EffWeeks} Pekan** | **Total Pekan Efektif KBM: ${sem1EffWeeks} Pekan** |
 
 #### 2. Perhitungan Jam Pelajaran (JP) Efektif Semester 1
 | Komponen Perhitungan | Formula & Rincian | Hasil Jam Pelajaran (JP) |
@@ -969,22 +1025,17 @@ ${customSchoolHeader}
 | **a. Jumlah Pekan Efektif KBM** | ${sem1EffWeeks} Pekan | ${sem1EffWeeks} Pekan |
 | **b. Alokasi Waktu Mengajar** | ${jpPerWk} JP / Pekan | ${jpPerWk} JP / Minggu |
 | **c. Jumlah Total Jam Efektif** | ${sem1EffWeeks} Pekan × ${jpPerWk} JP | **${sem1TotalJp} JP** |
-| **d. Cadangan Jam Pelajaran** | Asesmen Sumatif Lingkup Materi & Remedial Terarah | 6 JP |
-| **e. Jam Efektif Tatap Muka KBM** | Total Jam Efektif - Cadangan Jam | **${sem1TotalJp - 6} JP** |
+| **d. Cadangan Jam Pelajaran** | Asesmen Sumatif Lingkup Materi & Remedial Terarah | ${sem1ReserveJp} JP |
+| **e. Jam Efektif Tatap Muka KBM** | Total Jam Efektif - Cadangan Jam | **${sem1NetJp} JP** |
 
 ---
 
 ### D. ANALISIS RINCIAN PEKAN EFEKTIF SEMESTER 2 (GENAP)
 #### 1. Distribusi Jumlah Pekan Semester 2 (Januari s.d. Juni ${endYear})
-| No | Nama Bulan | Jumlah Pekan Kalender | Pekan Tidak Efektif | Pekan Efektif KBM | Keterangan Pekan Tidak Efektif (Kalender Pendidikan) |
+| No | Nama Bulan | Jumlah Pekan Kalender | Pekan Tidak Efektif | Pekan Efektif KBM | Keterangan Agenda & Pekan Tidak Efektif |
 | :-: | :--- | :-: | :-: | :-: | :--- |
-| 1 | **Januari ${endYear}** | 5 Pekan | 1 Pekan | 4 Pekan | Libur Tahun Baru & Awal Semester Genap (Pekan 1) |
-| 2 | **Februari ${endYear}** | 4 Pekan | 0 Pekan | 4 Pekan | KBM Efektif Penuh |
-| 3 | **Maret ${endYear}** | 4 Pekan | 1 Pekan | 3 Pekan | ASTS Genap & Libur Awal Ramadhan 1447 H (Pekan 3) |
-| 4 | **April ${endYear}** | 5 Pekan | 2 Pekan | 3 Pekan | Libur Hari Raya Idul Fitri 1447 H & Cuti Bersama (P1-P2) |
-| 5 | **Mei ${endYear}** | 4 Pekan | 1 Pekan | 3 Pekan | Asesmen Sumatif Akhir Jenjang / Penilaian Kinerja (Pekan 3) |
-| 6 | **Juni ${endYear}** | 4 Pekan | 3 Pekan | 1 Pekan | ASAS Genap (P1), Pembagian Rapor (P2), Libur Akhir TP (P3-P4) |
-| **TOTAL** | **Semester 2 (Genap)** | **26 Pekan** | **8 Pekan** | **${sem2EffWeeks} Pekan** | **Total Pekan Efektif KBM: ${sem2EffWeeks} Pekan** |
+${sem2RowsMd}
+| **TOTAL** | **Semester 2 (Genap)** | **${sem2TotalCalWeeks} Pekan** | **${sem2NonEffWeeks} Pekan** | **${sem2EffWeeks} Pekan** | **Total Pekan Efektif KBM: ${sem2EffWeeks} Pekan** |
 
 #### 2. Perhitungan Jam Pelajaran (JP) Efektif Semester 2
 | Komponen Perhitungan | Formula & Rincian | Hasil Jam Pelajaran (JP) |
@@ -992,17 +1043,17 @@ ${customSchoolHeader}
 | **a. Jumlah Pekan Efektif KBM** | ${sem2EffWeeks} Pekan | ${sem2EffWeeks} Pekan |
 | **b. Alokasi Waktu Mengajar** | ${jpPerWk} JP / Pekan | ${jpPerWk} JP / Minggu |
 | **c. Jumlah Total Jam Efektif** | ${sem2EffWeeks} Pekan × ${jpPerWk} JP | **${sem2TotalJp} JP** |
-| **d. Cadangan Jam Pelajaran** | Asesmen Sumatif Akhir, Pengayaan & Selebrasi Karya | 6 JP |
-| **e. Jam Efektif Tatap Muka KBM** | Total Jam Efektif - Cadangan Jam | **${sem2TotalJp - 6} JP** |
+| **d. Cadangan Jam Pelajaran** | Asesmen Sumatif Akhir, Pengayaan & Selebrasi Karya | ${sem2ReserveJp} JP |
+| **e. Jam Efektif Tatap Muka KBM** | Total Jam Efektif - Cadangan Jam | **${sem2NetJp} JP** |
 
 ---
 
 ### E. REKAPITULASI ALOKASI WAKTU 1 TAHUN PELAJARAN (SEMESTER 1 & 2)
 | No | Semester | Jumlah Pekan Kalender | Pekan Tidak Efektif | Pekan Efektif | Total Jam Efektif (JP) | Cadangan Jam (JP) | Jam Tatap Muka KBM (JP) |
 | :-: | :--- | :-: | :-: | :-: | :-: | :-: | :-: |
-| 1 | **Semester 1 (Ganjil)** | 26 Pekan | 7 Pekan | ${sem1EffWeeks} Pekan | ${sem1TotalJp} JP | 6 JP | ${sem1TotalJp - 6} JP |
-| 2 | **Semester 2 (Genap)** | 26 Pekan | 8 Pekan | ${sem2EffWeeks} Pekan | ${sem2TotalJp} JP | 6 JP | ${sem2TotalJp - 6} JP |
-| **TOTAL** | **1 Tahun Pelajaran** | **52 Pekan** | **15 Pekan** | **${sem1EffWeeks + sem2EffWeeks} Pekan** | **${sem1TotalJp + sem2TotalJp} JP** | **12 JP** | **${sem1TotalJp + sem2TotalJp - 12} JP** |
+| 1 | **Semester 1 (Ganjil)** | ${sem1TotalCalWeeks} Pekan | ${sem1NonEffWeeks} Pekan | ${sem1EffWeeks} Pekan | ${sem1TotalJp} JP | ${sem1ReserveJp} JP | ${sem1NetJp} JP |
+| 2 | **Semester 2 (Genap)** | ${sem2TotalCalWeeks} Pekan | ${sem2NonEffWeeks} Pekan | ${sem2EffWeeks} Pekan | ${sem2TotalJp} JP | ${sem2ReserveJp} JP | ${sem2NetJp} JP |
+| **TOTAL** | **1 Tahun Pelajaran** | **${sem1TotalCalWeeks + sem2TotalCalWeeks} Pekan** | **${sem1NonEffWeeks + sem2NonEffWeeks} Pekan** | **${sem1EffWeeks + sem2EffWeeks} Pekan** | **${sem1TotalJp + sem2TotalJp} JP** | **${sem1ReserveJp + sem2ReserveJp} JP** | **${sem1NetJp + sem2NetJp} JP** |
 
 ---
 
@@ -1274,16 +1325,22 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
       ];
 
       // Total 30 week slots per semester (6 months x 5 weeks)
-      // Define non-effective calendar weeks with tags and calendar colors (honors synced custom kalenderData if available)
-      const activeSemKalender = isGanjil ? params.kalenderData?.semester1 : params.kalenderData?.semester2;
+      // Define non-effective calendar weeks with tags and calendar colors (honors synced Kaldik or Uploaded Mandiri Alokasi Waktu)
+      const resolvedProsemKaldik = params.kalenderData || StorageService.getKalenderPendidikan();
+      const activeSemKalender = isGanjil ? resolvedProsemKaldik?.semester1 : resolvedProsemKaldik?.semester2;
       const customMonths = activeSemKalender?.months;
+      const prosemSourceLabel =
+        resolvedProsemKaldik?.activeSourceMode === 'upload_mandiri' && (resolvedProsemKaldik?.uploadedAlokasiWaktu?.fileName || resolvedProsemKaldik?.fileName)
+          ? `Upload Dokumen Mandiri (${resolvedProsemKaldik?.uploadedAlokasiWaktu?.fileName || resolvedProsemKaldik?.fileName})`
+          : resolvedProsemKaldik?.kaldikAnalysis?.sourceLabel || `Analisis Kalender Pendidikan (KALDIK TP ${resolvedAcademicYear})`;
 
       let weekSlots: { index: number; isEffective: boolean; tag?: string; bg?: string; color?: string }[] = [];
 
       if (customMonths && Array.isArray(customMonths) && customMonths.length === 6) {
         weekSlots = [];
         customMonths.forEach((m: any, mIdx: number) => {
-          const nonEffW = Math.min(5, Math.max(0, Number(m.nonEffectiveWeeks) || 0));
+          const totalCalW = Math.min(5, Math.max(1, Number(m.totalWeeks) || 4));
+          const nonEffW = Math.min(totalCalW, Math.max(0, Number(m.nonEffectiveWeeks) || 0));
           const desc = String(m.description || m.nonEffectiveNotes || '').toUpperCase();
 
           let defaultTag = isGanjil ? (mIdx === 0 ? 'LS' : mIdx === 2 ? 'PTS' : mIdx === 5 ? 'PAS' : 'LIBUR') : (mIdx === 0 ? 'LS' : mIdx === 2 ? 'PTS' : mIdx === 3 ? 'LHR' : mIdx === 5 ? 'RAPOR' : 'LIBUR');
@@ -1300,13 +1357,15 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
 
           for (let w = 0; w < 5; w++) {
             const slotIdx = mIdx * 5 + w;
+            if (w >= totalCalW) {
+              weekSlots.push({ index: slotIdx, isEffective: false, tag: '-', bg: '#f1f5f9', color: '#94a3b8' });
+              continue;
+            }
             let isNonEff = false;
             if (mIdx === 0) {
               isNonEff = w < nonEffW;
-            } else if (mIdx === 5) {
-              isNonEff = w >= (5 - nonEffW);
             } else {
-              isNonEff = w >= (5 - nonEffW);
+              isNonEff = w >= (totalCalW - nonEffW);
             }
 
             if (isNonEff && nonEffW > 0) {
@@ -1505,6 +1564,10 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
   <tr>
     <td style="font-weight: bold; border: none; padding: 3px 0;">Tahun Penyusunan</td>
     <td style="border: none; padding: 3px 0;">: <strong>${resolvedAcademicYear}</strong></td>
+  </tr>
+  <tr>
+    <td style="font-weight: bold; border: none; padding: 3px 0;">Acuan Alokasi Waktu</td>
+    <td style="border: none; padding: 3px 0;">: <strong>${prosemSourceLabel}</strong> (${activeSemKalender?.totalEffectiveWeeks || effectiveWeekIndices.length} Pekan Efektif KBM • ${hoursPerWeek} JP/Minggu)</td>
   </tr>
 </table>
 
