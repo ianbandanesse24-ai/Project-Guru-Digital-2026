@@ -111,7 +111,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
   const [docType, setDocType] = useState<string>(() => {
     let targetDoc = initialDocType.startsWith('ai_') ? initialDocType.replace('ai_', '') : initialDocType;
     if (targetDoc === 'asesmen') targetDoc = 'rubrik_penilaian';
-    if (targetDoc === 'analisis_cp' || targetDoc === 'cp' || targetDoc === 'analisis_cp_distribusi') targetDoc = 'tp';
+    if (targetDoc === 'cp' || targetDoc === 'analisis_cp_distribusi') targetDoc = 'analisis_cp';
     return targetDoc;
   });
   const [level, setLevel] = useState<EducationLevel>(() => (initialProf.level || initialMaster?.level || 'SMA') as EducationLevel);
@@ -669,14 +669,15 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
   );
 
   const docTypesList = [
-    { id: 'tp', label: '1. Tujuan Pembelajaran (TP Deep Learning)', icon: Target, desc: 'Rumusan Kaidah ABCD, Bloom HOTS & 3 Pilar Pedagogis', badge: 'Kaidah ABCD' },
-    { id: 'atp', label: '2. Alur Tujuan Pembelajaran (ATP 10 Kolom)', icon: GitMerge, desc: 'Standar Baku Resmi 10 Kolom Kemendikbudristek & Deep Learning', badge: '10 Kolom Utama' },
-    { id: 'prota', label: '3. Program Tahunan (PROTA Deep Learning)', icon: CalendarRange, desc: 'Format Standar Baku 4 Kolom & Alokasi Waktu 3 Pilar Tahunan', badge: '4 Kolom Utama' },
-    { id: 'prosem', label: '4. Program Semester (PROSEM Deep Learning)', icon: CalendarCheck, desc: 'Matriks Pekan Efektif Berwarna & Agenda Siklus Deep Learning', badge: 'Berwarna & Siklus' },
-    { id: 'kktp', label: '5. Kriteria Ketuntasan (KKTP Deep Learning)', icon: CheckSquare, desc: 'Interval Nilai, Rubrik 4 Level & Asesmen TP Terpadu', badge: 'Format Utama' },
-    { id: 'modul_ajar', label: '6. RPM Deep Learning (Rencana Pelaksanaan Modul)', icon: FileText, desc: 'Format Standar Baku Mutlak Tunggal: Bagian A s.d. X (6 Fase KBM)', badge: 'Deep Learning' },
-    { id: 'lkpd', label: '7. LKPD Deep Learning (Sinkron RPM)', icon: FileSpreadsheet, desc: 'Sintaks Inkuiri, Kanvas Sketsa Siswa & Refleksi 3-2-1', badge: 'Sinkron RPM' },
-    { id: 'rubrik_penilaian', label: '8. Rubrik Penilaian Deep Learning', icon: HelpCircle, desc: 'Rubrik Sikap 6C, Kinerja LKPD & Asesmen Sumatif HOTS Terpadu', badge: '3 Pilar & 6C' },
+    { id: 'analisis_cp', label: '1. Analisis Capaian Pembelajaran (CP)', icon: FileSearch, desc: 'Dekomposisi Elemen CP, Kompetensi HOTS & 3 Pilar Deep Learning', badge: 'Analisis CP' },
+    { id: 'tp', label: '2. Tujuan Pembelajaran (TP Deep Learning)', icon: Target, desc: 'Rumusan Kaidah ABCD, Bloom HOTS & 3 Pilar Pedagogis', badge: 'Kaidah ABCD' },
+    { id: 'atp', label: '3. Alur Tujuan Pembelajaran (ATP 10 Kolom)', icon: GitMerge, desc: 'Standar Baku Resmi 10 Kolom Kemendikbudristek & Deep Learning', badge: '10 Kolom Utama' },
+    { id: 'prota', label: '4. Program Tahunan (PROTA Deep Learning)', icon: CalendarRange, desc: 'Format Standar Baku 4 Kolom & Alokasi Waktu 3 Pilar Tahunan', badge: '4 Kolom Utama' },
+    { id: 'prosem', label: '5. Program Semester (PROSEM Deep Learning)', icon: CalendarCheck, desc: 'Matriks Pekan Efektif Berwarna & Agenda Siklus Deep Learning', badge: 'Berwarna & Siklus' },
+    { id: 'kktp', label: '6. Kriteria Ketuntasan (KKTP Deep Learning)', icon: CheckSquare, desc: 'Interval Nilai, Rubrik 4 Level & Asesmen TP Terpadu', badge: 'Format Utama' },
+    { id: 'modul_ajar', label: '7. RPM Deep Learning (Rencana Pelaksanaan Modul)', icon: FileText, desc: 'Format Standar Baku Mutlak Tunggal: Bagian A s.d. X (6 Fase KBM)', badge: 'Deep Learning' },
+    { id: 'lkpd', label: '8. LKPD Deep Learning (Sinkron RPM)', icon: FileSpreadsheet, desc: 'Sintaks Inkuiri, Kanvas Sketsa Siswa & Refleksi 3-2-1', badge: 'Sinkron RPM' },
+    { id: 'rubrik_penilaian', label: '9. Rubrik Penilaian Deep Learning', icon: HelpCircle, desc: 'Rubrik Sikap 6C, Kinerja LKPD & Asesmen Sumatif HOTS Terpadu', badge: '3 Pilar & 6C' },
   ];
 
   // Instant document builder: generates complete, official formatted document instantaneously
@@ -2696,7 +2697,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                 rows={2}
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
-                placeholder="Contoh: Wajib cantumkan rumus $F=m \cdot a$, bagan alur konsep, dan tabel variabel pengamatan..."
+                placeholder="Contoh: Wajib cantumkan rumus $F=m \cdot a$, sintaks pembelajaran mendalam, dan tabel variabel pengamatan..."
                 className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 text-xs"
               />
 
@@ -2855,7 +2856,6 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                           { label: 'Tabel 3 Variabel Eksperimen', val: '+ Lengkapi tabel penyelidikan 3 variabel: | No | Variabel Bebas | Variabel Terikat | Variabel Kontrol | Pengamatan |.' },
                           { label: 'Tabel Kisi-Kisi Soal Asesmen', val: '+ Buatkan tabel kisi-kisi asesmen: | No | Capaian / TP | Indikator Soal | Level Kognitif (HOTS/LOTS) | Bentuk Soal | No Soal |.' },
                           { label: 'Kotak Kanvas Sketsa Siswa', val: '+ Berikan ruang kotak [KANVAS SKETSA VISUAL SISWA] untuk gambar kreasi murid.' },
-                          { label: 'Skema Alur Konsep (ASCII Diagram)', val: '+ Sertakan bagan alur proses skematis menggunakan diagram visual ASCII.' },
                         ].map((item) => (
                           <button
                             key={item.label}

@@ -3,22 +3,12 @@ import {
   Calendar,
   CalendarDays,
   UploadCloud,
-  FileText,
-  FileSpreadsheet,
-  Download,
   Save,
-  Check,
   RefreshCw,
   Info,
   CheckCircle2,
   Trash2,
   FileCheck,
-  ChevronRight,
-  ArrowRight,
-  Sliders,
-  AlertCircle,
-  Eye,
-  Zap,
 } from 'lucide-react';
 import { KalenderPendidikanData, KalenderMonthAnalysis, SemesterType } from '../types';
 import { StorageService, DEFAULT_KALENDER_PENDIDIKAN, addStorageListener } from '../lib/storage';
@@ -184,12 +174,12 @@ export const KalenderPendidikanView: React.FC<KalenderPendidikanViewProps> = ({
     StorageService.saveKalenderPendidikan(updated);
   };
 
-  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // 1. Tombol Analisis: Menjalankan ekstraksi & analisis kalender pendidikan
-  const handleRunAnalysis = () => {
-    setIsAnalyzing(true);
-    setSaveToast('Sedang menganalisis struktur kalender pendidikan...');
+  // Tombol Tunggal: Simpan & Sinkron ke Alokasi Waktu (tanpa berpindah halaman otomatis)
+  const handleSaveAndSyncToAlokasiWaktu = () => {
+    setIsSyncing(true);
+    setSaveToast('Menyimpan dan menyinkronkan Kalender Pendidikan ke Analisis Alokasi Waktu...');
 
     setTimeout(() => {
       const schoolProf = StorageService.getSchoolProfile();
@@ -209,48 +199,19 @@ export const KalenderPendidikanView: React.FC<KalenderPendidikanViewProps> = ({
         activeSourceMode: 'kaldik',
         lastUpdated: new Date().toISOString(),
       };
+
       setKalenderData(updated);
       StorageService.saveKalenderPendidikan(updated);
+
       window.dispatchEvent(new CustomEvent('kaldik-updated', { detail: updated }));
-      setIsAnalyzing(false);
-      setSaveToast(`✅ Analisis Kalender Pendidikan TP ${academicYear} selesai! Data siap digunakan pada menu Analisis Alokasi Waktu.`);
-      setTimeout(() => setSaveToast(null), 3500);
-    }, 450);
-  };
+      window.dispatchEvent(new CustomEvent('curriculum-parameters-synced', { detail: updated }));
 
-  // 2. Tombol Sinkron ke Alokasi Waktu: Menyimpan & menyinkronkan langsung ke menu Analisis Alokasi Waktu
-  const handleSyncToAlokasiWaktu = () => {
-    const schoolProf = StorageService.getSchoolProfile();
-    const jpPerWeek = Number(schoolProf?.jpPerWeek || kalenderData.semester1?.jpPerWeek || 3);
-    const baseData: KalenderPendidikanData = {
-      ...kalenderData,
-      tahunAjaran: academicYear,
-      academicYear: academicYear,
-      catatanKhusus: uploadNotes,
-    };
-    const analyzed = AlokasiWaktuParser.analyzeFromKaldik(baseData, jpPerWeek);
-    const updated: KalenderPendidikanData = {
-      ...baseData,
-      semester1: analyzed.semester1,
-      semester2: analyzed.semester2,
-      kaldikAnalysis: analyzed,
-      activeSourceMode: 'kaldik',
-      lastUpdated: new Date().toISOString(),
-    };
-
-    setKalenderData(updated);
-    StorageService.saveKalenderPendidikan(updated);
-
-    window.dispatchEvent(new CustomEvent('kaldik-updated', { detail: updated }));
-    window.dispatchEvent(new CustomEvent('curriculum-parameters-synced', { detail: updated }));
-
-    setSaveToast('✅ Kalender Pendidikan berhasil disinkronkan ke Analisis Alokasi Waktu!');
-    setTimeout(() => {
-      setSaveToast(null);
-      if (onNavigate) {
-        onNavigate('analisis_alokasi_waktu');
-      }
-    }, 500);
+      setIsSyncing(false);
+      setSaveToast(`✅ Kalender Pendidikan TP ${academicYear} berhasil disimpan & disinkronkan ke Analisis Alokasi Waktu!`);
+      setTimeout(() => {
+        setSaveToast(null);
+      }, 4000);
+    }, 300);
   };
 
   const activeSemData = selectedSemester === 'Ganjil' ? kalenderData.semester1 : kalenderData.semester2;
@@ -288,28 +249,22 @@ export const KalenderPendidikanView: React.FC<KalenderPendidikanViewProps> = ({
             </div>
           </div>
 
-          {/* HANYA ADA TOMBOL ANALISIS DAN SINKRON KE ALOKASI WAKTU */}
+          {/* HANYA ADA SATU TOMBOL: SIMPAN & SINKRON KE ALOKASI WAKTU */}
           <div className="flex items-center space-x-2 shrink-0">
             <button
               type="button"
-              id="btn-analisis-kaldik"
-              onClick={handleRunAnalysis}
-              disabled={isAnalyzing}
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50"
-              title="Jalankan analisis kalender pendidikan"
-            >
-              <Zap className={`w-3.5 h-3.5 ${isAnalyzing ? 'animate-bounce text-amber-300' : 'text-amber-300'}`} />
-              <span>{isAnalyzing ? 'Menganalisis...' : 'Analisis'}</span>
-            </button>
-            <button
-              type="button"
               id="btn-sinkron-ke-alokasi-waktu"
-              onClick={handleSyncToAlokasiWaktu}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition active:scale-95 cursor-pointer"
-              title="Sinkronkan data kalender ke Analisis Alokasi Waktu"
+              onClick={handleSaveAndSyncToAlokasiWaktu}
+              disabled={isSyncing}
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50"
+              title="Simpan dan sinkronkan data kalender ke Analisis Alokasi Waktu"
             >
-              <RefreshCw className="w-3.5 h-3.5 text-white" />
-              <span>Sinkron ke Alokasi Waktu</span>
+              {isSyncing ? (
+                <RefreshCw className="w-3.5 h-3.5 text-white animate-spin" />
+              ) : (
+                <Save className="w-3.5 h-3.5 text-white" />
+              )}
+              <span>{isSyncing ? 'Menyimpan & Menyinkronkan...' : 'Simpan & Sinkron ke Alokasi Waktu'}</span>
             </button>
           </div>
         </div>
@@ -338,17 +293,6 @@ export const KalenderPendidikanView: React.FC<KalenderPendidikanViewProps> = ({
               </span>
             )}
           </div>
-
-          {onNavigate && (
-            <button
-              type="button"
-              onClick={() => onNavigate('analisis_alokasi_waktu')}
-              className="text-blue-700 hover:text-blue-900 font-bold flex items-center space-x-1 cursor-pointer transition text-xs"
-            >
-              <span>Buka Menu Analisis Alokasi Waktu</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
       </div>
 
@@ -639,34 +583,6 @@ export const KalenderPendidikanView: React.FC<KalenderPendidikanViewProps> = ({
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* 4. TAUTAN JEMBATAN KE MENU ANALISIS ALOKASI WAKTU */}
-      {/* ========================================================================= */}
-      {onNavigate && (
-        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-emerald-50 border border-blue-200 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center space-x-2">
-              <Zap className="w-4 h-4 text-amber-500" />
-              <h3 className="text-sm font-bold text-slate-900">
-                Langkah Berikutnya: Analisis Alokasi Waktu &amp; RBE
-              </h3>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed max-w-2xl">
-              Setelah dokumen kalender pendidikan siap, buka menu <strong>Analisis Alokasi Waktu</strong> untuk menghitung rincian pekan efektif KBM (RBE), membagi alokasi JP per materi pokok, serta menyinkronkan data langsung ke <strong>PROSEM</strong>.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleSyncToAlokasiWaktu}
-            className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-xs transition active:scale-95 cursor-pointer shrink-0"
-          >
-            <RefreshCw className="w-4 h-4 text-white" />
-            <span>Sinkron ke Alokasi Waktu</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-      )}
     </div>
   );
 };

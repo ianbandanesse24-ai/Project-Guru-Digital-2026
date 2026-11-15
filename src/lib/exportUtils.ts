@@ -2,6 +2,23 @@ import * as XLSX from 'xlsx';
 import katex from 'katex';
 import { SchoolProfile } from './storage';
 
+function resolvePhaseLetter(grade?: number | string, explicitPhase?: string): string {
+  const cleaned = String(explicitPhase || '').replace(/^fase\s+/i, '').trim();
+  if (cleaned && /^[A-F](\/[A-F])?$/i.test(cleaned)) {
+    return cleaned.toUpperCase();
+  }
+  const numGrade = Number(grade);
+  if (!isNaN(numGrade) && numGrade > 0) {
+    if (numGrade <= 2) return 'A';
+    if (numGrade <= 4) return 'B';
+    if (numGrade <= 6) return 'C';
+    if (numGrade <= 9) return 'D';
+    if (numGrade === 10) return 'E';
+    return 'F';
+  }
+  return 'E';
+}
+
 export class ExportService {
   /**
    * Cleans any duplicate / inline Kop Surat or Document Header blocks from document text/markdown/HTML
@@ -126,7 +143,7 @@ export class ExportService {
       if (isCanvas) {
         blockHeader = `<div style="background:#ede9fe; color:#4338ca; font-weight:bold; font-size:8.5pt; padding:6px 14px; border-bottom:1.5px solid #c7d2fe; display:flex; align-items:center; justify-content:space-between; letter-spacing:0.5px;"><span>🎨 KANVAS SKETSA & DIAGRAM SISWA</span><span style="font-size:7.5pt; color:#6366f1; font-weight:600;">(Ruang Gambar, Prototipe & Visualisasi Kreatif Siswa)</span></div>`;
       } else if (isDiagram) {
-        blockHeader = `<div style="background:#f0fdf4; color:#166534; font-weight:bold; font-size:8.5pt; padding:6px 14px; border-bottom:1.5px solid #bbf7d0; display:flex; align-items:center; justify-content:space-between; letter-spacing:0.5px;"><span>📊 BAGAN, SKEMA & DIAGRAM KONSEP VISUAL</span><span style="font-size:7.5pt; color:#15803d; font-weight:600;">(Representasi Visual Konseptual & Alur Pedagogis)</span></div>`;
+        blockHeader = `<div style="background:#f0fdf4; color:#166534; font-weight:bold; font-size:8.5pt; padding:6px 14px; border-bottom:1.5px solid #bbf7d0; display:flex; align-items:center; justify-content:space-between; letter-spacing:0.5px;"><span>📊 BAGAN & DIAGRAM KONSEP VISUAL</span><span style="font-size:7.5pt; color:#15803d; font-weight:600;">(Representasi Visual Konseptual & Alur Pedagogis)</span></div>`;
       }
 
       const borderStyle = isCanvas
@@ -301,7 +318,15 @@ export class ExportService {
         const isMeeting2Plus = isMeetingScenarioTable && !isMeeting1;
         const isDiferensiasiTable = headerStr.includes('REGULER') || headerStr.includes('DIFERENSIASI') || (headerStr.includes('KEBUTUHAN KHUSUS') && headerStr.includes('BERPRESTASI'));
         const isAsesmenTable = headerStr.includes('JENIS ASESMEN') || headerStr.includes('KISI-KISI') || (headerStr.includes('INSTRUMEN') && headerStr.includes('ASPEK YANG DINILAI')) || headerStr.includes('RUBRIK');
-        const isIdentitasTable = lastHeading === 'IDENTITAS MODUL' || tableRows.some(r => (r[0] || '').toUpperCase().includes('MATA PELAJARAN') || (r[0] || '').toUpperCase().includes('MATERI POKOK') || (r[0] || '').toUpperCase().includes('ALOKASI WAKTU'));
+        const isIdentitasTable =
+          lastHeading.toUpperCase().includes('IDENTITAS') ||
+          headerStr.includes('KOMPONEN IDENTITAS') ||
+          headerStr.includes('IDENTITAS PERANGKAT') ||
+          (tableHeaders.length === 2 &&
+            tableRows.some((r) => {
+              const c0 = (r[0] || '').toUpperCase();
+              return c0.includes('SATUAN PENDIDIKAN') || c0.includes('MATA PELAJARAN') || c0.includes('NAMA KELOMPOK');
+            }));
         const isMediaTable = headerStr.includes('RINCIAN MEDIA') || lastHeading.includes('MEDIA, ALAT') || tableRows.some(r => (r[0] || '').toUpperCase().includes('MEDIA PEMBELAJARAN') || (r[0] || '').toUpperCase().includes('ALAT & BAHAN'));
 
         let tableBorderColor = '#1e3a8a';
@@ -349,6 +374,9 @@ export class ExportService {
             if (cIdx === 7) return 'width: 5%; min-width: 45px; text-align: center;'; // Alokasi Waktu
             if (cIdx === 8) return 'width: 6%; min-width: 75px;';   // Sumber Belajar
             if (cIdx === 9) return 'width: 6%; min-width: 75px;';   // Penilaian
+          }
+          if (totalCols === 2 && isIdentitasTable) {
+            return cIdx === 0 ? 'width: 28%; min-width: 170px; text-align: left;' : 'width: 72%; text-align: left;';
           }
           if (totalCols === 2) {
             return cIdx === 0 ? 'width: 28%;' : 'width: 72%;';
@@ -433,10 +461,11 @@ export class ExportService {
             }
 
             const colWidth = getColumnWidth(cIdx, tableHeaders.length);
+            const thAlign = isIdentitasTable ? 'text-align:left;' : 'text-align:center;';
             if (isForWord) {
-              tableHtml += `<th style="border:1pt solid ${headerBorder}; mso-border-alt:solid ${headerBorder} .75pt; padding:6pt 8pt; font-weight:bold; text-align:center; color:${headerColor}; background-color:${headerBg}; font-size:9.5pt; ${colWidth}">${th}</th>`;
+              tableHtml += `<th style="border:1pt solid ${headerBorder}; mso-border-alt:solid ${headerBorder} .75pt; padding:6pt 8pt; font-weight:bold; ${thAlign} color:${headerColor}; background-color:${headerBg}; font-size:9.5pt; ${colWidth}">${th}</th>`;
             } else {
-              tableHtml += `<th style="border:1px solid ${headerBorder}; padding:7px 8px; font-weight:bold; text-align:center; color:${headerColor}; background-color:${headerBg}; font-size:9pt; ${colWidth}">${th}</th>`;
+              tableHtml += `<th style="border:1px solid ${headerBorder}; padding:7px 10px; font-weight:bold; ${thAlign} color:${headerColor}; background-color:${headerBg}; font-size:9pt; ${colWidth}">${th}</th>`;
             }
           });
           tableHtml += '</tr></thead>';
@@ -449,10 +478,12 @@ export class ExportService {
           const isTotalRow = rowFirstCell.includes('TOT') || rowFirstCell.includes('TOTAL') || rowSecondCell.includes('TOTAL') || rowSecondCell.includes('JUMLAH');
           const isAgendaRow = rowFirstCell.includes('AGENDA') || rowSecondCell.includes('AGENDA') || rowSecondCell.includes('KALDIK');
 
-          let defaultRowBg = rIdx % 2 === 1 ? 'background-color:#f8fafc;' : 'background-color:#ffffff;';
-          if (isTotalRow) {
+          let defaultRowBg = isIdentitasTable
+            ? 'background-color:#ffffff;'
+            : (rIdx % 2 === 1 ? 'background-color:#f8fafc;' : 'background-color:#ffffff;');
+          if (!isIdentitasTable && isTotalRow) {
             defaultRowBg = 'background-color:#e2e8f0; font-weight:bold; color:#0f172a;';
-          } else if (isAgendaRow) {
+          } else if (!isIdentitasTable && isAgendaRow) {
             defaultRowBg = 'background-color:#f1f5f9; font-weight:bold;';
           }
 
@@ -463,14 +494,17 @@ export class ExportService {
           }
 
           row.forEach((cell, cIdx) => {
-            const vAlign = (isMeetingScenarioTable || isAtpTable) ? 'top' : 'middle';
+            const vAlign = (isMeetingScenarioTable || isAtpTable || isIdentitasTable) ? 'top' : 'middle';
+            const identBorderColor = isIdentitasTable ? '#cbd5e1' : tableBorderColor;
             let cellStyle = isForWord
-              ? `border:1pt solid ${tableBorderColor}; mso-border-alt:solid ${tableBorderColor} .5pt; padding:5pt 8pt; vertical-align:${vAlign};`
-              : `border:1px solid ${tableBorderColor}; padding:6px 8px; vertical-align:${vAlign};`;
+              ? `border:1pt solid ${identBorderColor}; mso-border-alt:solid ${identBorderColor} .5pt; padding:5pt 8pt; vertical-align:${vAlign};`
+              : `border:1px solid ${identBorderColor}; padding:6px 10px; vertical-align:${vAlign};`;
 
             // Alignment determination with justified text (rata kiri kanan) for narrative content & ATP
             let align = 'text-align:left;';
-            if (isAtpTable) {
+            if (isIdentitasTable) {
+              align = 'text-align:left; line-height:1.45;';
+            } else if (isAtpTable) {
               if (cIdx === 7 || (cIdx === 0 && cell.length <= 4)) {
                 align = 'text-align:center; font-weight:bold;';
               } else {
@@ -483,7 +517,7 @@ export class ExportService {
             }
             cellStyle += ` ${align}`;
 
-            // Specialized RPM Column Styling
+            // Specialized RPM & Identitas Column Styling
             if (cIdx === 0) {
               if (isSintaksTable) {
                 cellStyle += ' font-weight:bold; color:#00897b; text-align:center;';
@@ -492,16 +526,18 @@ export class ExportService {
               } else if (isMeeting2Plus) {
                 cellStyle += ' font-weight:bold; color:#0288d1; text-align:center;';
               } else if (isIdentitasTable) {
-                cellStyle += ' font-weight:bold; color:#0288d1; background-color:#f0f9ff;';
+                cellStyle += ' width:28%; font-weight:bold; color:#0369a1; background-color:#f0f9ff; text-align:left;';
               } else if (isMediaTable) {
                 cellStyle += ' font-weight:bold; color:#00897b; background-color:#f0fdf4;';
               }
+            } else if (isIdentitasTable && cIdx === 1) {
+              cellStyle += ' width:72%; color:#0f172a; background-color:#ffffff; text-align:left;';
             } else if (cIdx === 2 && isMeetingScenarioTable && tableHeaders.length === 5) {
               cellStyle += ' font-weight:bold; color:#1e293b; text-align:center; white-space:nowrap; background-color:#f8fafc;';
             }
 
-            const cellType = detectType(cell);
-            const inheritedColType = colType[cIdx];
+            const cellType = isIdentitasTable ? null : detectType(cell);
+            const inheritedColType = isIdentitasTable ? null : colType[cIdx];
             const activeType = cellType || (inheritedColType && (cell === '-' || cell === '---' || cell === '' || isAgendaRow) ? inheritedColType : null);
 
             let cellContent = cell;
@@ -548,7 +584,7 @@ export class ExportService {
               if (cell === '-' || cell === '---' || cell === '') {
                 cellContent = '<span style="color:#9f1239; font-size:8pt; font-weight:bold;">🌸 CAD</span>';
               }
-            } else if (isTotalRow) {
+            } else if (!isIdentitasTable && isTotalRow) {
               cellStyle += ' font-weight:bold; color:#0f172a;';
             }
 
@@ -1155,7 +1191,7 @@ export class ExportService {
       const headmasterName = schoolProfileOrOptions.headmasterName || 'Kepala Sekolah';
       const headmasterNip = schoolProfileOrOptions.headmasterNip || '-';
       const city = schoolProfileOrOptions.city || 'Maluku Tengah';
-      const phase = String(grade) === '10' ? 'E' : Number(grade) > 10 ? 'F' : 'D';
+      const phase = resolvePhaseLetter(grade, schoolProfileOrOptions.phase);
 
       const rows: any[][] = [
         ['PEMERINTAH DAERAH PROVINSI / KABUPATEN - DINAS PENDIDIKAN DAN KEBUDAYAAN'],
@@ -1381,7 +1417,7 @@ export class ExportService {
     const headmasterName = schoolProfileOrOptions.headmasterName || 'Kepala Sekolah';
     const headmasterNip = schoolProfileOrOptions.headmasterNip || '-';
     const city = schoolProfileOrOptions.city || 'Maluku Tengah';
-    const phase = String(grade) === '10' ? 'E' : Number(grade) > 10 ? 'F' : 'D';
+    const phase = resolvePhaseLetter(grade, schoolProfileOrOptions.phase);
 
     const docHtml = `
       <!DOCTYPE html>
@@ -1576,6 +1612,22 @@ export class ExportService {
             font-size: 11pt;
             color: #0f172a;
           }
+          table.identitas-table {
+            border: 1.5pt solid #0288d1 !important;
+          }
+          table.identitas-table th {
+            background-color: #0288d1 !important;
+            color: #ffffff !important;
+            text-align: left !important;
+            border: 1pt solid #0288d1 !important;
+            padding: 5pt 8pt !important;
+          }
+          table.identitas-table td {
+            border: 1pt solid #cbd5e1 !important;
+            padding: 5pt 8pt !important;
+            text-align: left !important;
+            vertical-align: top !important;
+          }
           .ttd-container {
             margin-top: 28pt;
             width: 100%;
@@ -1615,7 +1667,9 @@ export class ExportService {
             <div class="fase-badge">Kurikulum Berbasis Deep Learning (Fase ${phase})</div>
           </div>
 
-          <table class="meta-box">
+          ${
+            !contentHtml.toUpperCase().includes('IDENTITAS')
+              ? `<table class="meta-box">
             <tr>
               <td style="width:20%;"><strong>Satuan Pendidikan:</strong></td>
               <td style="width:30%; font-weight:bold; color:#0f172a;">${schoolName}</td>
@@ -1634,7 +1688,9 @@ export class ExportService {
               <td><strong>Guru Pengampu:</strong></td>
               <td style="font-weight:bold; color:#0f172a;">${teacherName}</td>
             </tr>
-          </table>
+          </table>`
+              : ''
+          }
 
           <div class="content">
             ${contentHtml}
@@ -1722,7 +1778,7 @@ export class ExportService {
     const headmasterName = schoolProfileOrOptions.headmasterName || 'Kepala Sekolah';
     const headmasterNip = schoolProfileOrOptions.headmasterNip || '-';
     const city = schoolProfileOrOptions.city || 'Maluku Tengah';
-    const phase = String(grade) === '10' ? 'E' : Number(grade) > 10 ? 'F' : 'D';
+    const phase = resolvePhaseLetter(grade, schoolProfileOrOptions.phase);
 
     const fullHtml = `
       <!DOCTYPE html>
@@ -1876,6 +1932,22 @@ export class ExportService {
           .page-break {
             page-break-before: always;
             break-before: page;
+          }
+          table.identitas-table {
+            border: 1.5px solid #0288d1 !important;
+          }
+          table.identitas-table th {
+            background-color: #0288d1 !important;
+            color: #ffffff !important;
+            text-align: left !important;
+            border: 1px solid #0288d1 !important;
+            padding: 7px 10px !important;
+          }
+          table.identitas-table td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 6px 10px !important;
+            text-align: left !important;
+            vertical-align: top !important;
           }
           table.signature-table, table.ttd-table,
           .signature-table td, .signature-table th,

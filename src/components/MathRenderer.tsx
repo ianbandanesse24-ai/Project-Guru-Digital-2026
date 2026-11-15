@@ -91,7 +91,7 @@ export const MathRenderer: React.FC<MathRendererProps> = ({
       if (isCanvas) {
         blockTitle = '🎨 KANVAS KREASI & SKETSA VISUAL SISWA';
       } else if (isDiagram) {
-        blockTitle = '📊 SKEMA DIAGRAM / ILUSTRASI KONSEP';
+        blockTitle = '📊 BAGAN DIAGRAM / ILUSTRASI KONSEP';
       }
 
       const borderColor = isCanvas

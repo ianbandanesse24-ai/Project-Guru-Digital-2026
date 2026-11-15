@@ -96,6 +96,11 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
   const schoolProfile = StorageService.getSchoolProfile();
   const masterCP = StorageService.getActiveMasterCP();
 
+  // Pilihan Semester (1 = Ganjil, 2 = Genap) — hanya menampilkan semester yang dipilih
+  const [selectedSemester, setSelectedSemester] = useState<'Ganjil' | 'Genap'>(() =>
+    schoolProfile.semester === 'Genap' ? 'Genap' : 'Ganjil'
+  );
+
   const [subject, setSubject] = useState<string>(masterCP?.subject || schoolProfile.subject || 'Fisika');
   const [level, setLevel] = useState<EducationLevel>(
     (masterCP?.level as EducationLevel) || (schoolProfile.level as EducationLevel) || 'SMA'
@@ -185,7 +190,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
     semester2: workingSem2,
   };
 
-  // Generate 1 unified Markdown document for the active choice
+  // Generate 1 unified Markdown document for the active choice & selected semester
   const previewMarkdown = generateExpertCurriculumDocument({
     toolType: 'analisis_alokasi_waktu',
     docType: 'analisis_alokasi_waktu',
@@ -193,7 +198,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
     level,
     grade,
     academicYear,
-    semester: '1 Tahun',
+    semester: selectedSemester,
     kalenderData: workingKaldikPreviewData,
     kaldikData: workingKaldikPreviewData,
     customFormatConfig,
@@ -238,8 +243,10 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
       StorageService.saveKalenderPendidikan(updated);
       setHasGeneratedKaldik(true);
       setIsGeneratingKaldik(false);
+      const activeSemAnalysis = selectedSemester === 'Ganjil' ? analyzed.semester1 : analyzed.semester2;
+      const semLabel = selectedSemester === 'Ganjil' ? 'Semester 1 (Ganjil)' : 'Semester 2 (Genap)';
       setSaveToast(
-        `Analisis dari KALDIK selesai! Sem 1: ${analyzed.semester1.totalEffectiveWeeks} Pekan Efektif (${analyzed.semester1.totalEffectiveHours} JP) • Sem 2: ${analyzed.semester2.totalEffectiveWeeks} Pekan Efektif (${analyzed.semester2.totalEffectiveHours} JP).`
+        `Analisis dari KALDIK selesai! ${semLabel}: ${activeSemAnalysis.totalEffectiveWeeks} Pekan Efektif (${activeSemAnalysis.totalEffectiveHours} JP).`
       );
       setTimeout(() => setSaveToast(null), 4500);
     }, 350);
@@ -511,24 +518,31 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
   };
 
   // ============================================================================
-  // EKSPOR 1 DOKUMEN DALAM BENTUK TABEL (EXCEL, WORD, PRINT/PDF)
+  // EKSPOR DOKUMEN DALAM BENTUK TABEL SESUAI SEMESTER YANG DIPILIH (EXCEL, WORD, PRINT/PDF)
   // ============================================================================
   const handleExportTableExcel = () => {
     const wb = XLSX.utils.book_new();
+    const isSem1 = selectedSemester === 'Ganjil';
+    const semLabel = isSem1 ? 'Semester 1 (Ganjil)' : 'Semester 2 (Genap)';
+    const semPlan = isSem1 ? workingSem1 : workingSem2;
+    const semMaterials = isSem1 ? materialsSem1 : materialsSem2;
+    const semReserve = Number(semPlan.reservedHours) || 6;
+    const semEffJP = semPlan.totalEffectiveWeeks * jpPerWeek;
+    const semNetJP = Math.max(0, semEffJP - semReserve);
+
     const sourceText =
       selectedChoice === 'upload_mandiri' && uploadedInfo
         ? `Upload Mandiri (${uploadedInfo.fileName})`
         : `Hasil Analisis KALDIK TP ${academicYear}`;
 
-    // Sheet 1: 1 Dokumen Tabel Lengkap (Sem 1 + Sem 2 + Rekapitulasi)
     const combinedRows: any[][] = [
-      ['ANALISIS ALOKASI WAKTU & RINCIAN PEKAN EFEKTIF (RBE) — 1 DOKUMEN TABEL LENGKAP'],
+      [`ANALISIS ALOKASI WAKTU & RINCIAN PEKAN EFEKTIF (RBE) — ${semLabel.toUpperCase()}`],
       [`Satuan Pendidikan: ${schoolProfile.schoolName || '-'} | Mapel: ${subject} | Kelas ${grade} (${level})`],
       [`Tahun Pelajaran: ${academicYear} | Beban Mengajar: ${jpPerWeek} JP/Minggu | Sumber: ${sourceText}`],
       [],
-      ['A. TABEL ANALISIS PEKAN EFEKTIF SEMESTER 1 (GANJIL)'],
+      [`A. TABEL ANALISIS PEKAN EFEKTIF ${semLabel.toUpperCase()}`],
       ['No', 'Bulan', 'Jumlah Pekan Kalender', 'Pekan Tidak Efektif', 'Pekan Efektif KBM (RBE)', 'Total JP (RBE × JP/Mg)', 'Keterangan Agenda & Kalender'],
-      ...workingSem1.months.map((m, idx) => [
+      ...semPlan.months.map((m, idx) => [
         idx + 1,
         m.monthName,
         m.totalWeeks,
@@ -539,64 +553,24 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
       ]),
       [
         'TOTAL',
-        'Semester 1 (Ganjil)',
-        workingSem1.totalWeeks,
-        workingSem1.nonEffectiveWeeks,
-        workingSem1.totalEffectiveWeeks,
-        workingSem1.totalEffectiveWeeks * jpPerWeek,
-        `Cadangan Asesmen: 6 JP | Jam Efektif KBM: ${Math.max(0, workingSem1.totalEffectiveWeeks * jpPerWeek - 6)} JP`,
+        semLabel,
+        semPlan.totalWeeks,
+        semPlan.nonEffectiveWeeks,
+        semPlan.totalEffectiveWeeks,
+        semEffJP,
+        `Cadangan Asesmen: ${semReserve} JP | Jam Efektif KBM: ${semNetJP} JP`,
       ],
       [],
-      ['B. TABEL ANALISIS PEKAN EFEKTIF SEMESTER 2 (GENAP)'],
-      ['No', 'Bulan', 'Jumlah Pekan Kalender', 'Pekan Tidak Efektif', 'Pekan Efektif KBM (RBE)', 'Total JP (RBE × JP/Mg)', 'Keterangan Agenda & Kalender'],
-      ...workingSem2.months.map((m, idx) => [
-        idx + 1,
-        m.monthName,
-        m.totalWeeks,
-        m.nonEffectiveWeeks,
-        m.effectiveWeeks,
-        m.effectiveWeeks * jpPerWeek,
-        m.description || '',
-      ]),
-      [
-        'TOTAL',
-        'Semester 2 (Genap)',
-        workingSem2.totalWeeks,
-        workingSem2.nonEffectiveWeeks,
-        workingSem2.totalEffectiveWeeks,
-        workingSem2.totalEffectiveWeeks * jpPerWeek,
-        `Cadangan Asesmen: 6 JP | Jam Efektif KBM: ${Math.max(0, workingSem2.totalEffectiveWeeks * jpPerWeek - 6)} JP`,
-      ],
-      [],
-      ['C. REKAPITULASI ALOKASI WAKTU 1 TAHUN PELAJARAN'],
+      [`B. REKAPITULASI ALOKASI WAKTU ${semLabel.toUpperCase()}`],
       ['Semester', 'Total Pekan Kalender', 'Pekan Tidak Efektif', 'Pekan Efektif (RBE)', 'Total Jam Pelajaran (JP)', 'Cadangan Asesmen (JP)', 'Jam Efektif Tatap Muka (JP)'],
       [
-        'Semester 1 (Ganjil)',
-        workingSem1.totalWeeks,
-        workingSem1.nonEffectiveWeeks,
-        workingSem1.totalEffectiveWeeks,
-        workingSem1.totalEffectiveWeeks * jpPerWeek,
-        6,
-        Math.max(0, workingSem1.totalEffectiveWeeks * jpPerWeek - 6),
-      ],
-      [
-        'Semester 2 (Genap)',
-        workingSem2.totalWeeks,
-        workingSem2.nonEffectiveWeeks,
-        workingSem2.totalEffectiveWeeks,
-        workingSem2.totalEffectiveWeeks * jpPerWeek,
-        6,
-        Math.max(0, workingSem2.totalEffectiveWeeks * jpPerWeek - 6),
-      ],
-      [
-        'TOTAL 1 TAHUN',
-        workingSem1.totalWeeks + workingSem2.totalWeeks,
-        workingSem1.nonEffectiveWeeks + workingSem2.nonEffectiveWeeks,
-        workingSem1.totalEffectiveWeeks + workingSem2.totalEffectiveWeeks,
-        (workingSem1.totalEffectiveWeeks + workingSem2.totalEffectiveWeeks) * jpPerWeek,
-        12,
-        Math.max(0, workingSem1.totalEffectiveWeeks * jpPerWeek - 6) +
-          Math.max(0, workingSem2.totalEffectiveWeeks * jpPerWeek - 6),
+        semLabel,
+        semPlan.totalWeeks,
+        semPlan.nonEffectiveWeeks,
+        semPlan.totalEffectiveWeeks,
+        semEffJP,
+        semReserve,
+        semNetJP,
       ],
     ];
 
@@ -610,26 +584,18 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
       { wch: 22 },
       { wch: 48 },
     ];
-    XLSX.utils.book_append_sheet(wb, wsCombined, 'Tabel Alokasi Waktu Lengkap');
+    XLSX.utils.book_append_sheet(wb, wsCombined, isSem1 ? 'Alokasi Waktu Sem 1' : 'Alokasi Waktu Sem 2');
 
-    // Sheet 2: Distribusi JP per Bab
+    // Sheet 2: Distribusi JP per Bab untuk semester terpilih
     const babRows: any[][] = [
-      ['DISTRIBUSI ALOKASI WAKTU PER BAB / LINGKUP MATERI'],
+      [`DISTRIBUSI ALOKASI WAKTU PER BAB / LINGKUP MATERI — ${semLabel.toUpperCase()}`],
       [`Mata Pelajaran: ${subject} | Kelas ${grade} (${level}) | ${jpPerWeek} JP/Minggu`],
       [],
       ['Semester', 'No', 'Kode TP', 'Bab / Lingkup Materi Pokok', 'Alokasi JP', 'Jumlah Pertemuan'],
-      ...materialsSem1.map((m, idx) => [
-        'Semester 1 (Ganjil)',
+      ...semMaterials.map((m, idx) => [
+        semLabel,
         idx + 1,
-        m.tpCode || `TP.${grade}.1.${idx + 1}`,
-        m.essentialMaterial || m.tpName || `Bab ${idx + 1}`,
-        Number(m.allocatedHours) || 18,
-        Math.max(1, Math.round((Number(m.allocatedHours) || 18) / (jpPerWeek || 1))),
-      ]),
-      ...materialsSem2.map((m, idx) => [
-        'Semester 2 (Genap)',
-        idx + 1,
-        m.tpCode || `TP.${grade}.2.${idx + 1}`,
+        m.tpCode || `TP.${grade}.${isSem1 ? 1 : 2}.${idx + 1}`,
         m.essentialMaterial || m.tpName || `Bab ${idx + 1}`,
         Number(m.allocatedHours) || 18,
         Math.max(1, Math.round((Number(m.allocatedHours) || 18) / (jpPerWeek || 1))),
@@ -639,7 +605,8 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
     wsBab['!cols'] = [{ wch: 20 }, { wch: 6 }, { wch: 14 }, { wch: 42 }, { wch: 14 }, { wch: 18 }];
     XLSX.utils.book_append_sheet(wb, wsBab, 'Distribusi JP per Bab');
 
-    const fileName = `Analisis_Alokasi_Waktu_Tabel_${subject.replace(/\s+/g, '_')}_${academicYear.replace('/', '-')}.xlsx`;
+    const semTag = isSem1 ? 'Sem1' : 'Sem2';
+    const fileName = `Analisis_Alokasi_Waktu_${semTag}_${subject.replace(/\s+/g, '_')}_${academicYear.replace('/', '-')}.xlsx`;
     XLSX.writeFile(wb, fileName);
     setSaveToast(`Tabel Excel "${fileName}" berhasil diunduh!`);
     setTimeout(() => setSaveToast(null), 3500);
@@ -647,16 +614,17 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
 
   const handleExportWord = () => {
     const profile = StorageService.getSchoolProfile();
-    const fileName = `Analisis_Alokasi_Waktu_${subject.replace(/\s+/g, '_')}_${academicYear.replace('/', '-')}`;
+    const semTag = selectedSemester === 'Ganjil' ? 'Sem1' : 'Sem2';
+    const fileName = `Analisis_Alokasi_Waktu_${semTag}_${subject.replace(/\s+/g, '_')}_${academicYear.replace('/', '-')}`;
     ExportService.exportToWord(
-      `ANALISIS ALOKASI WAKTU - ${subject.toUpperCase()}`,
+      `ANALISIS ALOKASI WAKTU ${selectedSemester.toUpperCase()} - ${subject.toUpperCase()}`,
       previewMarkdown,
       {
         ...profile,
         subject,
         grade,
         level,
-        semester: 'Ganjil',
+        semester: selectedSemester,
         docType: 'analisis_alokasi_waktu',
       },
       fileName
@@ -690,25 +658,32 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
     setTimeout(() => setSaveToast(null), 3500);
   };
 
-  // Helper renderer for 1-Document Unified Editable Table (Sem 1 + Sem 2 + Rekapitulasi + Bab)
+  // Helper renderer for Editable Table filtered strictly to selectedSemester
   const renderUnifiedEditableTableDocument = (choice: 'kaldik' | 'upload_mandiri') => {
-    const sem1 = choice === 'upload_mandiri' && uploadedInfo ? uploadedSem1 : kaldikSem1;
-    const sem2 = choice === 'upload_mandiri' && uploadedInfo ? uploadedSem2 : kaldikSem2;
+    const isSem1 = selectedSemester === 'Ganjil';
+    const semKey: 'semester1' | 'semester2' = isSem1 ? 'semester1' : 'semester2';
+    const semLabel = isSem1 ? 'Semester 1 (Ganjil)' : 'Semester 2 (Genap)';
+    const activePlan =
+      choice === 'upload_mandiri' && uploadedInfo
+        ? isSem1
+          ? uploadedSem1
+          : uploadedSem2
+        : isSem1
+        ? kaldikSem1
+        : kaldikSem2;
 
-    const s1TotalEffJP = sem1.totalEffectiveWeeks * jpPerWeek;
-    const s2TotalEffJP = sem2.totalEffectiveWeeks * jpPerWeek;
-    const s1Reserve = Number(sem1.reservedHours) || 6;
-    const s2Reserve = Number(sem2.reservedHours) || 6;
-    const s1NetJP = Math.max(0, s1TotalEffJP - s1Reserve);
-    const s2NetJP = Math.max(0, s2TotalEffJP - s2Reserve);
+    const totalEffJP = activePlan.totalEffectiveWeeks * jpPerWeek;
+    const reserve = Number(activePlan.reservedHours) || 6;
+    const netJP = Math.max(0, totalEffJP - reserve);
+    const activeMaterials = isSem1 ? materialsSem1 : materialsSem2;
 
     const renderSemesterTable = (
       title: string,
-      semKey: 'semester1' | 'semester2',
+      key: 'semester1' | 'semester2',
       plan: KalenderSemesterPlan,
       effJP: number,
-      reserve: number,
-      netJP: number
+      resHours: number,
+      netHours: number
     ) => (
       <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
         <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
@@ -721,7 +696,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
               {plan.totalEffectiveWeeks} Pekan Efektif ({effJP} JP)
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-bold">
-              KBM Bersih: {netJP} JP (Cadangan {reserve} JP)
+              KBM Bersih: {netHours} JP (Cadangan {resHours} JP)
             </span>
           </div>
         </div>
@@ -754,7 +729,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                       onChange={(e) =>
                         handleMonthChangeForChoice(
                           choice,
-                          semKey,
+                          key,
                           idx,
                           'totalWeeks',
                           String(parseNumberInput(e.target.value, 0, 0, 6))
@@ -773,7 +748,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                       onChange={(e) =>
                         handleMonthChangeForChoice(
                           choice,
-                          semKey,
+                          key,
                           idx,
                           'nonEffectiveWeeks',
                           String(parseNumberInput(e.target.value, 0, 0, 6))
@@ -795,7 +770,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                       type="text"
                       value={m.description || ''}
                       onChange={(e) =>
-                        handleMonthChangeForChoice(choice, semKey, idx, 'description', e.target.value)
+                        handleMonthChangeForChoice(choice, key, idx, 'description', e.target.value)
                       }
                       className="w-full bg-white border border-slate-300 rounded-md py-1 px-2 text-xs text-slate-800 focus:border-blue-600 focus:outline-none"
                       placeholder="Keterangan agenda..."
@@ -805,7 +780,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
               ))}
               <tr className="bg-slate-100/80 font-bold text-slate-900 border-t-2 border-slate-200">
                 <td colSpan={2} className="p-2.5 text-right uppercase text-blue-800 text-[11px]">
-                  Total {semKey === 'semester1' ? 'Semester 1' : 'Semester 2'}:
+                  Total {key === 'semester1' ? 'Semester 1' : 'Semester 2'}:
                 </td>
                 <td className="p-2.5 text-center">{plan.totalWeeks} Pkn</td>
                 <td className="p-2.5 text-center text-rose-700">{plan.nonEffectiveWeeks} Pkn</td>
@@ -814,7 +789,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                 </td>
                 <td className="p-2.5 text-center text-blue-800 font-black">{effJP} JP</td>
                 <td className="p-2.5 text-[11px] text-slate-600">
-                  {plan.totalEffectiveWeeks} Pekan Efektif × {jpPerWeek} JP/Mg = {effJP} JP (Bersih KBM: {netJP} JP)
+                  {plan.totalEffectiveWeeks} Pekan Efektif × {jpPerWeek} JP/Mg = {effJP} JP (Bersih KBM: {netHours} JP)
                 </td>
               </tr>
             </tbody>
@@ -825,32 +800,23 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
 
     return (
       <div className="space-y-4">
-        {/* 1. Tabel Semester 1 & Semester 2 dalam 1 Dokumen */}
+        {/* 1. Tabel Rincian Pekan Efektif untuk Semester Terpilih */}
         {renderSemesterTable(
-          'Tabel 1: Rincian Pekan Efektif (RBE) — Semester 1 (Ganjil)',
-          'semester1',
-          sem1,
-          s1TotalEffJP,
-          s1Reserve,
-          s1NetJP
+          `Tabel 1: Rincian Pekan Efektif (RBE) — ${semLabel}`,
+          semKey,
+          activePlan,
+          totalEffJP,
+          reserve,
+          netJP
         )}
 
-        {renderSemesterTable(
-          'Tabel 2: Rincian Pekan Efektif (RBE) — Semester 2 (Genap)',
-          'semester2',
-          sem2,
-          s2TotalEffJP,
-          s2Reserve,
-          s2NetJP
-        )}
-
-        {/* 2. Tabel Rekapitulasi 1 Tahun Pelajaran */}
+        {/* 2. Tabel Rekapitulasi Alokasi Waktu Semester Terpilih */}
         <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
           <div className="px-4 py-3 bg-indigo-50/70 border-b border-indigo-200 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Calculator className="w-4 h-4 text-indigo-700" />
               <h3 className="text-xs sm:text-sm font-bold text-indigo-950">
-                Tabel 3: Rekapitulasi Alokasi Waktu 1 Tahun Pelajaran ({academicYear})
+                Tabel 2: Rekapitulasi Alokasi Waktu {semLabel} ({academicYear})
               </h3>
             </div>
             <span className="text-[11px] font-bold text-indigo-700">
@@ -871,66 +837,40 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
-                <tr>
-                  <td className="p-2.5 font-bold text-slate-900">Semester 1 (Ganjil)</td>
-                  <td className="p-2.5 text-center">{sem1.totalWeeks} Pekan</td>
-                  <td className="p-2.5 text-center text-rose-600">{sem1.nonEffectiveWeeks} Pekan</td>
+                <tr className="bg-indigo-50/40 font-bold text-slate-900">
+                  <td className="p-2.5 font-bold text-indigo-900">{semLabel}</td>
+                  <td className="p-2.5 text-center">{activePlan.totalWeeks} Pekan</td>
+                  <td className="p-2.5 text-center text-rose-600">{activePlan.nonEffectiveWeeks} Pekan</td>
                   <td className="p-2.5 text-center font-bold text-emerald-700">
-                    {sem1.totalEffectiveWeeks} Pekan
+                    {activePlan.totalEffectiveWeeks} Pekan
                   </td>
-                  <td className="p-2.5 text-center font-bold text-blue-700">{s1TotalEffJP} JP</td>
-                  <td className="p-2.5 text-center text-amber-700">{s1Reserve} JP</td>
-                  <td className="p-2.5 text-center font-black text-indigo-800">{s1NetJP} JP</td>
-                </tr>
-                <tr>
-                  <td className="p-2.5 font-bold text-slate-900">Semester 2 (Genap)</td>
-                  <td className="p-2.5 text-center">{sem2.totalWeeks} Pekan</td>
-                  <td className="p-2.5 text-center text-rose-600">{sem2.nonEffectiveWeeks} Pekan</td>
-                  <td className="p-2.5 text-center font-bold text-emerald-700">
-                    {sem2.totalEffectiveWeeks} Pekan
-                  </td>
-                  <td className="p-2.5 text-center font-bold text-blue-700">{s2TotalEffJP} JP</td>
-                  <td className="p-2.5 text-center text-amber-700">{s2Reserve} JP</td>
-                  <td className="p-2.5 text-center font-black text-indigo-800">{s2NetJP} JP</td>
-                </tr>
-                <tr className="bg-indigo-50/60 font-black text-slate-900 border-t-2 border-indigo-200">
-                  <td className="p-2.5 text-indigo-900">TOTAL 1 TAHUN</td>
-                  <td className="p-2.5 text-center">{sem1.totalWeeks + sem2.totalWeeks} Pekan</td>
-                  <td className="p-2.5 text-center text-rose-700">
-                    {sem1.nonEffectiveWeeks + sem2.nonEffectiveWeeks} Pekan
-                  </td>
-                  <td className="p-2.5 text-center text-emerald-800">
-                    {sem1.totalEffectiveWeeks + sem2.totalEffectiveWeeks} Pekan
-                  </td>
-                  <td className="p-2.5 text-center text-blue-800">
-                    {s1TotalEffJP + s2TotalEffJP} JP
-                  </td>
-                  <td className="p-2.5 text-center text-amber-800">{s1Reserve + s2Reserve} JP</td>
-                  <td className="p-2.5 text-center text-indigo-950">{s1NetJP + s2NetJP} JP</td>
+                  <td className="p-2.5 text-center font-bold text-blue-700">{totalEffJP} JP</td>
+                  <td className="p-2.5 text-center text-amber-700">{reserve} JP</td>
+                  <td className="p-2.5 text-center font-black text-indigo-900">{netJP} JP</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* 3. Tabel Distribusi JP per Bab (Acuan PROSEM) */}
+        {/* 3. Tabel Distribusi JP per Bab (Acuan PROSEM) untuk Semester Terpilih */}
         <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
           <div className="px-4 py-3 bg-emerald-50/70 border-b border-emerald-200 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center space-x-2">
               <BookOpen className="w-4 h-4 text-emerald-700" />
               <h3 className="text-xs sm:text-sm font-bold text-emerald-950">
-                Tabel 4: Distribusi Alokasi JP per Bab / Materi Pokok (Acuan PROSEM)
+                Tabel 3: Distribusi Alokasi JP per Bab / Materi Pokok — {semLabel} (Acuan PROSEM)
               </h3>
             </div>
             <span className="text-[11px] font-semibold text-emerald-800">
-              {materialsSem1.length + materialsSem2.length} Bab Terdaftar • {jpPerWeek} JP/Minggu
+              {activeMaterials.length} Bab {semLabel} • {jpPerWeek} JP/Minggu
             </span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-700">
               <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold border-b border-slate-200">
                 <tr>
-                  <th className="p-2.5 w-28">Semester</th>
+                  <th className="p-2.5 w-32">Semester</th>
                   <th className="p-2.5 w-24">Kode TP</th>
                   <th className="p-2.5">Bab / Lingkup Materi Pokok</th>
                   <th className="p-2.5 w-28 text-center">Alokasi JP</th>
@@ -938,31 +878,16 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
-                {materialsSem1.map((m, idx) => {
+                {activeMaterials.map((m, idx) => {
                   const jp = Number(m.allocatedHours) || 18;
                   const mtg = Math.max(1, Math.round(jp / (jpPerWeek || 1)));
                   return (
-                    <tr key={`s1-${idx}`} className="hover:bg-slate-50/60">
-                      <td className="p-2.5 font-bold text-blue-700">Sem 1 (Ganjil)</td>
-                      <td className="p-2.5 font-mono text-[11px] text-slate-600">
-                        {m.tpCode || `TP.${grade}.1.${idx + 1}`}
+                    <tr key={`active-sem-${idx}`} className="hover:bg-slate-50/60">
+                      <td className={`p-2.5 font-bold ${isSem1 ? 'text-blue-700' : 'text-indigo-700'}`}>
+                        {isSem1 ? 'Sem 1 (Ganjil)' : 'Sem 2 (Genap)'}
                       </td>
-                      <td className="p-2.5 font-semibold text-slate-900">
-                        {m.essentialMaterial || m.tpName}
-                      </td>
-                      <td className="p-2.5 text-center font-bold text-emerald-700">{jp} JP</td>
-                      <td className="p-2.5 text-center text-slate-700">{mtg} Pertemuan</td>
-                    </tr>
-                  );
-                })}
-                {materialsSem2.map((m, idx) => {
-                  const jp = Number(m.allocatedHours) || 18;
-                  const mtg = Math.max(1, Math.round(jp / (jpPerWeek || 1)));
-                  return (
-                    <tr key={`s2-${idx}`} className="hover:bg-slate-50/60">
-                      <td className="p-2.5 font-bold text-indigo-700">Sem 2 (Genap)</td>
                       <td className="p-2.5 font-mono text-[11px] text-slate-600">
-                        {m.tpCode || `TP.${grade}.2.${idx + 1}`}
+                        {m.tpCode || `TP.${grade}.${isSem1 ? 1 : 2}.${idx + 1}`}
                       </td>
                       <td className="p-2.5 font-semibold text-slate-900">
                         {m.essentialMaterial || m.tpName}
@@ -1100,7 +1025,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
           </div>
         </div>
 
-        {/* Status Acuan PROSEM Aktif */}
+        {/* Status Acuan PROSEM Aktif & Pemilih Semester (1 / 2) */}
         <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-slate-500 font-semibold flex items-center gap-1">
@@ -1120,25 +1045,71 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
             )}
           </div>
 
-          <div className="flex items-center space-x-2 text-slate-600 font-medium text-[11px]">
+          <div className="flex flex-wrap items-center gap-3 text-slate-600 font-medium text-[11px]">
             <span>
               Beban: <strong className="text-slate-900">{jpPerWeek} JP/Minggu</strong>
             </span>
             <span>•</span>
             <span>
-              Sem 1:{' '}
+              {selectedSemester === 'Ganjil' ? 'Sem 1 (Ganjil): ' : 'Sem 2 (Genap): '}
               <strong className="text-emerald-700">
-                {kalenderData.semester1.totalEffectiveWeeks} Pekan ({kalenderData.semester1.totalEffectiveWeeks * jpPerWeek} JP)
-              </strong>
-            </span>
-            <span>•</span>
-            <span>
-              Sem 2:{' '}
-              <strong className="text-emerald-700">
-                {kalenderData.semester2.totalEffectiveWeeks} Pekan ({kalenderData.semester2.totalEffectiveWeeks * jpPerWeek} JP)
+                {(selectedSemester === 'Ganjil'
+                  ? workingSem1.totalEffectiveWeeks
+                  : workingSem2.totalEffectiveWeeks)}{' '}
+                Pekan (
+                {(selectedSemester === 'Ganjil'
+                  ? workingSem1.totalEffectiveWeeks
+                  : workingSem2.totalEffectiveWeeks) * jpPerWeek}{' '}
+                JP)
               </strong>
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* PILIHAN SEMESTER: SEMESTER 1 (GANJIL) ATAU SEMESTER 2 (GENAP) */}
+      {/* ========================================================================= */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center space-x-2.5">
+          <div className="p-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 shrink-0">
+            <Calendar className="w-4 h-4" />
+          </div>
+          <div>
+            <h2 className="text-xs sm:text-sm font-bold text-slate-900">
+              Pilih Semester yang Ditampilkan
+            </h2>
+            <p className="text-[11px] text-slate-500">
+              Analisis Alokasi Waktu (RBE &amp; Upload Mandiri) hanya menampilkan data sesuai semester yang dipilih.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200 shrink-0">
+          <button
+            type="button"
+            id="btn-pilih-sem-1"
+            onClick={() => setSelectedSemester('Ganjil')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center space-x-1.5 ${
+              selectedSemester === 'Ganjil'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <span>Semester 1 (Ganjil)</span>
+          </button>
+          <button
+            type="button"
+            id="btn-pilih-sem-2"
+            onClick={() => setSelectedSemester('Genap')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center space-x-1.5 ${
+              selectedSemester === 'Genap'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <span>Semester 2 (Genap)</span>
+          </button>
         </div>
       </div>
 
@@ -1199,7 +1170,8 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                   Analisis &amp; Generate dari KALDIK (1 Dokumen Tabel)
                 </h2>
                 <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  Menganalisis data Kalender Pendidikan (KALDIK) menjadi <strong>1 dokumen lengkap</strong> Analisis Alokasi Waktu Semester 1 &amp; 2 yang dapat diedit dan disimpan dalam bentuk tabel (Excel / Word / PDF).
+                  Menganalisis data Kalender Pendidikan (KALDIK) menjadi dokumen Analisis Alokasi Waktu{' '}
+                  <strong>{selectedSemester === 'Ganjil' ? 'Semester 1 (Ganjil)' : 'Semester 2 (Genap)'}</strong> yang dapat diedit dan disimpan dalam bentuk tabel (Excel / Word / PDF).
                 </p>
               </div>
             </div>
@@ -1207,8 +1179,11 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
 
           <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] font-semibold">
             <span className="text-slate-600">
-              Sem 1: <strong className="text-blue-700">{kaldikSem1.totalEffectiveWeeks} Pkn</strong> • Sem 2:{' '}
-              <strong className="text-blue-700">{kaldikSem2.totalEffectiveWeeks} Pkn</strong>
+              {selectedSemester === 'Ganjil' ? 'Sem 1 (Ganjil): ' : 'Sem 2 (Genap): '}
+              <strong className="text-blue-700">
+                {selectedSemester === 'Ganjil' ? kaldikSem1.totalEffectiveWeeks : kaldikSem2.totalEffectiveWeeks} Pkn
+                ({(selectedSemester === 'Ganjil' ? kaldikSem1.totalEffectiveWeeks : kaldikSem2.totalEffectiveWeeks) * jpPerWeek} JP)
+              </strong>
             </span>
             <span className={selectedChoice === 'kaldik' ? 'text-blue-700 font-bold' : 'text-slate-500'}>
               {selectedChoice === 'kaldik' ? 'Sedang Dibuka ●' : 'Klik untuk Memilih →'}
@@ -1294,7 +1269,7 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                 </h2>
                 {hasGeneratedKaldik && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    ✓ Tergenerate (1 Dokumen Lengkap)
+                    ✓ Tergenerate ({selectedSemester === 'Ganjil' ? 'Semester 1' : 'Semester 2'})
                   </span>
                 )}
               </div>
@@ -1305,7 +1280,8 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                     kalenderData.uploadedFile?.fileName ||
                     `Kalender Pendidikan Standar TP ${academicYear}`}
                 </strong>{' '}
-                • Beban Mapel: <strong>{jpPerWeek} JP/Minggu</strong>. Klik tombol di kanan untuk menganalisis ulang KALDIK menjadi 1 dokumen tabel utuh.
+                • Beban Mapel: <strong>{jpPerWeek} JP/Minggu</strong> • Tampilan aktif:{' '}
+                <strong>{selectedSemester === 'Ganjil' ? 'Semester 1 (Ganjil)' : 'Semester 2 (Genap)'}</strong>.
               </p>
             </div>
 
@@ -1349,7 +1325,9 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                 }`}
               >
                 <Table className="w-3.5 h-3.5" />
-                <span>1 Dokumen Bentuk Tabel (Sem 1, Sem 2 &amp; Rekap)</span>
+                <span>
+                  Bentuk Tabel ({selectedSemester === 'Ganjil' ? 'Semester 1' : 'Semester 2'})
+                </span>
               </button>
               <button
                 type="button"
@@ -1361,7 +1339,9 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>Pratinjau Dokumen Resmi Lengkap</span>
+                <span>
+                  Pratinjau Dokumen ({selectedSemester === 'Ganjil' ? 'Semester 1' : 'Semester 2'})
+                </span>
               </button>
             </div>
 
@@ -1504,9 +1484,18 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                       )}
                     </div>
                     <p className="text-xs text-emerald-800 mt-0.5">
-                      Sem 1: <strong>{uploadedSem1.totalEffectiveWeeks} Pekan</strong> • Sem 2:{' '}
-                      <strong>{uploadedSem2.totalEffectiveWeeks} Pekan</strong> • Beban:{' '}
-                      <strong>{jpPerWeek} JP/Minggu</strong>
+                      {selectedSemester === 'Ganjil' ? 'Semester 1 (Ganjil): ' : 'Semester 2 (Genap): '}
+                      <strong>
+                        {selectedSemester === 'Ganjil'
+                          ? uploadedSem1.totalEffectiveWeeks
+                          : uploadedSem2.totalEffectiveWeeks}{' '}
+                        Pekan (
+                        {(selectedSemester === 'Ganjil'
+                          ? uploadedSem1.totalEffectiveWeeks
+                          : uploadedSem2.totalEffectiveWeeks) * jpPerWeek}{' '}
+                        JP)
+                      </strong>{' '}
+                      • Beban: <strong>{jpPerWeek} JP/Minggu</strong>
                     </p>
                   </div>
                 </div>
@@ -1692,18 +1681,19 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
                   {subject} • Kelas {grade} ({level})
                 </span>
               </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="text-slate-500 font-medium">Semester 1 (Ganjil):</span>
-                <span className="font-bold text-emerald-700">
-                  {kalenderData.semester1.totalEffectiveWeeks} Pekan Efektif (
-                  {kalenderData.semester1.totalEffectiveWeeks * jpPerWeek} JP)
-                </span>
-              </div>
               <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Semester 2 (Genap):</span>
+                <span className="text-slate-500 font-medium">
+                  {selectedSemester === 'Ganjil' ? 'Semester 1 (Ganjil):' : 'Semester 2 (Genap):'}
+                </span>
                 <span className="font-bold text-emerald-700">
-                  {kalenderData.semester2.totalEffectiveWeeks} Pekan Efektif (
-                  {kalenderData.semester2.totalEffectiveWeeks * jpPerWeek} JP)
+                  {(selectedSemester === 'Ganjil'
+                    ? kalenderData.semester1.totalEffectiveWeeks
+                    : kalenderData.semester2.totalEffectiveWeeks)}{' '}
+                  Pekan Efektif (
+                  {(selectedSemester === 'Ganjil'
+                    ? kalenderData.semester1.totalEffectiveWeeks
+                    : kalenderData.semester2.totalEffectiveWeeks) * jpPerWeek}{' '}
+                  JP)
                 </span>
               </div>
             </div>

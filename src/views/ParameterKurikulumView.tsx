@@ -9,7 +9,6 @@ import {
   Calendar,
   Clock,
   GraduationCap,
-  ArrowRight,
   CheckCircle2,
   Info,
   RefreshCw,
@@ -459,63 +458,6 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
       jpPerWeek,
       `Bab ${nextIdx} ("${materialName}") berhasil ditambahkan & otomatis tersinkron ke Distribusi Alokasi Waktu, PROSEM & Perangkat Ajar!`
     );
-  };
-
-  // Auto-distribute total semester hours across BABs where every BAB's JP MUST be a multiple of jpPerWeek!
-  const handleAutoDistributeSemesterHours = (sem: 1 | 2, customTargetHours?: number) => {
-    const list = sem === 1 ? materialsSem1 : materialsSem2;
-    if (list.length === 0) return;
-    const numBab = list.length;
-    const kaldik = StorageService.getKalenderPendidikan();
-    const semData = sem === 1 ? kaldik.semester1 : kaldik.semester2;
-    
-    // Effective weekly JP (ensure integer >= 1)
-    const weekJP = Math.max(1, Math.round(Number(jpPerWeek)) || 3);
-    
-    // Determine target total semester JP (default e.g. 90 JP or from RBE)
-    const currentSemTotal = sem === 1 ? totalJPSem1 : totalJPSem2;
-    const rbeTotal = semData?.totalEffectiveWeeks ? semData.totalEffectiveWeeks * weekJP : 90;
-    const defaultTotal = currentSemTotal > 0 ? currentSemTotal : rbeTotal;
-    
-    const rawTargetHours = customTargetHours !== undefined && customTargetHours > 0 ? customTargetHours : defaultTotal;
-    
-    // Total meetings available in the semester
-    const totalMeetings = Math.max(numBab, Math.round(rawTargetHours / weekJP));
-    const effectiveTotalJP = totalMeetings * weekJP;
-
-    // Distribute meetings evenly across chapters
-    const baseMeetingsPerBab = Math.floor(totalMeetings / numBab);
-    const remainderMeetings = totalMeetings % numBab;
-
-    const distributed: CPMaterialItem[] = list.map((item, idx) => {
-      // Number of meetings for this chapter
-      const meetings = Math.max(1, baseMeetingsPerBab + (idx < remainderMeetings ? 1 : 0));
-      // Allocated JP is GUARANTEED to be an exact multiple of jpPerWeek!
-      const allocatedHours = meetings * weekJP;
-      return {
-        ...item,
-        allocatedHours,
-        meetingCount: meetings,
-      };
-    });
-
-    if (sem === 1) {
-      setMaterialsSem1(distributed);
-      persistAndSyncParameters(
-        distributed,
-        materialsSem2,
-        weekJP,
-        `✅ Berhasil membagi ${effectiveTotalJP} JP ke ${numBab} BAB (Beban: ${weekJP} JP/Minggu) & disinkronkan ke Menu Distribusi Alokasi Waktu, PROSEM, PROTA & Modul Ajar!`
-      );
-    } else {
-      setMaterialsSem2(distributed);
-      persistAndSyncParameters(
-        materialsSem1,
-        distributed,
-        weekJP,
-        `✅ Berhasil membagi ${effectiveTotalJP} JP ke ${numBab} BAB (Beban: ${weekJP} JP/Minggu) & disinkronkan ke Menu Distribusi Alokasi Waktu, PROSEM, PROTA & Modul Ajar!`
-      );
-    }
   };
 
   const handleAutoGenerateTPForChapter = (sem: 1 | 2, chapterIdx: number) => {
@@ -1101,49 +1043,6 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                   </button>
                 </div>
 
-                {/* Auto-Distribute Formula & Helper Bar Sem 1 */}
-                <div className="p-3.5 bg-gradient-to-r from-blue-50 via-indigo-50 to-sky-50 border border-blue-200 rounded-xl space-y-2.5 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center space-x-1.5 font-bold text-blue-950">
-                        <Calculator className="w-4 h-4 text-blue-600" />
-                        <span>Distribusi JP/Bab Berdasarkan JP/Minggu ({jpPerWeek} JP/Mg):</span>
-                      </div>
-                      <p className="text-[11px] text-blue-800">
-                        Aturan Standar: <strong className="text-blue-950">Alokasi JP per BAB wajib kelipatan {jpPerWeek} JP/Minggu</strong> agar menghasilkan jumlah pertemuan utuh.
-                        (Contoh: Total 90 JP ÷ 3 BAB = <strong className="text-emerald-800">30 JP/Bab (10 Pertemuan)</strong>).
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleAutoDistributeSemesterHours(1)}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-2xs text-xs flex items-center space-x-1 transition cursor-pointer"
-                        title="Bagi rata total JP Semester 1 ke seluruh BAB secara proporsional kelipatan JP/Minggu"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                        <span>Bagi Rata Otomatis ({totalJPSem1 || 90} JP)</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Quick Target JP Presets */}
-                  <div className="pt-2 border-t border-blue-100 flex flex-wrap items-center gap-1.5 text-[10px]">
-                    <span className="font-bold text-blue-900 mr-1">Preset Total JP Sem 1:</span>
-                    {[90, 72, 60, 54, 48, 36].map((targetVal) => (
-                      <button
-                        key={targetVal}
-                        type="button"
-                        onClick={() => handleAutoDistributeSemesterHours(1, targetVal)}
-                        className="px-2 py-0.5 bg-white hover:bg-blue-100 text-blue-700 font-bold rounded-md border border-blue-300 shadow-2xs transition cursor-pointer"
-                        title={`Bagi rata ${targetVal} JP ke ${materialsSem1.length || 1} Bab (${targetVal / (jpPerWeek || 1)} Pertemuan)`}
-                      >
-                        {targetVal} JP ({Math.round(targetVal / (jpPerWeek || 1))} Ptm)
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {materialsSem1.length === 0 ? (
                   <div className="text-center py-6 bg-white rounded-xl border border-dashed border-slate-300 text-slate-500 text-xs">
                     <p>Belum ada bab materi di Semester 1.</p>
@@ -1433,49 +1332,6 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                     <Plus className="w-3.5 h-3.5" />
                     <span>+ Tambah Bab Sem 2</span>
                   </button>
-                </div>
-
-                {/* Auto-Distribute Formula & Helper Bar Sem 2 */}
-                <div className="p-3.5 bg-gradient-to-r from-blue-50 via-indigo-50 to-sky-50 border border-blue-200 rounded-xl space-y-2.5 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center space-x-1.5 font-bold text-blue-950">
-                        <Calculator className="w-4 h-4 text-blue-600" />
-                        <span>Distribusi JP/Bab Berdasarkan JP/Minggu ({jpPerWeek} JP/Mg):</span>
-                      </div>
-                      <p className="text-[11px] text-blue-800">
-                        Aturan Standar: <strong className="text-blue-950">Alokasi JP per BAB wajib kelipatan {jpPerWeek} JP/Minggu</strong> agar menghasilkan jumlah pertemuan utuh.
-                        (Contoh: Total 90 JP ÷ 3 BAB = <strong className="text-emerald-800">30 JP/Bab (10 Pertemuan)</strong>).
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleAutoDistributeSemesterHours(2)}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-2xs text-xs flex items-center space-x-1 transition cursor-pointer"
-                        title="Bagi rata total JP Semester 2 ke seluruh BAB secara proporsional kelipatan JP/Minggu"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                        <span>Bagi Rata Otomatis ({totalJPSem2 || 90} JP)</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Quick Target JP Presets */}
-                  <div className="pt-2 border-t border-blue-100 flex flex-wrap items-center gap-1.5 text-[10px]">
-                    <span className="font-bold text-blue-900 mr-1">Preset Total JP Sem 2:</span>
-                    {[90, 72, 60, 54, 48, 36].map((targetVal) => (
-                      <button
-                        key={targetVal}
-                        type="button"
-                        onClick={() => handleAutoDistributeSemesterHours(2, targetVal)}
-                        className="px-2 py-0.5 bg-white hover:bg-blue-100 text-blue-700 font-bold rounded-md border border-blue-300 shadow-2xs transition cursor-pointer"
-                        title={`Bagi rata ${targetVal} JP ke ${materialsSem2.length || 1} Bab (${targetVal / (jpPerWeek || 1)} Pertemuan)`}
-                      >
-                        {targetVal} JP ({Math.round(targetVal / (jpPerWeek || 1))} Ptm)
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 {materialsSem2.length === 0 ? (
@@ -1817,18 +1673,6 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
             >
               <Save className="w-4 h-4" />
               <span>Simpan & Terapkan Perubahan</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                handleSaveParameters();
-                setMainSection('upload_analisis_rbe');
-              }}
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-2 shadow-sm transition active:scale-95"
-            >
-              <span>Lanjut ke Langkah 2: Upload Kaldik & (Otomatis) Analisis RBE</span>
-              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>

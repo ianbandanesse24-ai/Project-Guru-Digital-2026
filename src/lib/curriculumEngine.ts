@@ -112,6 +112,126 @@ Pada tanggal : **${dateText}**
 `;
 }
 
+export function formatPhaseLabel(rawPhase?: string, grade?: number | string, _level?: string): string {
+  const cleaned = String(rawPhase || '').replace(/^fase\s+/i, '').trim();
+  if (cleaned && /^[A-F](\/[A-F])?$/i.test(cleaned)) {
+    return `Fase ${cleaned.toUpperCase()}`;
+  }
+  const numGrade = Number(grade);
+  if (!isNaN(numGrade) && numGrade > 0) {
+    if (numGrade <= 2) return 'Fase A';
+    if (numGrade <= 4) return 'Fase B';
+    if (numGrade <= 6) return 'Fase C';
+    if (numGrade <= 9) return 'Fase D';
+    if (numGrade === 10) return 'Fase E';
+    return 'Fase F';
+  }
+  if (rawPhase && /^fase\s+/i.test(rawPhase.trim())) {
+    return `Fase ${rawPhase.trim().replace(/^fase\s+/i, '').trim()}`;
+  }
+  return rawPhase ? `Fase ${rawPhase}` : 'Fase E';
+}
+
+/**
+ * Standar Baku Resmi Identitas Perangkat Ajar Kurikulum Berbasis Deep Learning
+ * Seragam, rapi, simetris, dan lengkap pada seluruh jenis perangkat ajar.
+ */
+export function buildOfficialIdentitas(options: {
+  sectionHeading?: string;
+  schoolName: string;
+  subject: string;
+  level: string;
+  grade: string | number;
+  gradeLabel?: string;
+  phase: string;
+  semester: string;
+  academicYear: string;
+  alokasiWaktu?: string;
+  teacherName: string;
+  teacherNip?: string;
+  headmasterName: string;
+  headmasterNip?: string;
+  extraRows?: Array<{ label: string; value: string }>;
+  footerExtraRows?: Array<{ label: string; value: string }>;
+  layout?: 'markdown' | 'html';
+}): string {
+  const cleanPipe = (val: string) => String(val || '-').replace(/\|/g, '/').trim();
+  const normalizedPhase = formatPhaseLabel(options.phase, options.grade, options.level);
+  const kelasLabel = options.gradeLabel || `Kelas ${options.grade}`;
+  const heading = options.sectionHeading ?? '### A. IDENTITAS PERANGKAT';
+
+  const rows: Array<{ label: string; value: string; boldValue?: boolean }> = [
+    { label: 'Satuan Pendidikan', value: options.schoolName || '-', boldValue: true },
+    { label: 'Mata Pelajaran', value: options.subject || '-', boldValue: true },
+    { label: 'Jenjang / Fase / Kelas', value: `${options.level || 'SMA'} / ${normalizedPhase} / ${kelasLabel}`, boldValue: true },
+    { label: 'Semester', value: options.semester || 'Ganjil', boldValue: true },
+    { label: 'Tahun Pelajaran', value: options.academicYear || '2025/2026', boldValue: true },
+  ];
+
+  if (options.alokasiWaktu) {
+    rows.push({ label: 'Alokasi Waktu', value: options.alokasiWaktu, boldValue: true });
+  }
+
+  if (options.extraRows && options.extraRows.length > 0) {
+    options.extraRows.forEach((r) => {
+      if (r.label && r.value) {
+        rows.push({ label: r.label, value: r.value, boldValue: false });
+      }
+    });
+  }
+
+  const teacherDisplay = options.teacherNip && options.teacherNip !== '-'
+    ? `${options.teacherName} (NIP. ${options.teacherNip})`
+    : options.teacherName;
+  const headmasterDisplay = options.headmasterNip && options.headmasterNip !== '-'
+    ? `${options.headmasterName} (NIP. ${options.headmasterNip})`
+    : options.headmasterName;
+
+  rows.push({ label: 'Guru Mata Pelajaran', value: teacherDisplay, boldValue: true });
+  rows.push({ label: 'Kepala Satuan Pendidikan', value: headmasterDisplay, boldValue: true });
+
+  if (options.footerExtraRows && options.footerExtraRows.length > 0) {
+    options.footerExtraRows.forEach((r) => {
+      if (r.label && r.value) {
+        rows.push({ label: r.label, value: r.value, boldValue: false });
+      }
+    });
+  }
+
+  if (options.layout === 'html') {
+    const cleanHeadingText = heading.replace(/^#+\s*/, '').trim();
+    const rowsHtml = rows
+      .map(
+        (r) => `
+      <tr>
+        <td style="width: 28%; background-color: #f0f9ff; color: #0369a1; font-weight: bold; padding: 6px 10px; border: 1px solid #cbd5e1; text-align: left; vertical-align: top;">${r.label}</td>
+        <td style="width: 72%; background-color: #ffffff; color: #0f172a; padding: 6px 10px; border: 1px solid #cbd5e1; text-align: left; vertical-align: top;">${r.boldValue ? `<strong>${r.value}</strong>` : r.value}</td>
+      </tr>`
+      )
+      .join('');
+
+    return `<div style="margin-bottom: 18px;">
+  <h3 style="font-size: 11.5pt; font-weight: bold; color: #0369a1; border-left: 4px solid #0284c7; padding: 4px 10px; margin: 12px 0 8px 0; background-color: #f0f9ff; border-radius: 0 4px 4px 0;">${cleanHeadingText}</h3>
+  <table class="identitas-table" style="width: 100%; border-collapse: collapse; font-size: 9.5pt; border: 1.5px solid #0288d1; margin: 0;">
+    <thead>
+      <tr style="background-color: #0288d1; color: #ffffff;">
+        <th style="width: 28%; padding: 6px 10px; border: 1px solid #0288d1; text-align: left; font-weight: bold;">Komponen Identitas</th>
+        <th style="width: 72%; padding: 6px 10px; border: 1px solid #0288d1; text-align: left; font-weight: bold;">Keterangan</th>
+      </tr>
+    </thead>
+    <tbody>${rowsHtml}
+    </tbody>
+  </table>
+</div>`;
+  }
+
+  const mdRows = rows
+    .map((r) => `| **${cleanPipe(r.label)}** | ${r.boldValue ? `**${cleanPipe(r.value)}**` : cleanPipe(r.value)} |`)
+    .join('\n');
+
+  return `${heading ? `${heading}\n` : ''}| Komponen Identitas | Keterangan |\n| :--- | :--- |\n${mdRows}`;
+}
+
 export function generateExpertCurriculumDocument(
   docTypeOrParams: string | GenerateCurriculumParams,
   maybeParams?: GenerateCurriculumParams
@@ -130,7 +250,7 @@ export function generateExpertCurriculumDocument(
 
   const level = params.level || syncedContext.level || 'SMA';
   const grade = params.grade || syncedContext.grade || (level === 'SD' ? 4 : level === 'SMP' ? 7 : 10);
-  const phase = params.phase || syncedContext.phase || (grade === 10 ? 'Fase E' : Number(grade) > 10 ? 'Fase F' : Number(grade) >= 7 ? 'Fase D' : Number(grade) >= 4 ? 'Fase B/C' : 'Fase A');
+  const phase = formatPhaseLabel(params.phase || syncedContext.phase, grade, level);
   const rawSemester = String(params.semester || 'Ganjil').trim();
   const isFullYear = rawSemester === '1 Tahun' || rawSemester.toLowerCase().includes('tahun') || rawSemester.toLowerCase().includes('all') || rawSemester.toLowerCase().includes('semua');
   const isSem2Only = !isFullYear && (rawSemester === 'Semester 2' || rawSemester.toLowerCase().includes('genap') || rawSemester === '2');
@@ -361,53 +481,35 @@ ${sem2Rows}
 
 ---
 
-### A. IDENTITAS PERANGKAT
-| Komponen | Keterangan |
-| :--- | :--- |
-| **Satuan Pendidikan** | ${schoolName} |
-| **Mata Pelajaran** | **${subject}** |
-| **Fase / Kelas** | **${phase} / Kelas ${grade}** |
-| **Jenjang** | **${level}** |
-| **Semester** | **${resolvedSemesterLabel}** |
-| **Alokasi Waktu Total** | **${isFullYear ? `${totalYearJP + 12} JP / Tahun (${jpPerWk} JP / Minggu)` : isSem2Only ? `${finalSem2JP + 6} JP / Semester 2 (${jpPerWk} JP / Minggu)` : `${finalSem1JP + 6} JP / Semester 1 (${jpPerWk} JP / Minggu)`}** |
-| **Tahun Pelajaran** | ${resolvedAcademicYear} |
-| **Penyusun / Guru** | ${teacherName} (NIP. ${teacherNip}) |
-| **Kepala Sekolah** | ${headmasterName} (NIP. ${headmasterNip}) |
+${buildOfficialIdentitas({
+  sectionHeading: '### A. IDENTITAS PERANGKAT',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester: resolvedSemesterLabel,
+  academicYear: resolvedAcademicYear,
+  alokasiWaktu: isFullYear
+    ? `${totalYearJP + 12} JP / Tahun (${jpPerWk} JP / Minggu)`
+    : isSem2Only
+    ? `${finalSem2JP + 6} JP / Semester 2 (${jpPerWk} JP / Minggu)`
+    : `${finalSem1JP + 6} JP / Semester 1 (${jpPerWk} JP / Minggu)`,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+})}
 
 ---
 
 ### B. RASIONAL & CAPAIAN PEMBELAJARAN (CP) RESMI
-**Rumusan CP Resmi Fase ${phase}:**
+**Rumusan CP Resmi ${phase}:**
 > *"Peserta didik mampu memahami hakikat keilmuan, menganalisis struktur dan konsep esensial ${subject}, menggunakan nalar kritis untuk memecahkan persoalan nyata, serta mengkomunikasikan ide gagasan solutif secara kolaboratif, kreatif, mandiri, dan beretika."*
 
 ---
 
-### C. BAGAN ALUR DEKOMPOSISI CP MENUJU TUJUAN PEMBELAJARAN (TP)
-\`\`\`
-+---------------------------------------------------------------------------------------------------+
-|               BAGAN ALUR DEKOMPOSISI CAPAIAN PEMBELAJARAN (CP) MENUJU TUJUAN (TP)                 |
-|                                                                                                   |
-|  [ RUMUSAN CAPAIAN PEMBELAJARAN RESMI KEMENDIKBUD ]                                               |
-|         │                                                                                         |
-|         ▼ (Dekomposisi Elemen CP & Konten Esensial)                                               |
-|  ┌───────────────────────────┐      ┌───────────────────────────┐      ┌───────────────────────────┐
-|  │  1. PEMAHAMAN KONSEPTUAL  │      │  2. KETERAMPILAN PROSES   │      │ 3. APLIKASI & REFLEKSI    │
-|  │  • Mengidentifikasi (C2)  │      │  • Menganalisis Data (C4) │      │ • Mengevaluasi Kritis(C5) │
-|  │  • Mengklasifikasikan(C3) │      │  • Uji Empiris & Hipotesis│      │ • Merancang Solusi (C6)   │
-|  └─────────────┬─────────────┘      └─────────────┬─────────────┘      └─────────────┬─────────────┘
-|                │                                  │                                  │            |
-|                └─────────────────┬────────────────┴──────────────────────────────────┘            |
-|                                  ▼                                                                |
-|         [ INTEGRASI 3 PILAR DEEP LEARNING: MINDFUL ➔ MEANINGFUL ➔ JOYFUL ]                        |
-|                                  │                                                                |
-|                                  ▼                                                                |
-|         [ FORMULASI TUJUAN PEMBELAJARAN (TP) ABCD & PEMETAAN DISTRIBUSI ${isFullYear ? 'SEMESTER 1 & 2' : isSem2Only ? 'SEMESTER 2' : 'SEMESTER 1'} ]          |
-+---------------------------------------------------------------------------------------------------+
-\`\`\`
-
----
-
-### D. DEKOMPOSISI ELEMEN DAN ANALISIS KOMPETENSI ESENSIAL
+### C. DEKOMPOSISI ELEMEN DAN ANALISIS KOMPETENSI ESENSIAL
 | No | Elemen CP | Kalimat Capaian Pembelajaran | Kompetensi Esensial (KKO HOTS Bloom) | Konten / Materi Pokok Esensial |
 | :-: | :--- | :--- | :--- | :--- |
 | 1 | **Pemahaman Konseptual** | Memahami, mengidentifikasi, dan mendeskripsikan prinsip fundamental ${subject}. | Mengidentifikasi (C2), Membedakan (C2), Menganalisis (C4) | ${topic} & Prinsip Dasar Keilmuan |
@@ -416,30 +518,13 @@ ${sem2Rows}
 
 ---
 
-### E. HASIL DISTRIBUSI CAPAIAN PEMBELAJARAN (CP) ${isFullYear ? '1 TAHUN PELAJARAN' : isSem2Only ? 'SEMESTER 2' : 'SEMESTER 1'}
+### D. HASIL DISTRIBUSI CAPAIAN PEMBELAJARAN (CP) ${isFullYear ? '1 TAHUN PELAJARAN' : isSem2Only ? 'SEMESTER 2' : 'SEMESTER 1'}
 
 ${sectionETables}
 
 ---
 
-### F. SKEMA INTEGRASI TIGA PILAR DEEP LEARNING
-\`\`\`
-+---------------------------------------------------------------------------------------------------+
-|                     SKEMA TIGA PILAR PEDAGOGIS DEEP LEARNING DALAM KBM                            |
-|                                                                                                   |
-|    ┌───────────────────────────┐      ┌───────────────────────────┐      ┌────────────────────────┐
-|    │   1. MINDFUL LEARNING     │      │  2. MEANINGFUL LEARNING   │      │   3. JOYFUL LEARNING   │
-|    ├───────────────────────────┤      ├───────────────────────────┤      ├────────────────────────┤
-|    │ • Latihan Mindful Breath  │ ───► │ • Kontekstualisasi Kasus  │ ───► │ • Tantangan Gamifikasi │
-|    │ • Refleksi Awal & Minat   │      │ • Big Ideas & Inquiry     │      │ • Pameran Gelar Karya  │
-|    │ • Fokus & Sadar Penuh     │      │ • Keterhubungan Konsep    │      │ • Kolaborasi Tim Ceria │
-|    └───────────────────────────┘      └───────────────────────────┘      └────────────────────────┘
-+---------------------------------------------------------------------------------------------------+
-\`\`\`
-
----
-
-### G. PEMETAAN DIMENSI PROFIL PELAJAR PANCASILA & KARAKTER 6C
+### E. PEMETAAN DIMENSI PROFIL PELAJAR PANCASILA & KARAKTER 6C
 * **Beriman, Bertakwa kepada Tuhan YME, dan Berakhlak Mulia:** Mensyukuri keteraturan alam semesta dan ilmu pengetahuan.
 * **Bernalar Kritis:** Menganalisis informasi, memvalidasi bukti, dan menarik kesimpulan logis.
 * **Kreatif:** Mengembangkan alternatif solusi inovatif terhadap tantangan masalah kontekstual.
@@ -448,7 +533,7 @@ ${sectionETables}
 
 ---
 
-### H. STRATEGI PEMBELAJARAN BERDIFERENSIASI
+### F. STRATEGI PEMBELAJARAN BERDIFERENSIASI
 * **Diferensiasi Konten:** Menyediakan bahan ajar multimodal (teks narasi, infografis visual, video animasi, dan studi kasus riil).
 * **Diferensiasi Proses:** Bimbingan berjenjang (*scaffolding*) bagi kelompok yang membutuhkan bimbingan intensif dan tantangan mandiri untuk kelompok mahir.
 * **Diferensiasi Produk:** Kebebasan memilih bentuk unjuk kerja tugas (laporan tulisan, poster infografis, rekaman podcast audio, atau demonstrasi presentasi video).
@@ -555,66 +640,40 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-### A. IDENTITAS PERANGKAT
-* **Mata Pelajaran:** ${subject}
-* **Fase / Kelas:** ${phase} / Kelas ${grade} (${level})
-* **Semester:** ${resolvedSemesterLabel}
-* **Tahun Pelajaran:** ${resolvedAcademicYear}
-* **Cakupan Materi:** ${materialsForTP.length > 0 ? `Materi Pokok ${resolvedSemesterLabel} (${materialsForTP.length} Bab - Tersinkronisasi Otomatis dari Profil Guru & Distribusi CP)` : topic}
-* **Guru Pengampu:** ${teacherName}
-* **NIP Guru:** ${teacherNip}
+${buildOfficialIdentitas({
+  sectionHeading: '### A. IDENTITAS PERANGKAT',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester: resolvedSemesterLabel,
+  academicYear: resolvedAcademicYear,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    {
+      label: 'Cakupan Materi',
+      value: materialsForTP.length > 0
+        ? `Materi Pokok ${resolvedSemesterLabel} (${materialsForTP.length} Bab - Tersinkronisasi Profil Guru & Distribusi CP)`
+        : topic,
+    },
+  ],
+})}
 
 ---
 
-### B. SKEMA ANATOMI RUMUSAN TUJUAN PEMBELAJARAN DEEP LEARNING (ABCD + 3 PILAR)
-\`\`\`
-+---------------------------------------------------------------------------------------------------+
-|               SKEMA ANATOMI RUMUSAN TUJUAN PEMBELAJARAN (DEEP LEARNING MODEL)                     |
-|                                                                                                   |
-|  ┌──────────────────┐    ┌──────────────────────────┐    ┌─────────────────────────────────────┐  |
-|  │  AUDIENCE (A)    │    │  BEHAVIOR (B)            │    │  CONDITION (C)                      │  |
-|  │  Peserta Didik   │───►│  Kata Kerja Operasional  │───►│  Inkuiri Kontekstual, Eksplorasi    │  |
-|  │  Kelas ${grade} (${phase}) │    │  HOTS (C2, C4, C5, C6)   │    │  LKPD Empiris, Proyek Kreatif       │  |
-|  └──────────────────┘    └──────────────────────────┘    └──────────────────┬──────────────────┘  |
-|                                                                             │                     |
-|                                  ┌──────────────────────────────────────────┘                     |
-|                                  ▼                                                                |
-|                          ┌──────────────────────────┐                                             |
-|                          │  DEGREE (D)              │                                             |
-|                          │  Tingkat Ketepatan,      │                                             |
-|                          │  Kritis, & Bertanggung Jwb│                                            |
-|                          └──────────────────────────┘                                             |
-|                                  │                                                                |
-|                                  ▼                                                                |
-|         [ TERINTEGRASI 3 PILAR: MINDFUL ➔ MEANINGFUL ➔ JOYFUL LEARNING ]                          |
-+---------------------------------------------------------------------------------------------------+
-\`\`\`
-
----
-
-### C. TABEL RUMUSAN TUJUAN PEMBELAJARAN (TP) DEEP LEARNING
+### B. TABEL RUMUSAN TUJUAN PEMBELAJARAN (TP) DEEP LEARNING
 | Kode TP | Bab / Lingkup Materi Pokok | Rumusan Tujuan Pembelajaran (ABCD) | Pilar Deep Learning | Kata Kerja Operasional (KKO) | Dimensi Profil Pancasila & 6C | Pemahaman Bermakna (Deep Meaning) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 ${tpRows}
 
 ---
 
-### D. PERTANYAAN PEMANTIK INKUIRI (MINDFUL SPARKING QUESTIONS)
+### C. PERTANYAAN PEMANTIK INKUIRI (MINDFUL SPARKING QUESTIONS)
 ${inquiryHooks}
-
----
-
-### E. DIAGRAM HIERARKI TAHAPAN PENGUASAAN KOMPETENSI DEEP LEARNING
-\`\`\`
-+---------------------------------------------------------------------------------------------------+
-|               DIAGRAM HIERARKI TAHAPAN PENGUASAAN KOMPETENSI DEEP LEARNING                        |
-|                                                                                                   |
-|  [ TAHAP 1: MINDFUL FOUNDATION ] ──► [ TAHAP 2: MEANINGFUL INQUIRY ] ──► [ TAHAP 3: JOYFUL CREATION ]  |
-|  • Kesadaran Konseptual Esensial     • Penyelidikan Masalah Nyata        • Desain Inovasi Solutif |
-|  • Refleksi & Apersepsi Bermakna     • Olah Data Empiris & Variabel      • Pameran Karya Kelas    |
-|  • Fokus & Kehadiran Penuh KBM       • Analisis Kritis & Sintesis        • Umpan Balik Apresiatif |
-+---------------------------------------------------------------------------------------------------+
-\`\`\`
 
 ---
 
@@ -707,12 +766,21 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-### IDENTITAS PERANGKAT
-| Komponen | Keterangan | Komponen | Keterangan |
-| :--- | :--- | :--- | :--- |
-| **Mata Pelajaran** | **${subject}** | **Fase** | **${phase}** |
-| **Kelas / Semester** | **${grade} / ${resolvedSemesterLabel}** | **Alokasi Waktu** | **${jpPerWk} JP / Minggu** |
-| **Satuan Pendidikan** | ${schoolName} | **Guru Pengampu** | ${teacherName} (NIP. ${teacherNip}) |
+${buildOfficialIdentitas({
+  sectionHeading: '### A. IDENTITAS PERANGKAT',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester: resolvedSemesterLabel,
+  academicYear: resolvedAcademicYear,
+  alokasiWaktu: `${jpPerWk} JP / Minggu`,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+})}
 
 ---
 
@@ -852,22 +920,34 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-| Identitas Perangkat | Keterangan Dokumen | Identitas Perangkat | Keterangan Dokumen |
-| :--- | :--- | :--- | :--- |
-| **Mata Pelajaran** | **${subject}** | **Fase / Jenjang** | **${phase} / ${level}** |
-| **Kelas / Semester** | **${grade} / ${resolvedSemesterLabel}** | **Alokasi Waktu** | **${totalEffectiveJP} JP (${jpPerWk} JP / Minggu)** |
-| **Satuan Pendidikan** | **${schoolName}** | **Pendekatan Pembelajaran** | **Deep Learning (Mindful, Meaningful, Joyful)** |
-| **Penyusun / Guru** | **${teacherName} (NIP. ${teacherNip})** | **Tahun Pelajaran** | **${resolvedAcademicYear}** |
+${buildOfficialIdentitas({
+  sectionHeading: '### A. IDENTITAS PERANGKAT',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester: resolvedSemesterLabel,
+  academicYear: resolvedAcademicYear,
+  alokasiWaktu: `${totalEffectiveJP} JP (${jpPerWk} JP / Minggu)`,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    { label: 'Pendekatan Pembelajaran', value: 'Deep Learning (Mindful, Meaningful, & Joyful Learning)' },
+  ],
+})}
 
 ---
 
-### A. CAPAIAN PEMBELAJARAN
+### B. CAPAIAN PEMBELAJARAN
 Pada fase ini, peserta didik memiliki:
 * Kemampuan untuk responsif terhadap isu-isu global dan berperan aktif dalam memberikan penyelesaian masalah kontekstual melalui pendekatan pembelajaran mendalam (*Deep Learning: Mindful, Meaningful, & Joyful Learning*). Kemampuan tersebut antara lain mengamati dengan berkesadaran penuh (*Mindful*), mempertanyakan dan memprediksi, merencanakan dan melakukan penyelidikan kritis berbasis data empiris (*Meaningful*), memproses dan menganalisis data, mengevaluasi dan metakognisi diri, serta mengomunikasikan hasil dalam bentuk karya inovatif yang solutif dan menggembirakan (*Joyful*). Seluruh proses diarahkan pada penguatan kompetensi esensial, literasi sains, dan nilai-nilai luhur Profil Pelajar Pancasila serta Dimensi Karakter 6C.
 
 ---
 
-### B. ELEMEN CAPAIAN PEMBELAJARAN & INTEGRASI 3 PILAR DEEP LEARNING
+### C. ELEMEN CAPAIAN PEMBELAJARAN & INTEGRASI 3 PILAR DEEP LEARNING
 | ELEMEN | CAPAIAN PEMBELAJARAN | INTEGRASI 3 PILAR DEEP LEARNING |
 | :--- | :--- | :--- |
 | **Pemahaman ${subject}** | Peserta didik mampu mendeskripsikan gejala alam dan fenomena dalam cakupan pemahaman konseptual, pengukuran terstandar, perubahan sistem lingkungan, dan pemanfaatannya dalam kehidupan sehari-hari. | **Mindful Foundation:** Membangun kesadaran diri, pemahaman konsep esensial secara utuh, dan stimulasi rasa ingin tahu mendalam. |
@@ -875,7 +955,7 @@ Pada fase ini, peserta didik memiliki:
 
 ---
 
-### C. TABEL ALUR TUJUAN PEMBELAJARAN (ATP) DEEP LEARNING (10 KOLOM LENGKAP)
+### D. TABEL ALUR TUJUAN PEMBELAJARAN (ATP) DEEP LEARNING (10 KOLOM LENGKAP)
 | Tujuan Pembelajaran | Lingkup Materi Pokok | Indikator Tujuan Pembelajaran | Profil Pelajar Pancasila & 6C | Kata Kunci | Kegiatan Pembelajaran (3 Pilar Deep Learning) | Glosarium | Alokasi Waktu | Sumber Belajar | Penilaian Autentik |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :-: | :--- | :--- |
 ${tableRows.join('\n')}
@@ -972,47 +1052,21 @@ ${buildOfficialLembarPengesahan({
         ? `\n> 📋 **FORMAT DOKUMEN KHUSUS SEKOLAH DIAKTIFKAN**\n> Dokumen ini disusun dan distrukturkan menyesuaikan format baku resmi satuan pendidikan.\n\n`
         : '';
 
-      return `# ANALISIS ALOKASI WAKTU & RINCIAN PEKAN EFEKTIF (RBE)
-## PENDEKATAN DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
-### KURIKULUM BERBASIS DEEP LEARNING — TAHUN PELAJARAN ${resolvedAcademicYear}
-${customSchoolHeader}
----
+      const showSem1 = !isSem2Only;
+      const showSem2 = !isSem1Only;
+      const semesterLabelForDoc = isFullYear
+        ? 'Semester 1 (Ganjil) & Semester 2 (Genap)'
+        : isSem2Only
+        ? 'Semester 2 (Genap)'
+        : 'Semester 1 (Ganjil)';
+      const alokasiWaktuSummary = isFullYear
+        ? `${jpPerWk} JP / Minggu (Sem 1: ${sem1TotalJp} JP • Sem 2: ${sem2TotalJp} JP)`
+        : isSem2Only
+        ? `${jpPerWk} JP / Minggu (Sem 2: ${sem2TotalJp} JP)`
+        : `${jpPerWk} JP / Minggu (Sem 1: ${sem1TotalJp} JP)`;
 
-### A. IDENTITAS PERANGKAT
-* **Satuan Pendidikan:** **${schoolName}**
-* **Mata Pelajaran:** **${subject}**
-* **Fase / Kelas:** **${phase} / Kelas ${grade} (${level})**
-* **Tahun Pelajaran:** **${resolvedAcademicYear}**
-* **Sumber Acuan Analisis:** **${sourceDescription}** *(Tersinkron ke PROSEM)*
-* **Pendekatan & Model:** **Deep Learning (Mindful, Meaningful, & Joyful Learning)**
-* **Alokasi Jam per Pekan:** **${jpPerWk} JP / Minggu**
-* **Penyusun / Guru Pengampu:** ${teacherName} (NIP. ${teacherNip})
-* **Kepala Satuan Pendidikan:** ${headmasterName} (NIP. ${headmasterNip})
-
----
-
-### B. SKEMA STRUKTUR DISTRIBUSI ALOKASI WAKTU 1 TAHUN AJARAN (DEEP LEARNING MODEL)
-\`\`\`
-+---------------------------------------------------------------------------------------------------+
-|          SKEMA STRUKTUR DISTRIBUSI ALOKASI WAKTU TAHUN PELAJARAN ${resolvedAcademicYear}                 |
-|                   PENDEKATAN DEEP LEARNING (BERKESADARAN, BERMAKNA, & MENYENANGKAN)               |
-|                                                                                                   |
-|  [ TOTAL ${sem1TotalCalWeeks + sem2TotalCalWeeks} PEKAN KALENDER PENDIDIKAN ]                                                           |
-|  ├─────────────────────────────────────────────────┬───────────────────────────────────────────┤  |
-|  ▼                                                 ▼                                           |  |
-|  [ SEMESTER GANJIL: ${sem1TotalCalWeeks} PEKAN ]                     [ SEMESTER GENAP: ${sem2TotalCalWeeks} PEKAN ]                |  |
-|  ├── Pekan Tidak Efektif : ${sem1NonEffWeeks} Pekan                 ├── Pekan Tidak Efektif : ${sem2NonEffWeeks} Pekan           |  |
-|  └── Pekan Efektif KBM   : ${sem1EffWeeks} Pekan (${sem1TotalJp} JP)          └── Pekan Efektif KBM   : ${sem2EffWeeks} Pekan (${sem2TotalJp} JP)    |  |
-|      ├── 1. Mindful Foundation    : ${Math.round(sem1NetJp * 0.25)} JP (Eksplorasi)        ├── 1. Mindful Foundation    : ${Math.round(sem2NetJp * 0.25)} JP (Eksplorasi)    |  |
-|      ├── 2. Meaningful Inquiry    : ${Math.round(sem1NetJp * 0.50)} JP (Investigasi)       ├── 2. Meaningful Inquiry    : ${Math.round(sem2NetJp * 0.50)} JP (Investigasi)   |  |
-|      ├── 3. Joyful Creation       : ${Math.round(sem1NetJp * 0.25)} JP (Gelar Karya)       ├── 3. Joyful Creation       : ${Math.round(sem2NetJp * 0.25)} JP (Gelar Karya)   |  |
-|      └── Cadangan & Asesmen Sumatif: ${sem1ReserveJp} JP                  └── Cadangan & Asesmen Sumatif: ${sem2ReserveJp} JP               |  |
-+---------------------------------------------------------------------------------------------------+
-\`\`\`
-
----
-
-### C. ANALISIS RINCIAN PEKAN EFEKTIF SEMESTER 1 (GANJIL)
+      const sectionSem1Block = showSem1 ? `
+### B. ANALISIS RINCIAN PEKAN EFEKTIF SEMESTER 1 (GANJIL)
 #### 1. Distribusi Jumlah Pekan Semester 1 (Juli s.d. Desember ${startYear})
 | No | Nama Bulan | Jumlah Pekan Kalender | Pekan Tidak Efektif | Pekan Efektif KBM | Keterangan Agenda & Pekan Tidak Efektif |
 | :-: | :--- | :-: | :-: | :-: | :--- |
@@ -1028,9 +1082,11 @@ ${sem1RowsMd}
 | **d. Cadangan Jam Pelajaran** | Asesmen Sumatif Lingkup Materi & Remedial Terarah | ${sem1ReserveJp} JP |
 | **e. Jam Efektif Tatap Muka KBM** | Total Jam Efektif - Cadangan Jam | **${sem1NetJp} JP** |
 
----
+---` : '';
 
-### D. ANALISIS RINCIAN PEKAN EFEKTIF SEMESTER 2 (GENAP)
+      const sem2HeadingLetter = isFullYear ? 'C' : 'B';
+      const sectionSem2Block = showSem2 ? `
+### ${sem2HeadingLetter}. ANALISIS RINCIAN PEKAN EFEKTIF SEMESTER 2 (GENAP)
 #### 1. Distribusi Jumlah Pekan Semester 2 (Januari s.d. Juni ${endYear})
 | No | Nama Bulan | Jumlah Pekan Kalender | Pekan Tidak Efektif | Pekan Efektif KBM | Keterangan Agenda & Pekan Tidak Efektif |
 | :-: | :--- | :-: | :-: | :-: | :--- |
@@ -1046,23 +1102,23 @@ ${sem2RowsMd}
 | **d. Cadangan Jam Pelajaran** | Asesmen Sumatif Akhir, Pengayaan & Selebrasi Karya | ${sem2ReserveJp} JP |
 | **e. Jam Efektif Tatap Muka KBM** | Total Jam Efektif - Cadangan Jam | **${sem2NetJp} JP** |
 
----
+---` : '';
 
-### E. REKAPITULASI ALOKASI WAKTU 1 TAHUN PELAJARAN (SEMESTER 1 & 2)
-| No | Semester | Jumlah Pekan Kalender | Pekan Tidak Efektif | Pekan Efektif | Total Jam Efektif (JP) | Cadangan Jam (JP) | Jam Tatap Muka KBM (JP) |
-| :-: | :--- | :-: | :-: | :-: | :-: | :-: | :-: |
-| 1 | **Semester 1 (Ganjil)** | ${sem1TotalCalWeeks} Pekan | ${sem1NonEffWeeks} Pekan | ${sem1EffWeeks} Pekan | ${sem1TotalJp} JP | ${sem1ReserveJp} JP | ${sem1NetJp} JP |
-| 2 | **Semester 2 (Genap)** | ${sem2TotalCalWeeks} Pekan | ${sem2NonEffWeeks} Pekan | ${sem2EffWeeks} Pekan | ${sem2TotalJp} JP | ${sem2ReserveJp} JP | ${sem2NetJp} JP |
-| **TOTAL** | **1 Tahun Pelajaran** | **${sem1TotalCalWeeks + sem2TotalCalWeeks} Pekan** | **${sem1NonEffWeeks + sem2NonEffWeeks} Pekan** | **${sem1EffWeeks + sem2EffWeeks} Pekan** | **${sem1TotalJp + sem2TotalJp} JP** | **${sem1ReserveJp + sem2ReserveJp} JP** | **${sem1NetJp + sem2NetJp} JP** |
+      const rekapHeadingLetter = isFullYear ? 'D' : 'C';
+      const rekapRows: string[] = [];
+      if (showSem1) {
+        rekapRows.push(`| 1 | **Semester 1 (Ganjil)** | ${sem1TotalCalWeeks} Pekan | ${sem1NonEffWeeks} Pekan | ${sem1EffWeeks} Pekan | ${sem1TotalJp} JP | ${sem1ReserveJp} JP | ${sem1NetJp} JP |`);
+      }
+      if (showSem2) {
+        rekapRows.push(`| ${isFullYear ? 2 : 1} | **Semester 2 (Genap)** | ${sem2TotalCalWeeks} Pekan | ${sem2NonEffWeeks} Pekan | ${sem2EffWeeks} Pekan | ${sem2TotalJp} JP | ${sem2ReserveJp} JP | ${sem2NetJp} JP |`);
+      }
+      if (isFullYear) {
+        rekapRows.push(`| **TOTAL** | **1 Tahun Pelajaran** | **${sem1TotalCalWeeks + sem2TotalCalWeeks} Pekan** | **${sem1NonEffWeeks + sem2NonEffWeeks} Pekan** | **${sem1EffWeeks + sem2EffWeeks} Pekan** | **${sem1TotalJp + sem2TotalJp} JP** | **${sem1ReserveJp + sem2ReserveJp} JP** | **${sem1NetJp + sem2NetJp} JP** |`);
+      }
 
----
-
-### F. TABEL DISTRIBUSI ALOKASI WAKTU (JP) & SIKLUS DEEP LEARNING PER BAB
-*(Siklus Deep Learning per Bab: Eksplorasi Berkesadaran Mindful ➔ Inkuiri & Pemecahan Masalah Meaningful ➔ Kreasi Inovasi Joyful)*  
-*Catatan Rumus Perhitungan: Alokasi JP per BAB = Total JP Semester ÷ Jumlah BAB (contoh: 50 JP ÷ 2 BAB = 25 JP). Jumlah Pertemuan per BAB = Alokasi JP BAB ÷ Beban JP/Minggu (contoh: 25 JP ÷ 5 JP/Minggu = 5 Kali Pertemuan).*
-
-#### 1. Distribusi Alokasi Waktu Semester 1 (Ganjil)
-| No | Kode TP | Bab / Lingkup Materi Pokok | Alokasi Waktu (JP) | Beban JP / Minggu | Jumlah Pertemuan | Rincian Tatap Muka RPM | Integrasi Siklus Deep Learning |
+      const distHeadingLetter = isFullYear ? 'E' : 'D';
+      const distSem1Block = showSem1 ? `
+${isFullYear ? '#### 1. Distribusi Alokasi Waktu Semester 1 (Ganjil)\n' : ''}| No | Kode TP | Bab / Lingkup Materi Pokok | Alokasi Waktu (JP) | Beban JP / Minggu | Jumlah Pertemuan | Rincian Tatap Muka RPM | Integrasi Siklus Deep Learning |
 | :-: | :--- | :--- | :-: | :-: | :-: | :--- | :--- |
 ${sem1Materials.length > 0 ? sem1Materials.map((m, idx) => {
   const jp = Number(m.allocatedHours) || 25;
@@ -1071,20 +1127,63 @@ ${sem1Materials.length > 0 ? sem1Materials.map((m, idx) => {
 }).join('\n') : `| 1 | TP.${grade}.1.1 | Bab 1: Eksplorasi Konseptual & Prinsip Awal ${subject} | **25 JP** | ${jpPerWk} JP / Minggu | **${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan** | ${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan × ${jpPerWk} JP | Mindful Discovery & Inkuiri |
 | 2 | TP.${grade}.1.2 | Bab 2: Analisis Kritis & Penerapan Kasus Terpadu | **25 JP** | ${jpPerWk} JP / Minggu | **${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan** | ${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan × ${jpPerWk} JP | Meaningful Problem Solving & Joyful Lab |`}
 | - | - | **Cadangan Jam Pelajaran & Asesmen Sumatif Semester 1** | **6 JP** | ${jpPerWk} JP / Minggu | **${Math.max(1, Math.round(6 / jpPerWk))} Pertemuan** | ASTS / ASAS / Remedial | Kalender Pendidikan & Evaluasi |
-| **TOTAL** | | **Jumlah Jam Pelajaran Semester Ganjil** | **${sem1TotalJp} JP** | **${jpPerWk} JP / Minggu** | **${sem1EffWeeks} Pertemuan** | **${sem1TotalJp} JP KBM Efektif** | **100% Selaras Kaldik & RPM** |
+| **TOTAL** | | **Jumlah Jam Pelajaran Semester Ganjil** | **${sem1TotalJp} JP** | **${jpPerWk} JP / Minggu** | **${sem1EffWeeks} Pertemuan** | **${sem1TotalJp} JP KBM Efektif** | **100% Selaras Kaldik & RPM** |` : '';
 
-#### 2. Distribusi Alokasi Waktu Semester 2 (Genap)
-| No | Kode TP | Bab / Lingkup Materi Pokok | Alokasi Waktu (JP) | Beban JP / Minggu | Jumlah Pertemuan | Rincian Tatap Muka RPM | Integrasi Siklus Deep Learning |
+      const distSem2Block = showSem2 ? `
+${isFullYear ? '#### 2. Distribusi Alokasi Waktu Semester 2 (Genap)\n' : ''}| No | Kode TP | Bab / Lingkup Materi Pokok | Alokasi Waktu (JP) | Beban JP / Minggu | Jumlah Pertemuan | Rincian Tatap Muka RPM | Integrasi Siklus Deep Learning |
 | :-: | :--- | :--- | :-: | :-: | :-: | :--- | :--- |
 ${sem2Materials.length > 0 ? sem2Materials.map((m, idx) => {
-  const startIdx = (sem1Materials.length > 0 ? sem1Materials.length : 2) + idx + 1;
+  const startIdx = isFullYear ? (sem1Materials.length > 0 ? sem1Materials.length : 2) + idx + 1 : idx + 1;
   const jp = Number(m.allocatedHours) || 25;
   const meetings = Math.max(1, Math.round(jp / jpPerWk));
   return `| ${startIdx} | ${m.tpCode || `TP.${grade}.2.${idx + 1}`} | ${m.essentialMaterial || m.tpName || `Bab ${startIdx}`} | **${jp} JP** | ${jpPerWk} JP / Minggu | **${meetings} Pertemuan** | ${meetings} Pertemuan × ${jpPerWk} JP | Meaningful Inquiry & Joyful Project |`;
-}).join('\n') : `| 3 | TP.${grade}.2.1 | Bab 3: Integrasi Lanjutan & Model Pemecahan Masalah | **25 JP** | ${jpPerWk} JP / Minggu | **${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan** | ${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan × ${jpPerWk} JP | Meaningful Eksplorasi Lanjutan |
-| 4 | TP.${grade}.2.2 | Bab 4: Gelar Karya Inovasi & Refleksi Komprehensif | **25 JP** | ${jpPerWk} JP / Minggu | **${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan** | ${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan × ${jpPerWk} JP | Joyful Kolaborasi & Pameran Karya |`}
+}).join('\n') : `| ${isFullYear ? 3 : 1} | TP.${grade}.2.1 | Bab ${isFullYear ? 3 : 1}: Integrasi Lanjutan & Model Pemecahan Masalah | **25 JP** | ${jpPerWk} JP / Minggu | **${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan** | ${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan × ${jpPerWk} JP | Meaningful Eksplorasi Lanjutan |
+| ${isFullYear ? 4 : 2} | TP.${grade}.2.2 | Bab ${isFullYear ? 4 : 2}: Gelar Karya Inovasi & Refleksi Komprehensif | **25 JP** | ${jpPerWk} JP / Minggu | **${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan** | ${Math.max(1, Math.round(25 / jpPerWk))} Pertemuan × ${jpPerWk} JP | Joyful Kolaborasi & Pameran Karya |`}
 | - | - | **Cadangan Jam Pelajaran & Asesmen Sumatif Akhir Tahun** | **6 JP** | ${jpPerWk} JP / Minggu | **${Math.max(1, Math.round(6 / jpPerWk))} Pertemuan** | ASAS Genap & Kenaikan | Kalender Pendidikan & Evaluasi |
-| **TOTAL** | | **Jumlah Jam Pelajaran Semester Genap** | **${sem2TotalJp} JP** | **${jpPerWk} JP / Minggu** | **${sem2EffWeeks} Pertemuan** | **${sem2TotalJp} JP KBM Efektif** | **100% Selaras Kaldik & RPM** |
+| **TOTAL** | | **Jumlah Jam Pelajaran Semester Genap** | **${sem2TotalJp} JP** | **${jpPerWk} JP / Minggu** | **${sem2EffWeeks} Pertemuan** | **${sem2TotalJp} JP KBM Efektif** | **100% Selaras Kaldik & RPM** |` : '';
+
+      return `# ANALISIS ALOKASI WAKTU & RINCIAN PEKAN EFEKTIF (RBE) — ${semesterLabelForDoc.toUpperCase()}
+## PENDEKATAN DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
+### KURIKULUM BERBASIS DEEP LEARNING — TAHUN PELAJARAN ${resolvedAcademicYear}
+${customSchoolHeader}
+---
+
+${buildOfficialIdentitas({
+  sectionHeading: '### A. IDENTITAS PERANGKAT',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester: semesterLabelForDoc,
+  academicYear: resolvedAcademicYear,
+  alokasiWaktu: alokasiWaktuSummary,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    { label: 'Sumber Acuan Analisis', value: `${sourceDescription} (Tersinkron ke PROSEM)` },
+    { label: 'Pendekatan & Model', value: 'Deep Learning (Mindful, Meaningful, & Joyful Learning)' },
+  ],
+})}
+
+---
+${sectionSem1Block}
+${sectionSem2Block}
+
+### ${rekapHeadingLetter}. REKAPITULASI ALOKASI WAKTU (${semesterLabelForDoc.toUpperCase()})
+| No | Semester | Jumlah Pekan Kalender | Pekan Tidak Efektif | Pekan Efektif | Total Jam Efektif (JP) | Cadangan Jam (JP) | Jam Tatap Muka KBM (JP) |
+| :-: | :--- | :-: | :-: | :-: | :-: | :-: | :-: |
+${rekapRows.join('\n')}
+
+---
+
+### ${distHeadingLetter}. TABEL DISTRIBUSI ALOKASI WAKTU (JP) & SIKLUS DEEP LEARNING PER BAB (${semesterLabelForDoc.toUpperCase()})
+*(Siklus Deep Learning per Bab: Eksplorasi Berkesadaran Mindful ➔ Inkuiri & Pemecahan Masalah Meaningful ➔ Kreasi Inovasi Joyful)*  
+*Catatan Rumus Perhitungan: Alokasi JP per BAB = Total JP Semester ÷ Jumlah BAB (contoh: 50 JP ÷ 2 BAB = 25 JP). Jumlah Pertemuan per BAB = Alokasi JP BAB ÷ Beban JP/Minggu (contoh: 25 JP ÷ 5 JP/Minggu = 5 Kali Pertemuan).*
+${distSem1Block}
+${distSem2Block}
 
 ---
 
@@ -1100,7 +1199,7 @@ ${buildOfficialLembarPengesahan({
   subject,
   grade,
   phase,
-  customNote: `Dokumen Analisis Alokasi Waktu dan Rincian Pekan Efektif (RBE) mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diperiksa, disetujui, dan disahkan sebagai acuan resmi pelaksanaan Kegiatan Belajar Mengajar berbasis Kurikulum Deep Learning (*Mindful, Meaningful, & Joyful Learning*) pada Tahun Pelajaran **${resolvedAcademicYear}**.`
+  customNote: `Dokumen Analisis Alokasi Waktu dan Rincian Pekan Efektif (RBE) ${semesterLabelForDoc} mata pelajaran **${subject}** (${phase} / Kelas ${grade}) ini telah diperiksa, disetujui, dan disahkan sebagai acuan resmi pelaksanaan Kegiatan Belajar Mengajar berbasis Kurikulum Deep Learning (*Mindful, Meaningful, & Joyful Learning*) pada Tahun Pelajaran **${resolvedAcademicYear}**.`
 })}
 `;
     }
@@ -1208,20 +1307,29 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-### IDENTITAS PROGRAM
-* **Nama Sekolah / Satuan Pendidikan:** **${schoolName}**
-* **Nama Penyusun / Guru:** **${teacherName}**
-* **NIP Guru:** ${teacherNip}
-* **Mata Pelajaran:** **${subject}**
-* **Fase, Kelas / Jenjang:** **${phase}, Kelas ${resolvedGradeDisplay} (${level})**
-* **Semester:** I (Ganjil) & II (Genap) — 1 Tahun Pelajaran Penuh
-* **Pendekatan & Model:** **Deep Learning (Mindful, Meaningful, & Joyful Learning)**
-* **Tahun Pelajaran:** **${resolvedAcademicYear}**
-* **Total Alokasi Waktu:** **${grandTotalJP} JP (${grandTotalMeetings} Pertemuan KBM)**
+${buildOfficialIdentitas({
+  sectionHeading: '### A. IDENTITAS PROGRAM',
+  schoolName,
+  subject,
+  level,
+  grade,
+  gradeLabel: `Kelas ${resolvedGradeDisplay}`,
+  phase,
+  semester: 'Semester I (Ganjil) & II (Genap) — 1 Tahun Pelajaran Penuh',
+  academicYear: resolvedAcademicYear,
+  alokasiWaktu: `${grandTotalJP} JP (${grandTotalMeetings} Pertemuan KBM)`,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    { label: 'Pendekatan & Model', value: 'Deep Learning (Mindful, Meaningful, & Joyful Learning)' },
+  ],
+})}
 
 ---
 
-### TABEL PROGRAM TAHUNAN (PROTA) 4 KOLOM
+### B. TABEL PROGRAM TAHUNAN (PROTA) 4 KOLOM
 | Bab | Alur Tujuan Pembelajaran (3 Pilar Deep Learning) | Materi / Ruang Lingkup | Alokasi Waktu |
 | :--- | :--- | :--- | :---: |
 ${protaRows.join('\n')}
@@ -1545,35 +1653,33 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
 
       return `<div style="background-color: #b4d6e4; color: #000000; padding: 12px; text-align: center; border: 1.5px solid #000000; margin-bottom: 20px;">
   <div style="font-size: 14pt; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">PROGRAM SEMESTER ( PROSEM )</div>
-  <div style="font-size: 11pt; font-weight: bold; margin-top: 2px;">FASE ${phase} KELAS ${resolvedGradeText}</div>
+  <div style="font-size: 11pt; font-weight: bold; margin-top: 2px;">${phase.toUpperCase()} — KELAS ${resolvedGradeText} (${resolvedGradeWords})</div>
 </div>
 
-<table style="width: 100%; border: none; margin-bottom: 18px; font-size: 10pt; font-family: inherit; line-height: 1.5;">
-  <tr>
-    <td style="width: 160px; font-weight: bold; border: none; padding: 3px 0;">Satuan Pendidikan</td>
-    <td style="border: none; padding: 3px 0;">: <strong>${schoolName}</strong></td>
-  </tr>
-  <tr>
-    <td style="font-weight: bold; border: none; padding: 3px 0;">Mata Pelajaran</td>
-    <td style="border: none; padding: 3px 0;">: <strong>${subject}</strong></td>
-  </tr>
-  <tr>
-    <td style="font-weight: bold; border: none; padding: 3px 0;">Kelas / Semester</td>
-    <td style="border: none; padding: 3px 0;">: <strong>${resolvedGradeText} (${resolvedGradeWords}) / ${isGanjil ? 'GANJIL' : 'GENAP'}</strong></td>
-  </tr>
-  <tr>
-    <td style="font-weight: bold; border: none; padding: 3px 0;">Tahun Penyusunan</td>
-    <td style="border: none; padding: 3px 0;">: <strong>${resolvedAcademicYear}</strong></td>
-  </tr>
-  <tr>
-    <td style="font-weight: bold; border: none; padding: 3px 0;">Acuan Alokasi Waktu</td>
-    <td style="border: none; padding: 3px 0;">: <strong>${prosemSourceLabel}</strong> (${activeSemKalender?.totalEffectiveWeeks || effectiveWeekIndices.length} Pekan Efektif KBM • ${hoursPerWeek} JP/Minggu)</td>
-  </tr>
-</table>
+${buildOfficialIdentitas({
+  sectionHeading: 'A. IDENTITAS PROGRAM SEMESTER',
+  schoolName,
+  subject,
+  level,
+  grade,
+  gradeLabel: `Kelas ${resolvedGradeText} (${resolvedGradeWords})`,
+  phase,
+  semester: isGanjil ? 'Semester 1 (Ganjil)' : 'Semester 2 (Genap)',
+  academicYear: resolvedAcademicYear,
+  alokasiWaktu: `${activeSemKalender?.totalEffectiveWeeks || effectiveWeekIndices.length} Pekan Efektif KBM (${hoursPerWeek} JP / Minggu)`,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    { label: 'Acuan Alokasi Waktu', value: prosemSourceLabel },
+  ],
+  layout: 'html',
+})}
 
 <div style="margin-bottom: 20px;">
   <div style="font-weight: bold; font-size: 10.5pt; text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid #333333; padding-bottom: 4px;">
-    CAPAIAN PEMBELAJARAN ${subject.toUpperCase()} FASE ${phase}
+    CAPAIAN PEMBELAJARAN ${subject.toUpperCase()} (${phase.toUpperCase()})
   </div>
   <div style="font-size: 9.5pt; text-align: justify; line-height: 1.5; margin-bottom: 12px;">
     ${cpText}
@@ -1791,37 +1897,36 @@ ${buildOfficialLembarPengesahan({
         }
       }
 
-      const semesterLabel = String(semester) === '1' || String(semester).toLowerCase().includes('1') || String(semester).toLowerCase().includes('ganjil') ? 'Ganjil' : 'Genap';
-      const currentYear = resolvedAcademicYear?.split('/')[0] || schoolProfile.academicYear?.split('/')[0] || '2026';
-      const fullCity = city || schoolProfile.city || 'Maluku Tengah';
-      const fullSchoolName = schoolName || schoolProfile.schoolName || 'SMA NEGERI 30 MALUKU TENGAH';
-      const npsn = schoolProfile.npsn || '60103210';
-      const schoolAddress = schoolProfile.address || `Jl. Pendidikan No. 30, ${fullCity}`;
-      const schoolEmail = schoolProfile.email || `info@${fullSchoolName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'sekolah'}.sch.id`;
+      const semesterLabel = String(semester) === '1' || String(semester).toLowerCase().includes('1') || String(semester).toLowerCase().includes('ganjil') ? 'Semester 1 (Ganjil)' : 'Semester 2 (Genap)';
 
       return `# RENCANA PELAKSANAAN MODUL (RPM)
 ### Model Pembelajaran: DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
-#### Mata Pelajaran: ${subject} | ${level} Kelas ${grade} (Fase ${phase}) - Semester ${semesterLabel}
+#### Mata Pelajaran: ${subject} | ${level} Kelas ${grade} (${phase}) - ${semesterLabel}
 
 ---
 
-## A. IDENTITAS MODUL
-
-| Parameter | Keterangan |
-| :--- | :--- |
-| **Satuan Pendidikan** | ${fullSchoolName} |
-| **Penyusun / Guru Pengampu** | ${teacherName} |
-| **NIP Guru** | ${teacherNip || '_________________________'} |
-| **Tahun Ajaran** | ${resolvedAcademicYear || schoolProfile.academicYear || '2026/2027'} |
-| **Jenjang / Fase / Kelas** | ${level} / Fase ${phase} / Kelas ${grade} |
-| **Semester** | ${semesterLabel} |
-| **Mata Pelajaran** | ${subject} |
-| **Materi Pokok** | ${topic} |
-| **Sub Materi Tiap Pertemuan** | ${subMateriTableFormatted} |
-| **Alokasi Waktu Total** | ${meetingCount * Number(hoursPerMeeting) * Number(minutesPerJP)} Menit (${meetingCount} Pertemuan × ${hoursPerMeeting * minutesPerJP} Menit / Pertemuan = ${meetingCount * hoursPerMeeting} JP) |
-| **Model Pembelajaran** | **Deep Learning (6 Fase Sintaks: Mindful, Meaningful, Joyful Learning)** |
-| **Pendekatan & Metode** | Saintifik, Inkuiri Terbimbing, Kontekstual, Diskusi Kelompok, Eksplorasi Nyata, Think-Pair-Share |
-| **Target Peserta Didik** | Peserta Didik Reguler/Tipikal, Peserta Didik dengan Kesulitan Belajar (*Scaffolding*), dan Peserta Didik Berprestasi Cepat (*Pengayaan*) |
+${buildOfficialIdentitas({
+  sectionHeading: '## A. IDENTITAS MODUL',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester: semesterLabel,
+  academicYear: resolvedAcademicYear,
+  alokasiWaktu: `${meetingCount * Number(hoursPerMeeting) * Number(minutesPerJP)} Menit (${meetingCount} Pertemuan × ${hoursPerMeeting * minutesPerJP} Menit / Pertemuan = ${meetingCount * hoursPerMeeting} JP)`,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    { label: 'Materi Pokok', value: topic },
+    { label: 'Sub Materi Tiap Pertemuan', value: subMateriTableFormatted },
+    { label: 'Model Pembelajaran', value: '**Deep Learning (6 Fase Sintaks: Mindful, Meaningful, Joyful Learning)**' },
+    { label: 'Pendekatan & Metode', value: 'Saintifik, Inkuiri Terbimbing, Kontekstual, Diskusi Kelompok, Eksplorasi Nyata, Think-Pair-Share' },
+    { label: 'Target Peserta Didik', value: 'Peserta Didik Reguler/Tipikal, Peserta Didik dengan Kesulitan Belajar (*Scaffolding*), dan Peserta Didik Berprestasi Cepat (*Pengayaan*)' },
+  ],
+})}
 
 ---
 
@@ -1843,36 +1948,6 @@ ${tpFormattedList}
 3. *Apa konsekuensi yang terjadi jika suatu rancangan rekayasa mengabaikan prinsip-prinsip dasar materi ini?*
 
 ---
-
-## C. SINTAKS & SKEMA 6 FASE DEEP LEARNING
-
-\`\`\`
-+-------------------------------------------------------------------------------------------------
-| SKEMA ALUR SIKLUS 6 FASE DEEP LEARNING (MINDFUL, MEANINGFUL, JOYFUL)
-|
-| [ MINDFUL LEARNING ]
-| ┌───────────────────────────────┐          ┌───────────────────────────────┐
-| │ FASE 1: Orientasi & Motivasi  │   ───►   │ FASE 2: Eksplorasi Konsep     │
-| │ • Mindful Breathing (STOP)    │          │ • Inkuiri Konkret / Eksperimen│
-| │ • Pertanyaan Pemantik HOTS    │          │ • Identifikasi Masalah & LKPD │
-| └───────────────────────────────┘          └───────────────┬───────────────┘
-|                                                             │
-| [ MEANINGFUL LEARNING ]                                    ▼
-| ┌───────────────────────────────┐          ┌───────────────────────────────┐
-| │ FASE 4: Aplikasi & Penerapan  │   ◄───   │ FASE 3: Penjelasan & Elaborasi│
-| │ • Pemecahan Soal Kontekstual  │          │ • Penguatan Konsep Ilmiah     │
-| │ • Think-Pair-Share Kolaboratif│          │ • Diskusi Kaidah & Notasi Baku│
-| └───────────────┬───────────────┘          └───────────────────────────────┘
-|                  │
-| [ JOYFUL LEARNING ]
-|                  ▼
-| ┌───────────────────────────────┐          ┌───────────────────────────────┐
-| │ FASE 5: Refleksi Mendalam     │   ───►   │ FASE 6: Transfer & Koneksi    │
-| │ • Lembar Refleksi Pola 3-2-1  │          │ • Proyek Mini Kreatif Siswa   │
-| │ • Apresiasi Diri & Teman (6C) │          │ • Simpulan & Doa Penutup      │
-| └───────────────────────────────┘          └───────────────────────────────┘
-+-------------------------------------------------------------------------------------------------
-\`\`\`
 
 ## C. SINTAKS (DESAIN PEMBELAJARAN DEEP LEARNING)
 
@@ -1935,20 +2010,6 @@ ${meetingsContent}
 
 ## G. MATRIKS PEMBELAJARAN BERDIFERENSIASI
 
-\`\`\`
-+-------------------------------------------------------------------------------------------------
-| SKEMA MATRIKS PEMBELAJARAN BERDIFERENSIASI (PROSES, KONTEN, PRODUK)
-|
-| ┌───────────────────────────┐      ┌───────────────────────────┐      ┌───────────────────────────┐
-| │ 1. DIFERENSIASI KONTEN    │      │ 2. DIFERENSIASI PROSES    │      │ 3. DIFERENSIASI PRODUK    │
-| ├───────────────────────────┤      ├───────────────────────────┤      ├───────────────────────────┤
-| │ • Video Fenomena Konkret  │ ───► │ • Pendampingan Scaffolding│ ───► │ • Infografis / Poster     │
-| │ • Modul Teks Bergambar    │      │ • Diskusi Sebaya Heterogen│      │ • Presentasi Lisan Tim    │
-| │ • Kit Eksplorasi Nyata    │      │ • Bimbingan Intensif Guru │      │ • Laporan Tertulis Analis │
-| └───────────────────────────┘      └───────────────────────────┘      └───────────────────────────┘
-+-------------------------------------------------------------------------------------------------
-\`\`\`
-
 | Kategori Peserta Didik | Diferensiasi Konten | Diferensiasi Proses | Diferensiasi Produk |
 | :--- | :--- | :--- | :--- |
 | **Peserta Didik Reguler** | Modul teks standar, LKPD inkuiri, dan tayangan video fenomena. | Diskusi kelompok campuran dengan bimbingan reguler guru. | Laporan LKPD dan presentasi hasil temuan kelompok. |
@@ -2004,19 +2065,33 @@ ${buildOfficialLembarPengesahan({
         meetingBlocks.push(`
 # LEMBAR KERJA PESERTA DIDIK (LKPD) DEEP LEARNING - PERTEMUAN ${m} DARI ${resolvedMeetingCount}
 ## TEMA PERTEMUAN ${m}: ${meetingTheme.toUpperCase()}
-### MATA PELAJARAN: ${subject.toUpperCase()} - KELAS ${grade} (${phase}) - SEMESTER ${semester}
+### MATA PELAJARAN: ${subject.toUpperCase()} - KELAS ${grade} (${phase}) - ${semester.toUpperCase()}
 
 ---
 
-### I. IDENTITAS KELOMPOK BELAJAR
-| Komponen Identitas | Keterangan / Isian Peserta Didik |
-| :--- | :--- |
-| **Nama Kelompok** | ......................................................................................... |
-| **Anggota Kelompok** | 1. ..................................................... 3. .....................................................<br/>2. ..................................................... 4. ..................................................... |
-| **Kelas / Semester** | **Kelas ${grade} / Semester ${semester}** |
-| **Mata Pelajaran & Topik** | **${subject}** - *${topic}* |
-| **Alokasi Waktu KBM** | **${resolvedHours} JP (${durationPerMeeting} Menit)** |
-| **Profil Karakter 6C** | *Character, Critical Thinking, Creativity, Collaboration, Communication, Citizenship* |
+${buildOfficialIdentitas({
+  sectionHeading: '### I. IDENTITAS PERANGKAT & KELOMPOK BELAJAR',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester,
+  academicYear: resolvedAcademicYear,
+  alokasiWaktu: `${resolvedHours} JP (${durationPerMeeting} Menit)`,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    { label: 'Materi Pokok', value: topic },
+    { label: 'Profil Karakter 6C', value: '*Character, Critical Thinking, Creativity, Collaboration, Communication, Citizenship*' },
+  ],
+  footerExtraRows: [
+    { label: 'Nama Kelompok', value: '.........................................................................................' },
+    { label: 'Anggota Kelompok', value: '1. ..................................................... 3. .....................................................<br/>2. ..................................................... 4. .....................................................' },
+  ],
+})}
 
 ---
 
@@ -2025,31 +2100,19 @@ ${buildOfficialLembarPengesahan({
   * ${isFirst ? `Peserta didik mampu mengidentifikasi fenomena esensial ${topic}, memetakan variabel kausalitas, dan merumuskan hipotesis ilmiah secara kritis.` : `Peserta didik mampu merancang sketsa visual solusi inovatif ${topic}, memvalidasi data empiris, dan mempresentasikannya melalui forum kelas.`}
 * **Petunjuk Belajar Mindful & Safety:**
   1. Mulailah dengan doa bersama kelompok dan latihan pernapasan sadar (*Mindfulness 1 Menit*).
-  2. Cermati stimulus fenomena nyata dan **Bagan Ilustrasi Konsep** yang disajikan secara teliti.
+  2. Cermati stimulus fenomena nyata yang disajikan secara teliti.
   3. Lakukan pembagian tugas kelompok secara adil, inklusif, dan saling mendukung.
   4. Tuangkan ide dan visualisasi pemecahan masalah pada **Kanvas Sketsa Siswa**.
 
 ---
 
-### III. SINTAKS 1: MINDFUL DISCOVERY (ORIENTASI BERKESADARAN & BAGAN VISUAL KONSEP)
+### III. SINTAKS 1: MINDFUL DISCOVERY (ORIENTASI BERKESADARAN & STIMULUS KONSEP)
 > **📌 Stimulus Kontekstual & Studi Kasus Pertemuan ${m}:**  
 > Dalam kehidupan sehari-hari, prinsip **${topic}** pada bidang studi **${subject}** menjadi kunci utama dalam memecahkan masalah kontekstual (efisiensi sistem, kelestarian lingkungan, ketepatan analisis, atau dinamika sosial-teknologi). Ketika terjadi ketidakseimbangan sistem, diperlukan analisis kritis dan rekayasa ide yang solutif.
 
-#### 📊 Bagan Ilustrasi Konsep & Skema Alur Ilmiah Pertemuan ${m}
-\`\`\`
-+-----------------------------------------------------------------------------------+
-|               DIAGRAM ALUR KONSEP & PENYELIDIKAN ILMIAH (${topic.toUpperCase()})               |
-|                                                                                   |
-|  [ FENOMENA NYATA ] ---> [ VARIABEL BEBAS (X) ] ---> [ PROSES TRANSFORMASI ]     |
-|          |                                                  |                     |
-|          v                                                  v                     |
-|  [ HIPOTESIS IDE ] <--- [ OLAH DATA EMPIRIS ] <--- [ VARIABEL TERIKAT (Y) ]       |
-+-----------------------------------------------------------------------------------+
-\`\`\`
-
 * **Pertanyaan Pemantik Berkesadaran (Mindful Curiosity Trigger):**
   1. *Mengapa fenomena ${topic} ini sangat krusial dalam konteks ilmu ${subject}?*
-  2. *Bagaimana jika salah satu variabel pada diagram di atas tidak berfungsi optimal?*
+  2. *Bagaimana jika salah satu variabel pada fenomena tersebut tidak berfungsi optimal?*
 
 ---
 
@@ -2311,15 +2374,24 @@ Gambarkan rancangan diagram ide, bagan sistem prototipe, poster mini, atau ilust
 
 ---
 
-### A. IDENTITAS PERANGKAT KKTP
-* **Satuan Pendidikan:** ${schoolName}
-* **Mata Pelajaran:** **${subject}**
-* **Fase / Kelas:** **${phase} / Kelas ${grade} (${level})**
-* **Semester / Tahun Ajaran:** **Semester ${semester} / Tahun Ajaran ${resolvedAcademicYear}**
-* **Bab / Lingkup Materi Pokok:** **${babName}** (Kode: ${baseCode})
-* **Alokasi Waktu:** ${babDetail.hours} Jam Pelajaran (JP)
-* **Penyusun / Guru Pengampu:** ${teacherName}
-* **NIP Guru:** ${teacherNip}
+${buildOfficialIdentitas({
+  sectionHeading: '### A. IDENTITAS PERANGKAT KKTP',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester: resolvedSemesterLabel,
+  academicYear: resolvedAcademicYear,
+  alokasiWaktu: `${babDetail.hours} Jam Pelajaran (JP)`,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    { label: 'Bab / Lingkup Materi Pokok', value: `**${babName}** (Kode: ${baseCode})` },
+  ],
+})}
 
 ---
 
@@ -2423,15 +2495,24 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-### A. IDENTITAS PERANGKAT KKTP TAHUNAN
-* **Satuan Pendidikan:** ${schoolName}
-* **Mata Pelajaran:** **${subject}**
-* **Fase / Kelas:** **${phase} / Kelas ${grade} (${level})**
-* **Tahun Ajaran:** **${resolvedAcademicYear}**
-* **Cakupan Pembelajaran:** 1 Tahun Pelajaran Penuh (${sem1Mats.length} Bab Semester 1 & ${sem2Mats.length} Bab Semester 2)
-* **Total Alokasi Waktu:** ${totalYearHours} Jam Pelajaran (JP) / Tahun
-* **Penyusun / Guru Pengampu:** ${teacherName}
-* **NIP Guru:** ${teacherNip}
+${buildOfficialIdentitas({
+  sectionHeading: '### A. IDENTITAS PERANGKAT KKTP TAHUNAN',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester: 'Semester 1 (Ganjil) & Semester 2 (Genap)',
+  academicYear: resolvedAcademicYear,
+  alokasiWaktu: `${totalYearHours} Jam Pelajaran (JP) / Tahun`,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    { label: 'Cakupan Pembelajaran', value: `1 Tahun Pelajaran Penuh (${sem1Mats.length} Bab Semester 1 & ${sem2Mats.length} Bab Semester 2)` },
+  ],
+})}
 
 ---
 
@@ -2525,14 +2606,23 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-### A. IDENTITAS PERANGKAT KKTP
-* **Satuan Pendidikan:** ${schoolName}
-* **Mata Pelajaran:** **${subject}**
-* **Fase / Kelas:** **${phase} / Kelas ${grade} (${level})**
-* **Semester / Tahun Ajaran:** **Semester ${semesterLabel} (Semester ${semesterNumber}) / Tahun Ajaran ${resolvedAcademicYear}**
-* **Cakupan Pembelajaran:** Seluruh Materi Pokok Semester ${semesterLabel} (${matsToProcess.length} Bab Terintegrasi Profil Guru)
-* **Penyusun / Guru Pengampu:** ${teacherName}
-* **NIP Guru:** ${teacherNip}
+${buildOfficialIdentitas({
+  sectionHeading: '### A. IDENTITAS PERANGKAT KKTP',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester: `Semester ${semesterLabel} (Semester ${semesterNumber})`,
+  academicYear: resolvedAcademicYear,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    { label: 'Cakupan Pembelajaran', value: `Seluruh Materi Pokok Semester ${semesterLabel} (${matsToProcess.length} Bab Terintegrasi Profil Guru)` },
+  ],
+})}
 
 ---
 
@@ -2602,29 +2692,29 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-### A. IDENTITAS ASESMEN & BAGAN SISTEM PENILAIAN TERINTEGRASI
-* **Satuan Pendidikan:** **${schoolName}**
-* **Mata Pelajaran:** **${subject}** | **Fase / Kelas:** **${phase} / Kelas ${grade} (${level})**
-* **Lingkup Materi Pokok:** **${topic}**
-* **Tujuan Pembelajaran (TP):** ${tpTitle}
-* **Pendekatan & Model:** **Deep Learning (Mindful, Meaningful, & Joyful Learning)**
-* **Guru Pengampu:** ${teacherName} (NIP. ${teacherNip})
-* **Kepala Satuan Pendidikan:** ${headmasterName} (NIP. ${headmasterNip})
+${buildOfficialIdentitas({
+  sectionHeading: '### A. IDENTITAS PERANGKAT ASESMEN',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester: resolvedSemesterLabel,
+  academicYear: resolvedAcademicYear,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    { label: 'Lingkup Materi Pokok', value: `**${topic}**` },
+    { label: 'Tujuan Pembelajaran (TP)', value: tpTitle },
+    { label: 'Pendekatan & Model', value: '**Deep Learning (Mindful, Meaningful, & Joyful Learning)**' },
+  ],
+})}
 
-\`\`\`
-+---------------------------------------------------------------------------------------------------+
-|               BAGAN STRUKTUR ASESMEN HOLISTIK & AUTENTIK DEEP LEARNING                            |
-|                                                                                                   |
-|  ┌─────────────────────────┐     ┌───────────────────────────┐     ┌───────────────────────────┐  |
-|  │ 1. MINDFUL ASSESSMENT   │ ──► │ 2. MEANINGFUL ASSESSMENT  │ ──► │ 3. JOYFUL ASSESSMENT      │  |
-|  ├─────────────────────────┤     ├───────────────────────────┤     ├───────────────────────────┤  |
-|  │ • Diagnostik Emosi & Minat│    │ • Sikap 6C Berkelanjutan  │     │ • Gelar Karya & Pameran   │  |
-|  │ • Kesiapan Kognitif Awal│     │ • Kinerja & Penyelidikan  │     │ • Umpan Balik Antarteman  │  |
-|  │ • Latihan Fokus STOP    │     │ • Tes Tertulis HOTS (PG)  │     │ • Refleksi Metakognisi    │  |
-|  │ • Pemetaan Scaffolding  │     │ • Soal Kasus Terapan      │     │ • Selebrasi Capaian Siswa │  |
-|  └─────────────────────────┘     └───────────────────────────┘     └───────────────────────────┘  |
-+---------------------------------------------------------------------------------------------------+
-\`\`\`
+---
+
+### B. MATRIKS SISTEM PENILAIAN TERINTEGRASI
 
 | No | Jenis Asesmen | Teknik Penilaian | Bentuk Instrumen | Dimensi 6C & Pilar Deep Learning | Waktu Pelaksanaan |
 | :-: | :--- | :--- | :--- | :--- | :--- |
@@ -2636,7 +2726,7 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-### B. RUBRIK ASESMEN DIAGNOSTIK AWAL (KESIAPAN BELAJAR)
+### C. RUBRIK ASESMEN DIAGNOSTIK AWAL (KESIAPAN BELAJAR)
 
 #### 1. Diagnostik Non-Kognitif (Gaya Belajar & Kondisi Emosional)
 | Indikator Diagnostik | Kategori Visual | Kategori Auditori | Kategori Kinestetik | Tindak Lanjut Diferensiasi |
@@ -2652,7 +2742,7 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-### C. RUBRIK ASESMEN FORMATIF SIKAP & KARAKTER DIMENSI 6C
+### D. RUBRIK ASESMEN FORMATIF SIKAP & KARAKTER DIMENSI 6C
 *Skala Penilaian: 4 = Sangat Baik / Membudaya, 3 = Baik / Mulai Berkembang, 2 = Cukup / Terlihat, 1 = Perlu Bimbingan*
 
 | Dimensi 6C Kemendikdasmen | Indikator Perilaku Teramati | Kriteria Skor 4 (Mahir) | Kriteria Skor 3 (Cakap) | Kriteria Skor 2 (Layak) | Kriteria Skor 1 (Berkembang) |
@@ -2666,7 +2756,7 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-### D. RUBRIK PENILAIAN KINERJA PROSES & LKPD BERJENJANG
+### E. RUBRIK PENILAIAN KINERJA PROSES & LKPD BERJENJANG
 | Aspek Penilaian Kinerja | Kriteria Mahir (Skor 4) | Kriteria Cakap (Skor 3) | Kriteria Layak (Skor 2) | Kriteria Berkembang (Skor 1) |
 | :--- | :--- | :--- | :--- | :--- |
 | **Penyelidikan & Pengolahan Data** | Data pengamatan lengkap, sistematis, dan dianalisis secara presisi. | Data lengkap dan diolah dengan rumus/konsep yang benar. | Data cukup lengkap namun analisis masih sederhana. | Data tidak lengkap dan perhitungan belum tepat. |
@@ -2675,7 +2765,7 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-### E. RUBRIK ASESMEN SUMATIF LINGKUP MATERI (KISI-KISI & PENSKORAN)
+### F. RUBRIK ASESMEN SUMATIF LINGKUP MATERI (KISI-KISI & PENSKORAN)
 
 #### 1. Pedoman Penskoran Soal Pilihan Ganda HOTS (5 Butir)
 * Setiap butir soal bernilai **2 poin** jika benar, **0 poin** jika salah. Total skor maksimal = **10 poin**.
@@ -2697,7 +2787,7 @@ ${buildOfficialLembarPengesahan({
 
 ---
 
-### F. FORMULA PENGOLAHAN NILAI AKHIR & INTERVENSI KKTP
+### G. FORMULA PENGOLAHAN NILAI AKHIR & INTERVENSI KKTP
 
 $$\text{Nilai Akhir Asesmen (NA)} = \left(\frac{\text{Skor PG (Maks 10)} + \text{Skor Uraian (Maks 12)} + \text{Skor Kinerja LKPD (Maks 12)}}{34}\right) \times 100$$
 
@@ -2729,9 +2819,26 @@ ${buildOfficialLembarPengesahan({
     default:
       return `# PERANGKAT AJAR BERBASIS DEEP LEARNING
 ## MATA PELAJARAN: ${subject.toUpperCase()} (${level} KELAS ${grade})
-* **Fase:** ${phase} | **Semester:** ${semester}
-* **Topik:** ${topic}
-* **Guru Pengampu:** ${teacherName}
+
+---
+
+${buildOfficialIdentitas({
+  sectionHeading: '### A. IDENTITAS PERANGKAT',
+  schoolName,
+  subject,
+  level,
+  grade,
+  phase,
+  semester: resolvedSemesterLabel,
+  academicYear: resolvedAcademicYear,
+  teacherName,
+  teacherNip,
+  headmasterName,
+  headmasterNip,
+  extraRows: [
+    { label: 'Materi Pokok', value: topic },
+  ],
+})}
 
 ---
 

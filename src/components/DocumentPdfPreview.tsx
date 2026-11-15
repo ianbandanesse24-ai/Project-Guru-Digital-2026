@@ -127,7 +127,23 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
   };
 
   const renderedHtml = ExportService.markdownToHtml(rawMarkdown);
-  const phase = String(grade) === '10' ? 'E' : Number(grade) > 10 ? 'F' : 'D';
+  const resolvedNumGrade = Number(grade);
+  const rawPhaseLetter = String(schoolProfile.phase || '').replace(/^fase\s+/i, '').trim().toUpperCase();
+  const phase = /^[A-F](\/[A-F])?$/.test(rawPhaseLetter)
+    ? rawPhaseLetter
+    : !isNaN(resolvedNumGrade) && resolvedNumGrade > 0
+      ? resolvedNumGrade <= 2
+        ? 'A'
+        : resolvedNumGrade <= 4
+        ? 'B'
+        : resolvedNumGrade <= 6
+        ? 'C'
+        : resolvedNumGrade <= 9
+        ? 'D'
+        : resolvedNumGrade === 10
+        ? 'E'
+        : 'F'
+      : 'E';
 
   const contentComponent = (
     <div className="flex flex-col h-full bg-white">
@@ -445,6 +461,22 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
                   background: #f8fafc;
                   border-radius: 6px;
                   border: 1px solid #cbd5e1;
+                }
+                .pdf-document-sheet table.identitas-table {
+                  border: 1.5px solid #0288d1 !important;
+                }
+                .pdf-document-sheet table.identitas-table th {
+                  background-color: #0288d1 !important;
+                  color: #ffffff !important;
+                  text-align: left !important;
+                  border: 1px solid #0288d1 !important;
+                  padding: 7px 10px !important;
+                }
+                .pdf-document-sheet table.identitas-table td {
+                  border: 1px solid #cbd5e1 !important;
+                  padding: 6px 10px !important;
+                  text-align: left !important;
+                  vertical-align: top !important;
                 }
                 .pdf-document-sheet table.signature-table,
                 .pdf-document-sheet table.ttd-table,

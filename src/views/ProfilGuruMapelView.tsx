@@ -2346,35 +2346,39 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
               <ul className="grid grid-cols-2 gap-1.5 text-slate-700 text-[11px]">
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>1. Tujuan Pembelajaran (TP)</span>
+                  <span>1. Analisis Capaian Pembelajaran (CP)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>2. Alur Tujuan Pembelajaran (ATP)</span>
+                  <span>2. Tujuan Pembelajaran (TP)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>3. Program Tahunan (PROTA)</span>
+                  <span>3. Alur Tujuan Pembelajaran (ATP)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>4. Program Semester (PROSEM)</span>
+                  <span>4. Program Tahunan (PROTA)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>5. Kriteria Ketuntasan (KKTP)</span>
+                  <span>5. Program Semester (PROSEM)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>6. RPM (Rencana Pelaksanaan Modul)</span>
+                  <span>6. Kriteria Ketuntasan (KKTP)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>7. Lembar Kerja Siswa (LKPD)</span>
+                  <span>7. RPM (Rencana Pelaksanaan Modul)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>8. Rubrik Penilaian Terpadu</span>
+                  <span>8. Lembar Kerja Siswa (LKPD)</span>
+                </li>
+                <li className="flex items-center space-x-1.5">
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>9. Rubrik Penilaian Terpadu</span>
                 </li>
               </ul>
             </div>

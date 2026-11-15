@@ -99,7 +99,7 @@ export const INITIAL_BUILTIN_TEMPLATES: SavedCustomTemplate[] = [
     id: 'template_standar_baku_mutlak_rpm_deep_learning',
     name: 'Standar Baku Mutlak RPM Deep Learning (Kemendikbudristek & Deep Learning - Utama)',
     category: 'rpm',
-    description: 'Format Standar Baku Mutlak Rencana Pelaksanaan Modul (RPM) Deep Learning: Identitas Modul, Kompetensi Dicapai, Skema 6 Fase Pedagogis, Sintaks Deep Learning, Skenario KBM 6 Kolom Lengkap, Asesmen & Rubrik KKTP, Media/Alat, Matriks Berdiferensiasi, Refleksi Guru, dan Pengesahan Dokumen.',
+    description: 'Format Standar Baku Mutlak Rencana Pelaksanaan Modul (RPM) Deep Learning: Identitas Modul, Kompetensi Dicapai, Sintaks Deep Learning, Skenario KBM 6 Kolom Lengkap, Asesmen & Rubrik KKTP, Media/Alat, Matriks Berdiferensiasi, Refleksi Guru, dan Pengesahan Dokumen.',
     isBuiltIn: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -125,8 +125,6 @@ B. KOMPETENSI YANG DICAPAI:
    - Tujuan Pembelajaran (TP) Operasional (HOTS Berbasis Kaidah ABCD dengan Kode [TP.X.Y])
    - Pemahaman Bermakna (Meaningful Learning)
    - Pertanyaan Pemantik (Sparking Questions HOTS)
-
-III. SKEMA SIKLUS 6 FASE PEDAGOGIS DEEP LEARNING (Diagram Alur Mindful, Meaningful, Joyful Learning)
 
 C. SINTAKS (DESAIN PEMBELAJARAN DEEP LEARNING):
    Tabel 4 Kolom: FASE SINTAKS | NAMA TAHAPAN | PILAR PEDAGOGIS | TUJUAN DAN FOKUS AKTIVITAS KELAS (Fase 1 s.d. Fase 6)
@@ -174,7 +172,6 @@ E. MEDIA, ALAT, DAN SUMBER BELAJAR:
    - Sumber Belajar Resmi (Buku Teks Siswa Kemendikbudristek RI, Buku Panduan Guru Kemendikbudristek RI, Modul Digital Kurikulum Berbasis Deep Learning, Portal Simulasi Edukasi)
 
 VIII. MATRIKS PEMBELAJARAN BERDIFERENSIASI:
-   - Skema Matriks Alur Visual (Diferensiasi Konten, Diferensiasi Proses, Diferensiasi Produk)
    - Tabel Diferensiasi 4 Kolom (Kategori Peserta Didik: Reguler, Kesulitan Belajar / Scaffolding, Berpencapaian Cepat / Mahir | Diferensiasi Konten | Diferensiasi Proses | Diferensiasi Produk)
 
 H. REFLEKSI GURU:
@@ -258,56 +255,52 @@ X. PENGESAHAN DOKUMEN:
     updatedAt: '2026-01-01T00:00:00.000Z',
     notes: `STANDAR PERUMUSAN TUJUAN PEMBELAJARAN (TP) ABCD DEEP LEARNING:
 1. IDENTITAS PERANGKAT (Satuan Pendidikan, Mata Pelajaran, Jenjang/Kelas/Fase, Semester, Tahun Pelajaran, Guru Pengampu)
-2. SKEMA ANATOMI RUMUSAN TP (Audience, Behavior, Condition, Degree + 3 Pilar Deep Learning)
-3. TABEL RUMUSAN TP TERSINKRONISASI (Kode TP, Rumusan TP ABCD, Pilar Deep Learning, KKO Bloom HOTS, Dimensi Profil Pancasila & 6C, Pemahaman Bermakna)
-4. PERTANYAAN PEMANTIK (Mindful Sparking Questions)
-5. DIAGRAM HIERARKI TAHAPAN PENGUASAAN KOMPETENSI DEEP LEARNING (Mindful Foundation, Meaningful Inquiry, Joyful Creation)
-6. LEMBAR PENGESAHAN DOKUMEN`,
+2. TABEL RUMUSAN TP TERSINKRONISASI (Kode TP, Rumusan TP ABCD, Pilar Deep Learning, KKO Bloom HOTS, Dimensi Profil Pancasila & 6C, Pemahaman Bermakna)
+3. PERTANYAAN PEMANTIK (Mindful Sparking Questions)
+4. LEMBAR PENGESAHAN DOKUMEN`,
   },
   {
     id: 'template_standar_resmi_alokasi_waktu_deep_learning',
     name: 'Standar Analisis Alokasi Waktu RBE (Kemendikbudristek & Deep Learning - Utama)',
     category: 'analisis_alokasi_waktu',
-    description: 'Format Standar Analisis Alokasi Waktu & Rincian Pekan Efektif (RBE) Kurikulum Berbasis Deep Learning: Identitas Dokumen, Skema Struktur Waktu Tahunan (Mindful, Meaningful, Joyful), Distribusi Pekan Kalender & Jam Efektif Semester 1 dan 2, Distribusi JP per Bab, dan Pengesahan Resmi.',
+    description: 'Format Standar Analisis Alokasi Waktu & Rincian Pekan Efektif (RBE) Kurikulum Berbasis Deep Learning: Identitas Dokumen, Distribusi Pekan Kalender & Jam Efektif Semester 1 dan 2, Rekapitulasi Tahunan, Distribusi JP per Bab, dan Pengesahan Resmi.',
     isBuiltIn: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     notes: `STANDAR ANALISIS ALOKASI WAKTU & RBE DEEP LEARNING:
 1. IDENTITAS DOKUMEN (Satuan Pendidikan, Mata Pelajaran, Jenjang/Kelas/Fase, Semester Ganjil & Genap, Tahun Pelajaran, Guru Pengampu, NIP)
-2. SKEMA STRUKTUR DISTRIBUSI ALOKASI WAKTU 1 TAHUN AJARAN (Mindful Foundation, Meaningful Inquiry, Joyful Creation)
-3. ANALISIS RINCIAN PEKAN EFEKTIF SEMESTER 1 & 2 (Matriks Bulanan & Perhitungan JP)
-4. REKAPITULASI ALOKASI WAKTU TAHUNAN
-5. TABEL DISTRIBUSI ALOKASI WAKTU & SIKLUS DEEP LEARNING PER BAB
-6. LEMBAR PENGESAHAN RESMI KEPALA SEKOLAH & GURU`,
+2. ANALISIS RINCIAN PEKAN EFEKTIF SEMESTER 1 & 2 (Matriks Bulanan & Perhitungan JP)
+3. REKAPITULASI ALOKASI WAKTU TAHUNAN
+4. TABEL DISTRIBUSI ALOKASI WAKTU & SIKLUS DEEP LEARNING PER BAB
+5. LEMBAR PENGESAHAN RESMI KEPALA SEKOLAH & GURU`,
   },
   {
     id: 'template_standar_resmi_analisis_cp_deep_learning',
     name: 'Standar Analisis & Distribusi CP (Kemendikbudristek & Deep Learning - Utama)',
     category: 'analisis_cp',
-    description: 'Format Standar Analisis Capaian Pembelajaran (CP) & Distribusi Materi Per Semester: Identitas Lengkap, Rasional & CP Resmi Fase, Bagan Dekomposisi CP Menuju TP, Dekomposisi Elemen CP, Distribusi Materi Semester 1 & 2 terintegrasi 3 Pilar Deep Learning, dan Pengesahan.',
+    description: 'Format Standar Analisis Capaian Pembelajaran (CP) & Distribusi Materi Per Semester: Identitas Lengkap, Rasional & CP Resmi Fase, Dekomposisi Elemen CP, Distribusi Materi Semester 1 & 2 terintegrasi 3 Pilar Deep Learning, dan Pengesahan.',
     isBuiltIn: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     notes: `STANDAR ANALISIS CP DEEP LEARNING:
 1. IDENTITAS PERANGKAT
 2. RASIONAL & CAPAIAN PEMBELAJARAN (CP) RESMI FASE
-3. BAGAN ALUR DEKOMPOSISI CP MENUJU TP
-4. DEKOMPOSISI ELEMEN & ANALISIS KOMPETENSI ESENSIAL
-5. TABEL DISTRIBUSI CP & MATERI SEMESTER 1 & 2 (DENGAN STRATEGI MODEL DEEP LEARNING)
-6. REKAPITULASI MATRIKS DISTRIBUSI ALOKASI WAKTU CP 1 TAHUN & PENGESAHAN`,
+3. DEKOMPOSISI ELEMEN & ANALISIS KOMPETENSI ESENSIAL
+4. TABEL DISTRIBUSI CP & MATERI SEMESTER 1 & 2 (DENGAN STRATEGI MODEL DEEP LEARNING)
+5. REKAPITULASI MATRIKS DISTRIBUSI ALOKASI WAKTU CP 1 TAHUN & PENGESAHAN`,
   },
   {
     id: 'template_standar_resmi_lkpd_deep_learning',
     name: 'Standar LKPD Deep Learning & Kanvas Siswa (Kemendikbudristek & Deep Learning - Utama)',
     category: 'lkpd',
-    description: 'Format Lembar Kerja Peserta Didik (LKPD) berbasis 4 Sintaks Deep Learning: Identitas Kelompok, Tujuan & Petunjuk Belajar, Sintaks 1 Mindful Discovery & Bagan Visual, Sintaks 2 Meaningful Inquiry & Data Empiris, Sintaks 3 Joyful Creation & Kanvas Sketsa Siswa, dan Sintaks 4 Mindful Reflection (Kartu 3-2-1).',
+    description: 'Format Lembar Kerja Peserta Didik (LKPD) berbasis 4 Sintaks Deep Learning: Identitas Kelompok, Tujuan & Petunjuk Belajar, Sintaks 1 Mindful Discovery, Sintaks 2 Meaningful Inquiry & Data Empiris, Sintaks 3 Joyful Creation & Kanvas Sketsa Siswa, dan Sintaks 4 Mindful Reflection (Kartu 3-2-1).',
     isBuiltIn: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     notes: `STANDAR LKPD DEEP LEARNING:
 1. IDENTITAS KELOMPOK BELAJAR & KARAKTER 6C
 2. TUJUAN PEMBELAJARAN & PETUNJUK KERJA BERKESADARAN
-3. SINTAKS 1: MINDFUL DISCOVERY (Orientasi Fenomena Nyata, Bagan Konsep, Pertanyaan Pemantik)
+3. SINTAKS 1: MINDFUL DISCOVERY (Orientasi Fenomena Nyata, Stimulus Kontekstual, Pertanyaan Pemantik)
 4. SINTAKS 2: MEANINGFUL INQUIRY (Aktivitas Penyelidikan HOTS, Tabel Data Empiris, Scaffolding Berjenjang)
 5. SINTAKS 3: JOYFUL CREATION (Kanvas Gambar & Sketsa Solusi Siswa, Pameran Karya Dinding Kelas Gallery Walk, Apresiasi Bintang & Wish)
 6. SINTAKS 4: MINDFUL REFLECTION & ASESMEN AUTENTIK (Kartu Refleksi Diri Siswa 3-2-1, Rubrik Mutu Guru)`,
@@ -316,12 +309,12 @@ X. PENGESAHAN DOKUMEN:
     id: 'template_standar_resmi_rubrik_deep_learning',
     name: 'Standar Rubrik Penilaian Terpadu 3 Pilar & 6C (Kemendikbudristek & Deep Learning - Utama)',
     category: 'rubrik_penilaian',
-    description: 'Format Rubrik Penilaian Terpadu berbasis Deep Learning: Identitas Asesmen, Bagan Struktur 3 Pilar (Mindful, Meaningful, Joyful), Asesmen Diagnostik Awal, Formatif Sikap & Karakter 6C, Formatif Kinerja LKPD Berjenjang, Sumatif Lingkup Materi HOTS, Formula Nilai Akhir & Lembar Pengesahan.',
+    description: 'Format Rubrik Penilaian Terpadu berbasis Deep Learning: Identitas Asesmen, Matriks Struktur 3 Pilar (Mindful, Meaningful, Joyful), Asesmen Diagnostik Awal, Formatif Sikap & Karakter 6C, Formatif Kinerja LKPD Berjenjang, Sumatif Lingkup Materi HOTS, Formula Nilai Akhir & Lembar Pengesahan.',
     isBuiltIn: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     notes: `STANDAR RUBRIK PENILAIAN TERPADU DEEP LEARNING:
-1. IDENTITAS ASESMEN & BAGAN SISTEM PENILAIAN TERINTEGRASI (MINDFUL, MEANINGFUL, JOYFUL)
+1. IDENTITAS ASESMEN & MATRIKS SISTEM PENILAIAN TERINTEGRASI (MINDFUL, MEANINGFUL, JOYFUL)
 2. RUBRIK ASESMEN DIAGNOSTIK AWAL (Gaya Belajar & Kesiapan Kognitif Prasyarat)
 3. RUBRIK ASESMEN FORMATIF SIKAP & KARAKTER DIMENSI 6C (Skala 1 - 4)
 4. RUBRIK PENILAIAN KINERJA PROSES & LKPD BERJENJANG
@@ -389,11 +382,10 @@ export const DOCUMENT_PRESETS: Record<string, { id: string; label: string; notes
       label: 'Format Standar Analisis Alokasi Waktu RBE (Kemendikbudristek & Deep Learning - Utama)',
       notes: `1. IDENTITAS DOKUMEN (Satuan Pendidikan, Mata Pelajaran, Jenjang/Kelas/Fase, Semester Ganjil & Genap, Tahun Pelajaran, Guru Pengampu, NIP)
 2. MODEL & PENDEKATAN: Deep Learning (Mindful, Meaningful, & Joyful Learning)
-3. SKEMA STRUKTUR DISTRIBUSI ALOKASI WAKTU 1 TAHUN AJARAN (Mindful Foundation 25%, Meaningful Inquiry 50%, Joyful Creation 25%)
-4. PERHITUNGAN PEKAN EFEKTIF SEMESTER (Tabel Matriks Bulanan: No, Nama Bulan, Jumlah Pekan Kalender, Pekan Tidak Efektif, Pekan Efektif KBM, Keterangan)
-5. DISTRIBUSI ALOKASI JAM PELAJARAN (JP Efektif, Cadangan Asesmen Sumatif, Tatap Muka KBM)
-6. TABEL DISTRIBUSI ALOKASI WAKTU (JP) & SIKLUS DEEP LEARNING PER BAB
-7. LEMBAR PENGESAHAN RESMI (Kepala Satuan Pendidikan & Guru Pengampu)`,
+3. PERHITUNGAN PEKAN EFEKTIF SEMESTER (Tabel Matriks Bulanan: No, Nama Bulan, Jumlah Pekan Kalender, Pekan Tidak Efektif, Pekan Efektif KBM, Keterangan)
+4. DISTRIBUSI ALOKASI JAM PELAJARAN (JP Efektif, Cadangan Asesmen Sumatif, Tatap Muka KBM)
+5. TABEL DISTRIBUSI ALOKASI WAKTU (JP) & SIKLUS DEEP LEARNING PER BAB
+6. LEMBAR PENGESAHAN RESMI (Kepala Satuan Pendidikan & Guru Pengampu)`,
     },
     {
       id: 'alokasi_waktu_dinas_provinsi',
@@ -411,10 +403,9 @@ E. PENGESAHAN KEPALA SEKOLAH, GURU PENGAMPU & MENGETAHUI PENGAWAS PEMBINA`,
       label: 'Format Standar Analisis Alokasi Waktu RBE (Kemendikbudristek & Deep Learning - Utama)',
       notes: `1. IDENTITAS DOKUMEN (Satuan Pendidikan, Mata Pelajaran, Jenjang/Kelas/Fase, Semester Ganjil & Genap, Tahun Pelajaran, Guru Pengampu, NIP)
 2. MODEL & PENDEKATAN: Deep Learning (Mindful, Meaningful, & Joyful Learning)
-3. SKEMA STRUKTUR DISTRIBUSI ALOKASI WAKTU 1 TAHUN AJARAN (Mindful, Meaningful, Joyful)
-4. PERHITUNGAN PEKAN EFEKTIF SEMESTER GANJIL & GENAP
-5. TABEL DISTRIBUSI ALOKASI WAKTU & SIKLUS DEEP LEARNING PER BAB
-6. LEMBAR PENGESAHAN RESMI KEPALA SEKOLAH & GURU`,
+3. PERHITUNGAN PEKAN EFEKTIF SEMESTER GANJIL & GENAP
+4. TABEL DISTRIBUSI ALOKASI WAKTU & SIKLUS DEEP LEARNING PER BAB
+5. LEMBAR PENGESAHAN RESMI KEPALA SEKOLAH & GURU`,
     },
   ],
   analisis_cp: [
@@ -423,11 +414,10 @@ E. PENGESAHAN KEPALA SEKOLAH, GURU PENGAMPU & MENGETAHUI PENGAWAS PEMBINA`,
       label: 'Format Standar Analisis & Distribusi CP (Kemendikbudristek & Deep Learning - Utama)',
       notes: `1. IDENTITAS PERANGKAT LENGKAP (Satuan Pendidikan, Mapel, Fase/Kelas, Semester, Tahun Pelajaran)
 2. RASIONAL & CAPAIAN PEMBELAJARAN (CP) RESMI FASE
-3. BAGAN ALUR DEKOMPOSISI CP MENUJU TP
-4. DEKOMPOSISI ELEMEN & ANALISIS KOMPETENSI ESENSIAL HOTS
-5. INTEGRASI 3 PILAR DEEP LEARNING (Mindful Foundation, Meaningful Inquiry, Joyful Creation)
-6. HASIL DISTRIBUSI CAPAIAN PEMBELAJARAN & MATERI PER SEMESTER (GANJIL & GENAP)
-7. REKAPITULASI MATRIKS DISTRIBUSI ALOKASI WAKTU CP 1 TAHUN & LEMBAR PENGESAHAN`,
+3. DEKOMPOSISI ELEMEN & ANALISIS KOMPETENSI ESENSIAL HOTS
+4. INTEGRASI 3 PILAR DEEP LEARNING (Mindful Foundation, Meaningful Inquiry, Joyful Creation)
+5. HASIL DISTRIBUSI CAPAIAN PEMBELAJARAN & MATERI PER SEMESTER (GANJIL & GENAP)
+6. REKAPITULASI MATRIKS DISTRIBUSI ALOKASI WAKTU CP 1 TAHUN & LEMBAR PENGESAHAN`,
     },
     {
       id: 'analisis_cp_deep_learning_matriks',
@@ -454,17 +444,15 @@ E. RENCANA PENILAIAN & ASESMEN AUTENTIK`,
       id: 'tp_standar_deep_learning_abcd',
       label: 'Format Perumusan TP ABCD & 3 Pilar (Kemendikbudristek & Deep Learning - Utama)',
       notes: `1. IDENTITAS SATUAN PENDIDIKAN & MATA PELAJARAN
-2. SKEMA ANATOMI RUMUSAN TP (Audience, Behavior, Condition, Degree + 3 Pilar Deep Learning)
-3. TABEL RUMUSAN TUJUAN PEMBELAJARAN (TP) DEEP LEARNING:
+2. TABEL RUMUSAN TUJUAN PEMBELAJARAN (TP) DEEP LEARNING:
    - Kode TP
    - Rumusan TP (Komponen: Audience, Behavior, Condition, Degree)
    - Pilar Deep Learning (Mindful, Meaningful, Joyful)
    - Kata Kerja Operasional (KKO Bloom HOTS C2-C6)
    - Dimensi Karakter 6C & Profil Pelajar Pancasila
    - Pemahaman Bermakna (Deep Meaning)
-4. PERTANYAAN PEMANTIK INKUIRI (Mindful Sparking Questions)
-5. DIAGRAM HIERARKI TAHAPAN PENGUASAAN KOMPETENSI DEEP LEARNING
-6. LEMBAR PENGESAHAN DOKUMEN RESMI`,
+3. PERTANYAAN PEMANTIK INKUIRI (Mindful Sparking Questions)
+4. LEMBAR PENGESAHAN DOKUMEN RESMI`,
     },
     {
       id: 'tp_elemen',
@@ -562,7 +550,7 @@ E. TABEL REKAPITULASI ALUR KOMPETENSI 1 TAHUN & PENGESAHAN`,
       label: 'Format Standar LKPD Deep Learning & Kanvas Siswa (Kemendikbudristek & Deep Learning - Utama)',
       notes: `1. IDENTITAS KELOMPOK BELAJAR & PROFIL KARAKTER 6C
 2. TUJUAN PEMBELAJARAN & PETUNJUK KERJA BERKESADARAN
-3. SINTAKS 1: MINDFUL DISCOVERY (Orientasi Fenomena Nyata, Bagan Visual Konsep, Pertanyaan Pemantik HOTS)
+3. SINTAKS 1: MINDFUL DISCOVERY (Orientasi Fenomena Nyata, Stimulus Kontekstual, Pertanyaan Pemantik HOTS)
 4. SINTAKS 2: MEANINGFUL INQUIRY (Aktivitas Penyelidikan Mandiri & Kelompok, Tabel Pengolahan Data Empiris, Scaffolding Berjenjang)
 5. SINTAKS 3: JOYFUL CREATION (Kanvas Sketsa Visual Inovasi Siswa, Pameran Karya Dinding Kelas Gallery Walk, Umpan Balik Bintang & Wish)
 6. SINTAKS 4: MINDFUL REFLECTION & ASESMEN AUTENTIK (Kartu Refleksi Diri 3-2-1, Rubrik Penilaian Mutu Kinerja)`,
@@ -597,25 +585,23 @@ C. TINGKAT MAHIR / PENGAYAAN (Inovasi Rekayasa)`,
       id: 'kktp_semester',
       label: 'Format KKTP Setiap Semester (Standar Baku Resmi BSKAP - Rekomendasi)',
       notes: `1. IDENTITAS PERANGKAT KKTP SEMESTER (Satuan Pendidikan, Mapel, Fase/Kelas, Semester Ganjil/Genap, Tahun Pelajaran, Guru Pengampu, NIP)
-2. DIAGRAM PIRAMIDA TANGGA INTERVAL KETUNTASAN & KERANGKA INTERVENSI (Level 1 s.d. Level 4)
-3. PENILAIAN SETIAP TP DIURAIKAN PER BAB / LINGKUP MATERI SEMESTER INI (Bab 1, Bab 2, dst.):
+2. PENILAIAN SETIAP TP DIURAIKAN PER BAB / LINGKUP MATERI SEMESTER INI (Bab 1, Bab 2, dst.):
    - Tabel Rubrik Deskriptif 4 Kategori Mutu Penilaian Setiap TP (Baru Berkembang, Layak, Cakap [KKTP 75%], Mahir)
    - Tabel Skala Interval Nilai Ketuntasan Setiap TP (0-40%, 41-65%, 66-85%, 86-100%)
-4. MATRIKS REKAPITULASI INTERVAL NILAI KETUNTASAN SETIAP TP SELURUH SEMESTER
-5. LEMBAR FORMAT REKAPITULASI CEKLIS ASESMEN SISWA SEMESTER
-6. PEDOMAN TINDAK LANJUT ASESMEN, REMEDIAL TERARAH PER TP & PENGAYAAN
-7. LEMBAR PENGESAHAN DOKUMEN (Kepala Satuan Pendidikan & Guru Pengampu)`,
+3. MATRIKS REKAPITULASI INTERVAL NILAI KETUNTASAN SETIAP TP SELURUH SEMESTER
+4. LEMBAR FORMAT REKAPITULASI CEKLIS ASESMEN SISWA SEMESTER
+5. PEDOMAN TINDAK LANJUT ASESMEN, REMEDIAL TERARAH PER TP & PENGAYAAN
+6. LEMBAR PENGESAHAN DOKUMEN (Kepala Satuan Pendidikan & Guru Pengampu)`,
     },
     {
       id: 'kktp_1_tahun',
       label: 'Format KKTP 1 Tahun Pelajaran Penuh (Semester 1 & 2 Sekaligus)',
       notes: `1. IDENTITAS PERANGKAT KKTP 1 TAHUN PELAJARAN (Satuan Pendidikan, Mapel, Fase/Kelas, Tahun Pelajaran, Total Alokasi JP Tahunan)
-2. DIAGRAM PIRAMIDA TANGGA INTERVAL KETUNTASAN KURIKULUM MERDEKA
-3. BAGAN I: PENILAIAN SETIAP TP PADA SELURUH BAB SEMESTER 1 (GANJIL) LENGKAP DENGAN RUBRIK & INTERVAL
-4. BAGAN II: PENILAIAN SETIAP TP PADA SELURUH BAB SEMESTER 2 (GENAP) LENGKAP DENGAN RUBRIK & INTERVAL
-5. MATRIKS REKAPITULASI TAHUNAN INTERVAL NILAI KETUNTASAN TP (SEMESTER 1 & 2)
-6. PANDUAN PELAKSANAAN REMEDIAL & PENGAYAAN TAHUNAN
-7. LEMBAR PENGESAHAN DOKUMEN KKTP TAHUNAN`,
+2. BAGIAN I: PENILAIAN SETIAP TP PADA SELURUH BAB SEMESTER 1 (GANJIL) LENGKAP DENGAN RUBRIK & INTERVAL
+3. BAGIAN II: PENILAIAN SETIAP TP PADA SELURUH BAB SEMESTER 2 (GENAP) LENGKAP DENGAN RUBRIK & INTERVAL
+4. MATRIKS REKAPITULASI TAHUNAN INTERVAL NILAI KETUNTASAN TP (SEMESTER 1 & 2)
+5. PANDUAN PELAKSANAAN REMEDIAL & PENGAYAAN TAHUNAN
+6. LEMBAR PENGESAHAN DOKUMEN KKTP TAHUNAN`,
     },
     {
       id: 'kktp_per_tp_bab',
@@ -653,8 +639,6 @@ B. KOMPETENSI YANG DICAPAI:
    - Pemahaman Bermakna (Meaningful Learning)
    - Pertanyaan Pemantik (Sparking Questions HOTS)
 
-III. SKEMA SIKLUS 6 FASE PEDAGOGIS DEEP LEARNING (Diagram Alur Mindful, Meaningful, Joyful Learning)
-
 C. SINTAKS (DESAIN PEMBELAJARAN DEEP LEARNING):
    Tabel 4 Kolom: FASE SINTAKS | NAMA TAHAPAN | PILAR PEDAGOGIS | TUJUAN DAN FOKUS AKTIVITAS KELAS (Fase 1 s.d. Fase 6)
 
@@ -680,7 +664,6 @@ E. MEDIA, ALAT, DAN SUMBER BELAJAR:
    - Sumber Belajar Resmi
 
 VIII. MATRIKS PEMBELAJARAN BERDIFERENSIASI:
-   - Skema Matriks Alur (Konten, Proses, Produk)
    - Tabel Diferensiasi 4 Kolom: Kategori Peserta Didik (Reguler, Kesulitan Belajar / Scaffolding, Berpencapaian Cepat / Mahir) | Diferensiasi Konten | Diferensiasi Proses | Diferensiasi Produk
 
 H. REFLEKSI GURU:
@@ -702,8 +685,6 @@ B. KOMPETENSI YANG DICAPAI:
    - Pemahaman Bermakna (Meaningful Learning)
    - Pertanyaan Pemantik (Sparking Questions HOTS)
 
-III. SKEMA SIKLUS 6 FASE PEDAGOGIS DEEP LEARNING (Diagram Alur Mindful, Meaningful, Joyful Learning)
-
 C. SINTAKS (DESAIN PEMBELAJARAN DEEP LEARNING):
    Tabel 4 Kolom: FASE SINTAKS | NAMA TAHAPAN | PILAR PEDAGOGIS | TUJUAN DAN FOKUS AKTIVITAS KELAS (Fase 1 s.d. Fase 6)
 
@@ -729,7 +710,6 @@ E. MEDIA, ALAT, DAN SUMBER BELAJAR:
    - Sumber Belajar Resmi
 
 VIII. MATRIKS PEMBELAJARAN BERDIFERENSIASI:
-   - Skema Matriks Alur (Konten, Proses, Produk)
    - Tabel Diferensiasi 4 Kolom: Kategori Peserta Didik (Reguler, Kesulitan Belajar / Scaffolding, Berpencapaian Cepat / Mahir) | Diferensiasi Konten | Diferensiasi Proses | Diferensiasi Produk
 
 H. REFLEKSI GURU:
@@ -743,7 +723,7 @@ X. PENGESAHAN DOKUMEN:
     {
       id: 'rubrik_standar_deep_learning_6c',
       label: 'Format Standar Rubrik Penilaian 3 Pilar & 6C (Kemendikbudristek & Deep Learning - Utama)',
-      notes: `1. IDENTITAS ASESMEN & BAGAN SISTEM PENILAIAN TERINTEGRASI (MINDFUL, MEANINGFUL, JOYFUL)
+      notes: `1. IDENTITAS ASESMEN & MATRIKS SISTEM PENILAIAN TERINTEGRASI (MINDFUL, MEANINGFUL, JOYFUL)
 2. RUBRIK ASESMEN DIAGNOSTIK AWAL (Gaya Belajar & Kesiapan Kognitif Prasyarat)
 3. RUBRIK ASESMEN FORMATIF SIKAP & KARAKTER DIMENSI 6C (Skala 1 - 4)
 4. RUBRIK PENILAIAN KINERJA PROSES & LKPD BERJENJANG
@@ -764,7 +744,7 @@ D. RUBRIK PRODUK / HASIL KARYA`,
     {
       id: 'asesmen_standar_deep_learning_3_pilar',
       label: 'Format Asesmen Komprehensif Deep Learning 3 Pilar & 6C (Kemendikbudristek & Deep Learning - Utama)',
-      notes: `1. IDENTITAS ASESMEN & BAGAN SISTEM PENILAIAN TERINTEGRASI (MINDFUL, MEANINGFUL, JOYFUL)
+      notes: `1. IDENTITAS ASESMEN & MATRIKS SISTEM PENILAIAN TERINTEGRASI (MINDFUL, MEANINGFUL, JOYFUL)
 2. BAGIAN 1: ASESMEN DIAGNOSTIK (Kesiapan Kognitif & Non-Kognitif)
 3. BAGIAN 2: ASESMEN FORMATIF (Observasi Karakter 6C & Kinerja LKPD)
 4. BAGIAN 3: ASESMEN SUMATIF (Kisi-Kisi HOTS, Soal PG & Uraian, Kunci Jawaban & Rubrik)
