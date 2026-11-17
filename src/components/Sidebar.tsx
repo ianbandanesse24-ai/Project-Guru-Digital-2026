@@ -59,6 +59,8 @@ interface MenuItem {
   id: string;
   label: string;
   icon: any;
+  iconColor?: string;
+  iconBg?: string;
   badge?: string;
   desc?: string;
 }
@@ -96,42 +98,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'kelas_siswa',
       label: 'Kelola Kelas & Siswa',
       icon: UserCheck,
+      iconColor: 'text-sky-600',
+      iconBg: 'bg-sky-50 border-sky-200/70',
       desc: 'Daftar Siswa & Rombel',
     },
     {
       id: 'absensi',
       label: 'Absensi Siswa',
       icon: Users,
+      iconColor: 'text-emerald-600',
+      iconBg: 'bg-emerald-50 border-emerald-200/70',
       desc: 'Presensi Harian & Rekap',
     },
     {
       id: 'jadwal',
       label: 'Jadwal Mengajar',
       icon: Calendar,
+      iconColor: 'text-violet-600',
+      iconBg: 'bg-violet-50 border-violet-200/70',
       desc: 'Jam Tatap Muka Guru',
     },
     {
       id: 'agenda',
       label: 'Agenda Harian Mengajar',
       icon: ClipboardList,
+      iconColor: 'text-amber-600',
+      iconBg: 'bg-amber-50 border-amber-200/70',
       desc: 'Catatan Agenda & Pertemuan',
     },
     {
       id: 'jurnal',
       label: 'Jurnal Mengajar',
       icon: BookMarked,
+      iconColor: 'text-rose-600',
+      iconBg: 'bg-rose-50 border-rose-200/70',
       desc: 'Refleksi Guru & Supervisi',
     },
     {
       id: 'guru_wali',
       label: 'Buku Wali Kelas & Rekap',
       icon: BookOpen,
+      iconColor: 'text-indigo-600',
+      iconBg: 'bg-indigo-50 border-indigo-200/70',
       desc: 'Nilai & Catatan Siswa Binaan',
     },
     {
       id: 'cetak_laporan',
       label: 'Cetak Laporan Lengkap',
       icon: Printer,
+      iconColor: 'text-teal-600',
+      iconBg: 'bg-teal-50 border-teal-200/70',
       badge: 'PDF/Word',
       desc: 'Ekspor Berkas Siap Cetak',
     },
@@ -142,6 +158,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'profil_guru_mapel',
       label: 'Profil Guru Mata Pelajaran',
       icon: UserCheck,
+      iconColor: 'text-blue-600',
+      iconBg: 'bg-blue-50 border-blue-200/70',
       badge: 'Acuan Utama',
       desc: 'Biodata Guru & Mapel',
     },
@@ -149,6 +167,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'kalender_pendidikan',
       label: 'Upload Kalender Pendidikan',
       icon: CalendarDays,
+      iconColor: 'text-orange-600',
+      iconBg: 'bg-orange-50 border-orange-200/70',
       badge: 'Kaldik',
       desc: 'Upload Dokumen Kaldik Sekolah',
     },
@@ -156,6 +176,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'parameter_kurikulum',
       label: 'Parameter Kurikulum & Bab TP',
       icon: Sliders,
+      iconColor: 'text-purple-600',
+      iconBg: 'bg-purple-50 border-purple-200/70',
       badge: 'Deep Learning',
       desc: 'Bab, Materi Pokok & Alokasi JP',
     },
@@ -163,6 +185,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'analisis_alokasi_waktu',
       label: '1. Analisis Alokasi Waktu',
       icon: Table,
+      iconColor: 'text-cyan-600',
+      iconBg: 'bg-cyan-50 border-cyan-200/70',
       badge: 'Sinkron PROSEM',
       desc: 'Upload Mandiri & Sinkron PROSEM',
     },
@@ -170,6 +194,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'ai_analisis_cp',
       label: '2. Analisis Capaian Pembelajaran (CP)',
       icon: FileSearch,
+      iconColor: 'text-indigo-600',
+      iconBg: 'bg-indigo-50 border-indigo-200/70',
       badge: 'Format Sendiri',
       desc: 'Upload Format Sendiri & Analisis CP',
     },
@@ -177,30 +203,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'ai_tp',
       label: '3. Tujuan Pembelajaran (TP)',
       icon: Target,
+      iconColor: 'text-teal-600',
+      iconBg: 'bg-teal-50 border-teal-200/70',
       desc: 'Rumusan KKO Kompetensi',
     },
     {
       id: 'ai_atp',
       label: '4. Alur TP (ATP)',
       icon: GitMerge,
+      iconColor: 'text-emerald-600',
+      iconBg: 'bg-emerald-50 border-emerald-200/70',
       desc: 'Alur Urutan & JP',
     },
     {
       id: 'ai_prota',
       label: '5. Program Tahunan (PROTA)',
       icon: CalendarRange,
+      iconColor: 'text-sky-600',
+      iconBg: 'bg-sky-50 border-sky-200/70',
       desc: 'Rencana Alokasi 1 Tahun',
     },
     {
       id: 'ai_prosem',
       label: '6. Program Semester (PROSEM)',
       icon: CalendarCheck,
+      iconColor: 'text-green-600',
+      iconBg: 'bg-green-50 border-green-200/70',
       desc: 'Matriks Pekan Efektif',
     },
     {
       id: 'ai_kktp',
       label: '7. Kriteria Ketuntasan (KKTP)',
       icon: CheckSquare,
+      iconColor: 'text-amber-600',
+      iconBg: 'bg-amber-50 border-amber-200/70',
       badge: 'Standar Mutu',
       desc: 'Rubrik & Interval Nilai',
     },
@@ -208,6 +244,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'ai_modul_ajar',
       label: '8. RPM (Rencana Pelaksanaan Modul)',
       icon: FileText,
+      iconColor: 'text-rose-600',
+      iconBg: 'bg-rose-50 border-rose-200/70',
       badge: 'RPM',
       desc: 'Rencana Pelaksanaan Modul',
     },
@@ -215,12 +253,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'ai_lkpd',
       label: '9. Lembar Kerja Siswa (LKPD)',
       icon: FileSpreadsheet,
+      iconColor: 'text-fuchsia-600',
+      iconBg: 'bg-fuchsia-50 border-fuchsia-200/70',
       desc: 'Aktivitas Berdiferensiasi',
     },
     {
       id: 'ai_rubrik_penilaian',
       label: '10. Rubrik Penilaian Terpadu',
       icon: HelpCircle,
+      iconColor: 'text-pink-600',
+      iconBg: 'bg-pink-50 border-pink-200/70',
       desc: 'Sinkron RPM / Modul Ajar',
     },
   ];
@@ -230,11 +272,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'admin_dashboard',
       label: 'Dashboard & Log Audit',
       icon: ShieldCheck,
+      iconColor: 'text-violet-600',
+      iconBg: 'bg-violet-50 border-violet-200/70',
     },
     {
       id: 'admin_upload_cp',
       label: 'Upload CP Master',
       icon: UploadCloud,
+      iconColor: 'text-sky-600',
+      iconBg: 'bg-sky-50 border-sky-200/70',
       badge: 'Master',
       desc: 'Upload & Sinkron Dokumen CP Resmi',
     },
@@ -242,6 +288,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'admin_api_key',
       label: 'Manajemen API Key AMD',
       icon: Key,
+      iconColor: 'text-amber-600',
+      iconBg: 'bg-amber-50 border-amber-200/70',
       badge: 'AMD',
       desc: 'Pengaturan Kunci API Layanan AMD',
     },
@@ -249,18 +297,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'admin_tokens',
       label: 'Manajemen Token & Kuota Sistem',
       icon: Sparkles,
+      iconColor: 'text-emerald-600',
+      iconBg: 'bg-emerald-50 border-emerald-200/70',
       badge: '20/Hari',
     },
     {
       id: 'admin_access',
       label: 'Otorisasi Akun Client',
       icon: Users,
+      iconColor: 'text-blue-600',
+      iconBg: 'bg-blue-50 border-blue-200/70',
       badge: pendingRequestsCount > 0 ? `${pendingRequestsCount} Pending` : undefined,
     },
     {
       id: 'admin_sync',
       label: 'Sinkronisasi Supabase & GitHub',
       icon: Database,
+      iconColor: 'text-indigo-600',
+      iconBg: 'bg-indigo-50 border-indigo-200/70',
       badge: 'Auto-Sync',
       desc: 'Dual Cloud & Git Backup',
     },
@@ -268,6 +322,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'saran',
       label: 'Kotak Saran & Masukan',
       icon: MessageSquareHeart,
+      iconColor: 'text-pink-600',
+      iconBg: 'bg-pink-50 border-pink-200/70',
       desc: 'Kritik, Masukan & Saran Fitur',
     },
   ];
@@ -346,7 +402,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }`}
           >
             <div className="flex items-center space-x-2.5 min-w-0">
-              <LayoutDashboard className={`w-4 h-4 shrink-0 ${activeView === 'dashboard' ? 'text-blue-600' : 'text-slate-500'}`} />
+              <span className={`w-6 h-6 rounded-md border flex items-center justify-center shrink-0 ${activeView === 'dashboard' ? 'bg-blue-100 border-blue-300' : 'bg-blue-50 border-blue-200/70'}`}>
+                <LayoutDashboard className="w-3.5 h-3.5 text-blue-600" />
+              </span>
               <span className="truncate">Dashboard & Ikhtisar</span>
             </div>
             <ChevronRight className={`w-3.5 h-3.5 ${activeView === 'dashboard' ? 'text-blue-600' : 'text-slate-400'}`} />
@@ -357,7 +415,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div>
           <div className="px-2 mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500">
             <span className="flex items-center gap-1.5">
-              <ClipboardList className="w-3.5 h-3.5 text-slate-500" />
+              <ClipboardList className="w-3.5 h-3.5 text-sky-600" />
               <span>Administrasi Pokok</span>
             </span>
             <span className="text-[10px] px-1.5 py-0.2 rounded font-semibold bg-slate-100 text-slate-600 border border-slate-200">
@@ -374,14 +432,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={item.id}
                   id={`nav-${item.id}`}
                   onClick={() => handleSelectView(item.id)}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                     isActive
                       ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-2xs'
                       : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   <div className="flex items-center space-x-2.5 min-w-0">
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-blue-600' : 'text-slate-500'}`} />
+                    <span className={`w-6 h-6 rounded-md border flex items-center justify-center shrink-0 ${item.iconBg || 'bg-slate-100 border-slate-200'}`}>
+                      <Icon className={`w-3.5 h-3.5 ${item.iconColor || 'text-slate-600'}`} />
+                    </span>
                     <span className="truncate">{item.label}</span>
                   </div>
                   {item.badge && (
@@ -410,7 +470,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div>
           <div className="px-2 mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500">
             <span className="flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-slate-500" />
+              <Sparkles className="w-3.5 h-3.5 text-teal-600" />
               <span>Kurikulum & Perangkat</span>
             </span>
             <span className="text-[10px] px-1.5 py-0.2 rounded font-semibold bg-slate-100 text-slate-600 border border-slate-200">
@@ -434,14 +494,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={item.id}
                   id={`nav-${item.id}`}
                   onClick={() => handleSelectView(item.id)}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                     isActive
                       ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-2xs'
                       : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   <div className="flex items-center space-x-2.5 min-w-0">
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-blue-600' : 'text-slate-500'}`} />
+                    <span className={`w-6 h-6 rounded-md border flex items-center justify-center shrink-0 ${item.iconBg || 'bg-slate-100 border-slate-200'}`}>
+                      <Icon className={`w-3.5 h-3.5 ${item.iconColor || 'text-slate-600'}`} />
+                    </span>
                     <span className="truncate">{item.label}</span>
                   </div>
                   {item.badge && (
@@ -470,7 +532,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div>
           <div className="px-2 mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500">
             <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
+              <ShieldCheck className="w-3.5 h-3.5 text-violet-600" />
               <span>{isAdmin ? 'Panel Administrator' : 'Bantuan'}</span>
             </span>
           </div>
@@ -485,14 +547,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     key={item.id}
                     id={`nav-${item.id}`}
                     onClick={() => handleSelectView(item.id)}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+                    className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                       isActive
                         ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-2xs'
                         : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
                     <div className="flex items-center space-x-2.5 min-w-0">
-                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-blue-600' : 'text-slate-500'}`} />
+                      <span className={`w-6 h-6 rounded-md border flex items-center justify-center shrink-0 ${item.iconBg || 'bg-slate-100 border-slate-200'}`}>
+                        <Icon className={`w-3.5 h-3.5 ${item.iconColor || 'text-slate-600'}`} />
+                      </span>
                       <span className="truncate">{item.label}</span>
                     </div>
                     {item.badge && (
@@ -514,14 +578,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               id="nav-saran"
               onClick={() => handleSelectView('saran')}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
+              className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 ${
                 activeView === 'saran'
                   ? 'bg-blue-50 text-blue-700 font-bold border border-blue-200 shadow-2xs'
                   : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
               <div className="flex items-center space-x-2.5 min-w-0">
-                <MessageSquareHeart className={`w-4 h-4 shrink-0 ${activeView === 'saran' ? 'text-blue-600' : 'text-slate-500'}`} />
+                <span className="w-6 h-6 rounded-md border bg-pink-50 border-pink-200/70 flex items-center justify-center shrink-0">
+                  <MessageSquareHeart className="w-3.5 h-3.5 text-pink-600" />
+                </span>
                 <span className="truncate">Kotak Saran & Masukan</span>
               </div>
             </button>
@@ -532,10 +598,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
                 id="sidebar-btn-reset-modal"
                 onClick={onOpenResetModal}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-700 hover:bg-rose-50 transition-all duration-150"
+                className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold text-rose-700 hover:bg-rose-50 transition-all duration-150"
               >
                 <div className="flex items-center space-x-2.5 min-w-0">
-                  <RefreshCw className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span className="w-6 h-6 rounded-md border bg-rose-50 border-rose-200/70 flex items-center justify-center shrink-0">
+                    <RefreshCw className="w-3.5 h-3.5 text-rose-600" />
+                  </span>
                   <span className="truncate">Reset Kurikulum & Perangkat (24 Jam)</span>
                 </div>
                 <span className="text-[10px] px-1.5 py-0.2 rounded font-bold bg-rose-100 text-rose-700 border border-rose-200">
@@ -550,10 +618,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
                 id="sidebar-btn-theme-modal"
                 onClick={onOpenThemeModal}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150"
+                className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-all duration-150"
               >
                 <div className="flex items-center space-x-2.5 min-w-0">
-                  <Palette className="w-4 h-4 shrink-0 text-slate-500" />
+                  <span className="w-6 h-6 rounded-md border bg-violet-50 border-violet-200/70 flex items-center justify-center shrink-0">
+                    <Palette className="w-3.5 h-3.5 text-violet-600" />
+                  </span>
                   <span className="truncate">Pilihan Tema & Tata Letak</span>
                 </div>
               </button>

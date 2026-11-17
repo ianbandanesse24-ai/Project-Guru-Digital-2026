@@ -117,6 +117,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Kelola Kelas & Siswa',
       desc: 'Manajemen data rombongan belajar, NISN, dan biodata siswa terpusat',
       icon: Users,
+      iconColor: 'text-sky-600',
+      iconBg: 'bg-sky-50 border-sky-200/80',
       category: 'admin',
     },
     {
@@ -124,6 +126,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Absensi Siswa',
       desc: 'Presensi harian, rekapitulasi sakit, izin, dan alpa secara otomatis',
       icon: CheckCircle2,
+      iconColor: 'text-emerald-600',
+      iconBg: 'bg-emerald-50 border-emerald-200/80',
       category: 'admin',
     },
     {
@@ -131,6 +135,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Jadwal Mengajar',
       desc: 'Matriks jam tatap muka mingguan dan alokasi jam pelajaran',
       icon: Calendar,
+      iconColor: 'text-violet-600',
+      iconBg: 'bg-violet-50 border-violet-200/80',
       category: 'admin',
     },
     {
@@ -138,6 +144,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Agenda Harian Mengajar',
       desc: 'Catatan kegiatan pembelajaran, tanggal pertemuan, dan keterlaksanaan',
       icon: ClipboardList,
+      iconColor: 'text-amber-600',
+      iconBg: 'bg-amber-50 border-amber-200/80',
       category: 'admin',
     },
     {
@@ -145,6 +153,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Jurnal Mengajar',
       desc: 'Refleksi pedagogis harian, catatan supervisi, dan tindak lanjut',
       icon: BookMarked,
+      iconColor: 'text-rose-600',
+      iconBg: 'bg-rose-50 border-rose-200/80',
       category: 'admin',
     },
     {
@@ -152,6 +162,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Buku Wali Kelas & Rekap',
       desc: 'Rekapitulasi nilai, catatan kepribadian, dan biodata siswa asuh',
       icon: BookOpen,
+      iconColor: 'text-indigo-600',
+      iconBg: 'bg-indigo-50 border-indigo-200/80',
       category: 'admin',
     },
     {
@@ -159,6 +171,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Cetak Laporan Lengkap',
       desc: 'Pusat ekspor dokumen format resmi siap cetak ke format PDF atau Word',
       icon: Printer,
+      iconColor: 'text-teal-600',
+      iconBg: 'bg-teal-50 border-teal-200/80',
       category: 'admin',
       badge: 'PDF / Word',
     },
@@ -170,6 +184,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Profil Guru Mata Pelajaran',
       desc: 'Biodata guru & kepala sekolah serta rujukan dokumen Capaian Pembelajaran',
       icon: UserCheck,
+      iconColor: 'text-blue-600',
+      iconBg: 'bg-blue-50 border-blue-200/80',
       category: 'ai',
       badge: 'Acuan Utama',
     },
@@ -178,6 +194,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Upload Kalender Pendidikan',
       desc: 'Upload berkas dokumen Kalender Pendidikan resmi sekolah (PDF, Excel, Word, Scan)',
       icon: CalendarDays,
+      iconColor: 'text-orange-600',
+      iconBg: 'bg-orange-50 border-orange-200/80',
       category: 'kaldik',
       badge: 'Kaldik',
     },
@@ -186,6 +204,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: 'Parameter Kurikulum & Bab TP',
       desc: 'Konfigurasi terpadu mapel, JP/minggu, Bab materi & rumusan TP',
       icon: Sliders,
+      iconColor: 'text-purple-600',
+      iconBg: 'bg-purple-50 border-purple-200/80',
       category: 'kaldik',
       badge: 'Deep Learning',
     },
@@ -194,6 +214,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: '1. Analisis Alokasi Waktu',
       desc: 'Analisis RBE dari Kalender Pendidikan & unggah format mandiri sinkron PROSEM',
       icon: Table,
+      iconColor: 'text-cyan-600',
+      iconBg: 'bg-cyan-50 border-cyan-200/80',
       category: 'kaldik',
       badge: 'Sinkron PROSEM',
     },
@@ -202,6 +224,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: '2. Analisis Capaian Pembelajaran (CP)',
       desc: 'Dekomposisi elemen CP, pemetaan kompetensi HOTS & 3 pilar Deep Learning',
       icon: FileSearch,
+      iconColor: 'text-indigo-600',
+      iconBg: 'bg-indigo-50 border-indigo-200/80',
       category: 'ai',
       badge: 'Format Sendiri',
     },
@@ -210,6 +234,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: '3. Tujuan Pembelajaran (TP)',
       desc: 'Perumusan kompetensi dan indikator ketercapaian Taksonomi Bloom',
       icon: Target,
+      iconColor: 'text-teal-600',
+      iconBg: 'bg-teal-50 border-teal-200/80',
       category: 'ai',
     },
     {
@@ -217,6 +243,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: '4. Alur TP (ATP)',
       desc: 'Penyusunan alur pembelajaran bertahap beserta alokasi jam pelajaran',
       icon: GitMerge,
+      iconColor: 'text-emerald-600',
+      iconBg: 'bg-emerald-50 border-emerald-200/80',
       category: 'ai',
     },
     {
@@ -224,6 +252,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: '5. Program Tahunan (PROTA)',
       desc: 'Distribusi dan pembagian materi pembelajaran untuk satu tahun ajaran',
       icon: CalendarRange,
+      iconColor: 'text-sky-600',
+      iconBg: 'bg-sky-50 border-sky-200/80',
       category: 'ai',
     },
     {
@@ -231,6 +261,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: '6. Program Semester (PROSEM)',
       desc: 'Matriks alokasi jadwal pekan efektif dan rencana bulanan semester',
       icon: CalendarCheck,
+      iconColor: 'text-green-600',
+      iconBg: 'bg-green-50 border-green-200/80',
       category: 'ai',
     },
     {
@@ -238,6 +270,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: '7. Kriteria Ketuntasan (KKTP)',
       desc: 'Interval nilai, rubrik asesmen, dan deskripsi kriteria mutu belajar',
       icon: CheckSquare,
+      iconColor: 'text-amber-600',
+      iconBg: 'bg-amber-50 border-amber-200/80',
       category: 'ai',
       badge: 'Standar Mutu',
     },
@@ -246,6 +280,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: '8. RPM (Rencana Pelaksanaan Modul)',
       desc: 'Penyusunan Rencana Pelaksanaan Modul dengan sintaks Deep Learning',
       icon: FileText,
+      iconColor: 'text-rose-600',
+      iconBg: 'bg-rose-50 border-rose-200/80',
       category: 'ai',
       badge: 'RPM Terpadu',
     },
@@ -254,6 +290,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: '9. Lembar Kerja Siswa (LKPD)',
       desc: 'Aktivitas pembelajaran berdiferensiasi dan penyelidikan terstruktur',
       icon: FileSpreadsheet,
+      iconColor: 'text-fuchsia-600',
+      iconBg: 'bg-fuchsia-50 border-fuchsia-200/80',
       category: 'ai',
     },
     {
@@ -261,6 +299,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       title: '10. Rubrik Penilaian Terpadu',
       desc: 'Rubrik asesmen autentik formatif dan sumatif yang selaras dengan modul',
       icon: HelpCircle,
+      iconColor: 'text-pink-600',
+      iconBg: 'bg-pink-50 border-pink-200/80',
       category: 'ai',
     },
   ];
@@ -754,8 +794,8 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
               className="p-4 rounded-xl border border-slate-200 bg-white hover:border-blue-500/40 hover:shadow-xs transition-all duration-200 text-left flex flex-col justify-between space-y-3 group"
             >
               <div className="flex items-center justify-between">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover:bg-blue-50 text-slate-600 group-hover:text-blue-600 flex items-center justify-center border border-slate-200/80 group-hover:border-blue-200 transition-colors duration-150">
-                  <Icon className="w-4 h-4" />
+                <div className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-transform duration-150 group-hover:scale-105 ${item.iconBg || 'bg-slate-100 border-slate-200/80'}`}>
+                  <Icon className={`w-4 h-4 ${item.iconColor || 'text-slate-600'}`} />
                 </div>
                 {'badge' in item && Boolean(item.badge) && (
                   <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
