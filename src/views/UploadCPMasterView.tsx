@@ -51,6 +51,10 @@ import {
   getSubjectPresetByGrade,
   syncAllPresetSubjectsToMasterCP,
 } from '../lib/subjectMaterialPresets';
+import {
+  AgamaIslamCPUploadModal,
+  isAgamaIslamSubject,
+} from '../components/AgamaIslamCPUploadModal';
 
 interface UploadCPMasterViewProps {
   onNavigate?: (viewId: string) => void;
@@ -69,6 +73,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
   const [catalogSearch, setCatalogSearch] = useState('');
   const [showSyncAllModal, setShowSyncAllModal] = useState<boolean>(false);
   const [syncAllResults, setSyncAllResults] = useState<{ totalSynced: number; subjects: string[] } | null>(null);
+  const [showAgamaIslamCPModal, setShowAgamaIslamCPModal] = useState<boolean>(false);
 
   // Adopt & Sync Success Modal for Teachers
   const [adoptedSuccessModal, setAdoptedSuccessModal] = useState<{
@@ -537,6 +542,9 @@ ${masterCP.kktpSummary || 'Interval Standar Kriteria Ketuntasan Berbasis Deep Le
     setMasterCP(newMaster);
     setSyncedNotice(`Mata Pelajaran Aktif dialihkan ke ${preset.subject} (${preset.level} Kelas ${preset.grade}) & otomatis tersinkron ke semua perangkat ajar!`);
     setTimeout(() => setSyncedNotice(null), 3500);
+    if (isAgamaIslamSubject(preset.subject)) {
+      setShowAgamaIslamCPModal(true);
+    }
   };
 
   // Download CP Data in JSON Format (Standard E-Project Guru Digital)
@@ -708,6 +716,9 @@ ${sem2.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.2.${i+1}`} 
       totalTP: preset.materialsSem1.length + preset.materialsSem2.length,
       hours: preset.totalHoursPerYear,
     });
+    if (isAgamaIslamSubject(preset.subject)) {
+      setShowAgamaIslamCPModal(true);
+    }
   };
 
   // Filtered materials
@@ -2075,6 +2086,22 @@ ${sem2.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.2.${i+1}`} 
           </div>
         </div>
       )}
+
+      <AgamaIslamCPUploadModal
+        isOpen={showAgamaIslamCPModal}
+        onClose={() => setShowAgamaIslamCPModal(false)}
+        initialSubject={masterCP.subject}
+        initialLevel={masterCP.level}
+        initialGrade={masterCP.grade}
+        initialPhase={masterCP.phase}
+        initialJpPerWeek={masterCP.jpPerWeek}
+        onSyncedComplete={(synced) => {
+          setMasterCP(synced);
+          setSyncedNotice(`CP Khusus ${synced.subject} berhasil diunggah & disinkronkan ke seluruh perangkat ajar!`);
+          setTimeout(() => setSyncedNotice(null), 4000);
+        }}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 };

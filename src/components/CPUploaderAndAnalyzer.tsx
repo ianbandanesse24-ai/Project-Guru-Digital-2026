@@ -220,7 +220,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
     else if (lowerName.includes('ekonomi')) setSubject('Ekonomi');
     else if (lowerName.includes('sosiologi')) setSubject('Sosiologi');
     else if (lowerName.includes('pjok') || lowerName.includes('penjas')) setSubject('PJOK');
-    else if (lowerName.includes('agama')) setSubject('Pendidikan Agama Islam');
+    else if (lowerName.includes('agama')) setSubject('Pendidikan Agama & Budi Pekerti');
     else if (lowerName.includes('ipas')) setSubject('IPAS');
 
     if (lowerName.includes('fase a')) { setLevel('SD'); setPhase('Fase A'); setGrade(1); }
@@ -1249,18 +1249,19 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
               <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 space-y-2 text-xs text-emerald-200">
                 <div className="font-bold flex items-center space-x-2 text-white">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>9 Modul Perangkat Ajar Terhubung Penuh &amp; Siap Digenerate:</span>
+                  <span>10 Modul Perangkat Ajar Terhubung Penuh &amp; Siap Digenerate:</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px] text-slate-300">
-                  <span className="flex items-center space-x-1 text-emerald-300">✓ 1. Analisis CP Elemen</span>
-                  <span className="flex items-center space-x-1 text-emerald-300">✓ 2. Tujuan Pembelajaran (TP)</span>
-                  <span className="flex items-center space-x-1 text-emerald-300">✓ 3. Alur Tujuan (ATP)</span>
-                  <span className="flex items-center space-x-1 text-emerald-300">✓ 4. Program Tahunan (PROTA)</span>
-                  <span className="flex items-center space-x-1 text-emerald-300">✓ 5. Program Semester (PROSEM)</span>
-                  <span className="flex items-center space-x-1 text-emerald-300">✓ 6. Kriteria Ketuntasan (KKTP)</span>
-                  <span className="flex items-center space-x-1 text-emerald-300">✓ 7. RPM (Rencana Pelaksanaan Modul)</span>
-                  <span className="flex items-center space-x-1 text-emerald-300">✓ 8. Lembar Kerja Siswa (LKPD)</span>
-                  <span className="flex items-center space-x-1 text-emerald-300">✓ 9. Rubrik Penilaian Terpadu</span>
+                  <span className="flex items-center space-x-1 text-emerald-300">✓ 1. Analisis Alokasi Waktu</span>
+                  <span className="flex items-center space-x-1 text-emerald-300">✓ 2. Analisis CP Elemen</span>
+                  <span className="flex items-center space-x-1 text-emerald-300">✓ 3. Tujuan Pembelajaran (TP)</span>
+                  <span className="flex items-center space-x-1 text-emerald-300">✓ 4. Alur Tujuan (ATP)</span>
+                  <span className="flex items-center space-x-1 text-emerald-300">✓ 5. Program Tahunan (PROTA)</span>
+                  <span className="flex items-center space-x-1 text-emerald-300">✓ 6. Program Semester (PROSEM)</span>
+                  <span className="flex items-center space-x-1 text-emerald-300">✓ 7. Kriteria Ketuntasan (KKTP)</span>
+                  <span className="flex items-center space-x-1 text-emerald-300">✓ 8. RPM (Rencana Pelaksanaan Modul)</span>
+                  <span className="flex items-center space-x-1 text-emerald-300">✓ 9. Lembar Kerja Siswa (LKPD)</span>
+                  <span className="flex items-center space-x-1 text-emerald-300">✓ 10. Rubrik Penilaian Terpadu</span>
                 </div>
               </div>
             </div>
@@ -2296,16 +2297,16 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                   </label>
                   <div className="space-y-1 max-h-[260px] overflow-y-auto pr-1">
                     {[
-                      { id: 'analisis_alokasi_waktu', label: '0. Analisis Alokasi Waktu (RBE)', desc: 'Pekan Efektif & Siklus Deep Learning' },
-                      { id: 'analisis_cp', label: '1. Analisis & Distribusi CP', desc: 'Dekomposisi Elemen & 3 Pilar Deep Learning' },
-                      { id: 'tp', label: '2. Tujuan Pembelajaran (TP)', desc: 'Formula ABCD, Bloom HOTS & Deep Learning' },
-                      { id: 'atp', label: '3. Alur Tujuan Pembelajaran (ATP)', desc: 'Standar 10 Kolom, 3 Pilar & Alokasi JP' },
-                      { id: 'prota', label: '4. Program Tahunan (PROTA)', desc: 'Format 4 Kolom & Alokasi Tahunan 3 Pilar' },
-                      { id: 'prosem', label: '5. Program Semester (PROSEM)', desc: 'Matriks Pekan Efektif & Siklus Deep Learning' },
-                      { id: 'kktp', label: '6. Kriteria Ketuntasan (KKTP)', desc: 'Interval Nilai & Rubrik 4 Level Deep Learning' },
-                      { id: 'modul_ajar', label: '7. RPM Deep Learning (Modul)', desc: '6 Fase Sintaks: Mindful, Meaningful, Joyful' },
-                      { id: 'lkpd', label: '8. LKPD Deep Learning', desc: 'Inkuiri Kontekstual, Kanvas Siswa & Refleksi' },
-                      { id: 'rubrik_penilaian', label: '9. Rubrik Penilaian & 6C', desc: 'Asesmen Karakter 6C, Kinerja & Sumatif HOTS' },
+                      { id: 'analisis_alokasi_waktu', label: '1. Analisis Alokasi Waktu (RBE)', desc: 'Pekan Efektif & Siklus Deep Learning' },
+                      { id: 'analisis_cp', label: '2. Analisis & Distribusi CP', desc: 'Dekomposisi Elemen & 3 Pilar Deep Learning' },
+                      { id: 'tp', label: '3. Tujuan Pembelajaran (TP)', desc: 'Formula ABCD, Bloom HOTS & Deep Learning' },
+                      { id: 'atp', label: '4. Alur Tujuan Pembelajaran (ATP)', desc: 'Standar 10 Kolom, 3 Pilar & Alokasi JP' },
+                      { id: 'prota', label: '5. Program Tahunan (PROTA)', desc: 'Format 4 Kolom & Alokasi Tahunan 3 Pilar' },
+                      { id: 'prosem', label: '6. Program Semester (PROSEM)', desc: 'Matriks Pekan Efektif & Siklus Deep Learning' },
+                      { id: 'kktp', label: '7. Kriteria Ketuntasan (KKTP)', desc: 'Interval Nilai & Rubrik 4 Level Deep Learning' },
+                      { id: 'modul_ajar', label: '8. RPM Deep Learning (Modul)', desc: '6 Fase Sintaks: Mindful, Meaningful, Joyful' },
+                      { id: 'lkpd', label: '9. LKPD Deep Learning', desc: 'Inkuiri Kontekstual, Kanvas Siswa & Refleksi' },
+                      { id: 'rubrik_penilaian', label: '10. Rubrik Penilaian & 6C', desc: 'Asesmen Karakter 6C, Kinerja & Sumatif HOTS' },
                     ].map((doc) => (
                       <button
                         key={doc.id}

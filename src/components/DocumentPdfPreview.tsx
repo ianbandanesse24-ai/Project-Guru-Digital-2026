@@ -127,6 +127,7 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
   };
 
   const renderedHtml = ExportService.markdownToHtml(rawMarkdown);
+  const isAtp10Doc = docType === 'atp' || renderedHtml.includes('atp-10-col-container');
   const resolvedNumGrade = Number(grade);
   const rawPhaseLetter = String(schoolProfile.phase || '').replace(/^fase\s+/i, '').trim().toUpperCase();
   const phase = /^[A-F](\/[A-F])?$/.test(rawPhaseLetter)
@@ -329,7 +330,7 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
       </div>
 
       {/* Main Document Body */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-6 bg-slate-100">
+      <div className={`flex-1 overflow-y-auto custom-scrollbar ${isAtp10Doc ? 'p-2 sm:p-4' : 'p-3 sm:p-6'} bg-slate-100`}>
         {viewMode === 'pdf' ? (
           /* A4 Sheet Print Preview Container */
           <div className="flex justify-center">
@@ -339,7 +340,15 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
                 transformOrigin: 'top center',
                 transition: 'transform 0.15s ease-out',
               }}
-              className={`pdf-document-sheet w-full ${widthMode === 'full' ? 'max-w-6xl' : 'max-w-4xl'} bg-white text-slate-900 shadow-2xl rounded-sm p-6 sm:p-10 md:p-12 border border-slate-300 text-left relative my-2 transition-all duration-200`}
+              className={`pdf-document-sheet w-full ${
+                widthMode === 'full'
+                  ? isAtp10Doc
+                    ? 'max-w-[1400px]'
+                    : 'max-w-6xl'
+                  : 'max-w-4xl'
+              } bg-white text-slate-900 shadow-2xl rounded-sm ${
+                isAtp10Doc ? 'p-4 sm:p-6 md:p-8' : 'p-6 sm:p-10 md:p-12'
+              } border border-slate-300 text-left relative my-2 transition-all duration-200`}
             >
               <style>{`
                 .pdf-document-sheet {
@@ -433,24 +442,104 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
                 .pdf-document-sheet table {
                   width: 100%;
                   border-collapse: collapse;
-                  margin: 14px 0;
+                  margin: 12px 0;
                   font-size: 8.5pt;
-                  border: 1px solid #334155;
+                  border: 1px solid #0f766e;
                 }
                 .pdf-document-sheet tr {
                   page-break-inside: avoid;
                 }
                 .pdf-document-sheet th, .pdf-document-sheet td {
                   border: 1px solid #cbd5e1;
-                  padding: 6px 8px;
+                  padding: 5px 7px;
                   vertical-align: top;
+                  word-break: normal;
+                  overflow-wrap: break-word;
                 }
                 .pdf-document-sheet th {
-                  background-color: #1e3a8a;
+                  background-color: #0f766e;
                   color: #ffffff;
                   font-weight: bold;
                   text-align: center;
-                  border: 1px solid #1e3a8a;
+                  vertical-align: middle;
+                  border: 1px solid #0f766e;
+                  white-space: normal;
+                  hyphens: none;
+                }
+                .pdf-document-sheet .curriculum-table-container,
+                .pdf-document-sheet .wide-curriculum-table-container {
+                  width: 100% !important;
+                  margin: 12px 0 !important;
+                  border-radius: 6px !important;
+                }
+                .pdf-document-sheet .wide-curriculum-table-container {
+                  container-type: inline-size;
+                }
+                .pdf-document-sheet .curriculum-table-container table,
+                .pdf-document-sheet .wide-curriculum-table-container table {
+                  width: 100% !important;
+                  table-layout: fixed !important;
+                  margin: 0 !important;
+                }
+                .pdf-document-sheet .wide-curriculum-table-container th {
+                  font-size: clamp(9px, 1.42cqi, 11.5px) !important;
+                  padding: 6px 5px !important;
+                  line-height: 1.28 !important;
+                  white-space: normal !important;
+                  word-break: normal !important;
+                  overflow-wrap: break-word !important;
+                  hyphens: none !important;
+                }
+                .pdf-document-sheet .wide-curriculum-table-container td {
+                  font-size: clamp(9px, 1.44cqi, 11.5px) !important;
+                  padding: 5px 6px !important;
+                  line-height: 1.42 !important;
+                  word-break: normal !important;
+                  overflow-wrap: break-word !important;
+                  hyphens: none !important;
+                }
+                .pdf-document-sheet .prosem-matrix-container {
+                  width: 100% !important;
+                  margin: 12px 0 !important;
+                  border-radius: 6px !important;
+                }
+                .pdf-document-sheet .prosem-matrix-container table {
+                  width: 100% !important;
+                  margin: 0 !important;
+                  font-size: 7.5pt !important;
+                }
+                .pdf-document-sheet .atp-10-col-container {
+                  width: 100% !important;
+                  margin: 10px 0 !important;
+                  border-radius: 6px !important;
+                  container-type: inline-size;
+                }
+                .pdf-document-sheet .atp-10-col-container table {
+                  width: 100% !important;
+                  table-layout: fixed !important;
+                  margin: 0 !important;
+                  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
+                }
+                .pdf-document-sheet .atp-10-col-container th {
+                  font-size: clamp(7.2px, 0.88cqi, 10px) !important;
+                  padding: 4px 3px !important;
+                  line-height: 1.25 !important;
+                  white-space: normal !important;
+                  word-break: normal !important;
+                  overflow-wrap: break-word !important;
+                  hyphens: none !important;
+                }
+                .pdf-document-sheet .atp-10-col-container td {
+                  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
+                  padding: 4px 4px !important;
+                  line-height: 1.36 !important;
+                  text-align: left !important;
+                  word-break: normal !important;
+                  overflow-wrap: break-word !important;
+                }
+                .pdf-document-sheet .atp-10-col-container td:nth-child(8) {
+                  text-align: center !important;
+                  white-space: nowrap !important;
                 }
                 .pdf-document-sheet .katex {
                   font-size: 1.05em;

@@ -486,24 +486,65 @@ body {
   margin-bottom: 0.75rem !important;
 }
 
-/* ATP & Curriculum Table Justification (Rata Kiri Kanan) */
+/* Unified Curriculum Tables (Rata Kiri Rapi & Responsif) */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 12px 0;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
 .table-responsive table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 11.5px;
+  table-layout: auto;
+}
+
+@media (min-width: 640px) {
+  .table-responsive table {
+    font-size: 12px;
+  }
 }
 
 .table-responsive table th {
   text-align: center;
   font-weight: 700;
   vertical-align: middle;
+  padding: 7px 9px;
+  background-color: #0f766e;
+  color: #ffffff;
+  border: 1px solid #0f766e;
+  letter-spacing: 0.1px;
+  line-height: 1.28;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
 }
 
 .table-responsive table td {
-  text-align: justify;
-  text-justify: inter-word;
-  hyphens: auto;
-  line-height: 1.5;
+  text-align: left;
+  hyphens: none;
+  line-height: 1.45;
   vertical-align: top;
+  padding: 6px 9px;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.table-responsive table tr:nth-child(even) td {
+  background-color: #f8fafc;
+}
+
+.table-responsive table tr:hover td {
+  background-color: #f1f5f9;
 }
 
 .table-responsive table td.text-center,
@@ -516,3 +557,157 @@ body {
   text-align: right !important;
 }
 
+/* Standard 2-5 Column Curriculum Table Container */
+.curriculum-table-container {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+.curriculum-table-container table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  margin: 0 !important;
+}
+
+/* Wide 6-9 Column Curriculum Table Optimization (TP, Analisis CP, Alokasi Waktu, KKTP, RPM 6-Col, Rubrik) */
+.wide-curriculum-table-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 6px;
+  container-type: inline-size;
+}
+
+.wide-curriculum-table-container table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  font-size: clamp(9px, 1.44cqi, 11.5px) !important;
+  margin: 0 !important;
+}
+
+@media (max-width: 767px) {
+  .wide-curriculum-table-container table {
+    min-width: 640px;
+    font-size: 10.5px !important;
+  }
+  .wide-curriculum-table-container th {
+    font-size: 10px !important;
+  }
+  .wide-curriculum-table-container td {
+    font-size: 10.5px !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .wide-curriculum-table-container {
+    overflow-x: visible;
+  }
+  .wide-curriculum-table-container table {
+    min-width: 0 !important;
+  }
+}
+
+.wide-curriculum-table-container th {
+  font-size: clamp(9px, 1.42cqi, 11.5px) !important;
+  padding: 6px 5px !important;
+  line-height: 1.28 !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.wide-curriculum-table-container td {
+  font-size: clamp(9px, 1.44cqi, 11.5px) !important;
+  padding: 5px 6px !important;
+  line-height: 1.42 !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+}
+
+/* PROSEM 33-Column Matrix Optimization */
+.prosem-matrix-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 6px;
+}
+
+.prosem-matrix-container table {
+  width: 100%;
+  min-width: 680px;
+  margin: 0 !important;
+}
+
+@media (min-width: 768px) {
+  .prosem-matrix-container table {
+    min-width: 100%;
+  }
+}
+
+/* ATP 10 Kolom Table Optimization */
+.atp-10-col-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 6px;
+  container-type: inline-size;
+}
+
+.atp-10-col-container table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
+  margin: 0 !important;
+}
+
+@media (max-width: 767px) {
+  .atp-10-col-container table {
+    min-width: 740px;
+    font-size: 9.5px !important;
+  }
+  .atp-10-col-container th {
+    font-size: 9px !important;
+  }
+  .atp-10-col-container td {
+    font-size: 9.5px !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .atp-10-col-container {
+    overflow-x: visible;
+  }
+  .atp-10-col-container table {
+    min-width: 0 !important;
+  }
+}
+
+.atp-10-col-container th {
+  font-size: clamp(7.2px, 0.88cqi, 10px) !important;
+  padding: 4px 3px !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+  text-align: center !important;
+}
+
+.atp-10-col-container td {
+  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
+  padding: 4px 4px !important;
+  line-height: 1.36 !important;
+  text-align: left !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+}
+
+.atp-10-col-container td:nth-child(8) {
+  text-align: center !important;
+  white-space: nowrap !important;
+}

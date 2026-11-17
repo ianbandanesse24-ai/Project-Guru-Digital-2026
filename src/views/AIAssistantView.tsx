@@ -61,6 +61,11 @@ import { CustomFormatSelector, CustomFormatConfig } from '../components/CustomFo
 import { TokenQuotaModal } from '../components/TokenQuotaModal';
 import { handleNumberInputFocus, parseNumberInput } from '../lib/inputUtils';
 import { AMDLogo } from '../components/AMDLogo';
+import {
+  AgamaIslamCPUploadModal,
+  AgamaIslamCPBanner,
+  isAgamaIslamSubject,
+} from '../components/AgamaIslamCPUploadModal';
 
 export interface SyncedTPItem {
   id: string;
@@ -89,7 +94,7 @@ const POPULAR_SUBJECTS = [
   'Geografi',
   'Ekonomi',
   'Sosiologi',
-  'Pendidikan Agama Islam',
+  'Pendidikan Agama & Budi Pekerti',
   'PJOK',
   'Seni Budaya',
   'Prakarya',
@@ -171,6 +176,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
     formatFile: null,
     customFormatNotes: '',
   });
+  const [showAgamaIslamCPModal, setShowAgamaIslamCPModal] = useState<boolean>(false);
 
   // Generated content state
   const [generatedMarkdown, setGeneratedMarkdown] = useState<string>(() => {
@@ -622,7 +628,8 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
   };
 
   // When subject changes, see if a matching distribution plan exists
-  const handleSubjectChange = (newSub: string) => {
+  const handleSubjectChange = (newSub: string, fromPicker: boolean = false) => {
+    const wasAgama = isAgamaIslamSubject(subject);
     setSubject(newSub);
     setHasManuallyModified(true);
     const targetJp = getProfileJpPerWeek();
@@ -642,6 +649,9 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
       if (mats && mats.length > 0) {
         setTopic(mats[0].essentialMaterial || mats[0].tpName);
       }
+    }
+    if (isAgamaIslamSubject(newSub) && (!wasAgama || fromPicker)) {
+      setShowAgamaIslamCPModal(true);
     }
   };
 
@@ -669,15 +679,16 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
   );
 
   const docTypesList = [
-    { id: 'analisis_cp', label: '1. Analisis Capaian Pembelajaran (CP)', icon: FileSearch, desc: 'Dekomposisi Elemen CP, Kompetensi HOTS & 3 Pilar Deep Learning', badge: 'Analisis CP' },
-    { id: 'tp', label: '2. Tujuan Pembelajaran (TP Deep Learning)', icon: Target, desc: 'Rumusan Kaidah ABCD, Bloom HOTS & 3 Pilar Pedagogis', badge: 'Kaidah ABCD' },
-    { id: 'atp', label: '3. Alur Tujuan Pembelajaran (ATP 10 Kolom)', icon: GitMerge, desc: 'Standar Baku Resmi 10 Kolom Kemendikbudristek & Deep Learning', badge: '10 Kolom Utama' },
-    { id: 'prota', label: '4. Program Tahunan (PROTA Deep Learning)', icon: CalendarRange, desc: 'Format Standar Baku 4 Kolom & Alokasi Waktu 3 Pilar Tahunan', badge: '4 Kolom Utama' },
-    { id: 'prosem', label: '5. Program Semester (PROSEM Deep Learning)', icon: CalendarCheck, desc: 'Matriks Pekan Efektif Berwarna & Agenda Siklus Deep Learning', badge: 'Berwarna & Siklus' },
-    { id: 'kktp', label: '6. Kriteria Ketuntasan (KKTP Deep Learning)', icon: CheckSquare, desc: 'Interval Nilai, Rubrik 4 Level & Asesmen TP Terpadu', badge: 'Format Utama' },
-    { id: 'modul_ajar', label: '7. RPM Deep Learning (Rencana Pelaksanaan Modul)', icon: FileText, desc: 'Format Standar Baku Mutlak Tunggal: Bagian A s.d. X (6 Fase KBM)', badge: 'Deep Learning' },
-    { id: 'lkpd', label: '8. LKPD Deep Learning (Sinkron RPM)', icon: FileSpreadsheet, desc: 'Sintaks Inkuiri, Kanvas Sketsa Siswa & Refleksi 3-2-1', badge: 'Sinkron RPM' },
-    { id: 'rubrik_penilaian', label: '9. Rubrik Penilaian Deep Learning', icon: HelpCircle, desc: 'Rubrik Sikap 6C, Kinerja LKPD & Asesmen Sumatif HOTS Terpadu', badge: '3 Pilar & 6C' },
+    { id: 'analisis_alokasi_waktu', label: '1. Analisis Alokasi Waktu (RBE)', icon: Calendar, desc: 'Rincian Pekan Efektif & Distribusi JP Deep Learning', badge: 'Alokasi JP' },
+    { id: 'analisis_cp', label: '2. Analisis Capaian Pembelajaran (CP)', icon: FileSearch, desc: 'Dekomposisi Elemen CP, Kompetensi HOTS & 3 Pilar Deep Learning', badge: 'Analisis CP' },
+    { id: 'tp', label: '3. Tujuan Pembelajaran (TP Deep Learning)', icon: Target, desc: 'Rumusan Kaidah ABCD, Bloom HOTS & 3 Pilar Pedagogis', badge: 'Kaidah ABCD' },
+    { id: 'atp', label: '4. Alur Tujuan Pembelajaran (ATP 10 Kolom)', icon: GitMerge, desc: 'Standar Baku Resmi 10 Kolom Kemendikbudristek & Deep Learning', badge: '10 Kolom Utama' },
+    { id: 'prota', label: '5. Program Tahunan (PROTA Deep Learning)', icon: CalendarRange, desc: 'Format Standar Baku 4 Kolom & Alokasi Waktu 3 Pilar Tahunan', badge: '4 Kolom Utama' },
+    { id: 'prosem', label: '6. Program Semester (PROSEM Deep Learning)', icon: CalendarCheck, desc: 'Matriks Pekan Efektif Berwarna & Agenda Siklus Deep Learning', badge: 'Berwarna & Siklus' },
+    { id: 'kktp', label: '7. Kriteria Ketuntasan (KKTP Deep Learning)', icon: CheckSquare, desc: 'Interval Nilai, Rubrik 4 Level & Asesmen TP Terpadu', badge: 'Format Utama' },
+    { id: 'modul_ajar', label: '8. RPM Deep Learning (Rencana Pelaksanaan Modul)', icon: FileText, desc: 'Format Standar Baku Mutlak Tunggal: Bagian A s.d. X (6 Fase KBM)', badge: 'Deep Learning' },
+    { id: 'lkpd', label: '9. LKPD Deep Learning (Sinkron RPM)', icon: FileSpreadsheet, desc: 'Sintaks Inkuiri, Kanvas Sketsa Siswa & Refleksi 3-2-1', badge: 'Sinkron RPM' },
+    { id: 'rubrik_penilaian', label: '10. Rubrik Penilaian Deep Learning', icon: HelpCircle, desc: 'Rubrik Sikap 6C, Kinerja LKPD & Asesmen Sumatif HOTS Terpadu', badge: '3 Pilar & 6C' },
   ];
 
   // Instant document builder: generates complete, official formatted document instantaneously
@@ -1415,115 +1426,6 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
 
           {/* Parameter Formulation Card */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3.5 text-xs shadow-sm">
-            {/* Status Acuan Patokan Utama: Profil Guru, Master CP & Parameter Kurikulum */}
-            <div className="p-3.5 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/70 via-indigo-50/40 to-slate-50 space-y-2.5 transition-all shadow-2xs">
-              <div className="flex items-center justify-between border-b border-blue-200/60 pb-2">
-                <div className="flex items-center space-x-1.5">
-                  <div className="p-1 bg-blue-600 text-white rounded-md">
-                    <BookmarkCheck className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-xs font-bold text-slate-900">
-                    Patokan Utama Pembuatan Perangkat Ajar
-                  </span>
-                </div>
-                {isFollowingProfile ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    Tersinkronisasi Penuh
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
-                    <Zap className="w-3 h-3 text-amber-600" />
-                    Kustomisasi Aktif
-                  </span>
-                )}
-              </div>
-
-              {/* 3 Pillars Summary */}
-              <div className="grid grid-cols-1 gap-1.5 text-[11px] text-slate-600">
-                <div className="flex items-center justify-between bg-white/80 px-2.5 py-1.5 rounded-lg border border-slate-200/80">
-                  <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                    <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Profil Guru:</span>
-                  </span>
-                  <span className="font-medium text-slate-900 truncate max-w-[200px]">
-                    {schoolProfile.teacherName || 'Guru Pengampu'} ({schoolProfile.schoolName || 'Sekolah'})
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between bg-white/80 px-2.5 py-1.5 rounded-lg border border-slate-200/80">
-                  <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                    <FileSearch className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Master CP:</span>
-                  </span>
-                  <span className="font-medium text-slate-900 truncate max-w-[200px]">
-                    {activeMasterCP?.fileName ? `Dokumen ${activeMasterCP.fileName}` : 'Capaian Pembelajaran No. 020 Tahun 2026'}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between bg-white/80 px-2.5 py-1.5 rounded-lg border border-slate-200/80">
-                  <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                    <Sliders className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Parameter & Beban:</span>
-                  </span>
-                  <span className="font-medium text-slate-900 truncate max-w-[200px]">
-                    {subject} • Kelas {grade} ({currentPhase}) • {currentProfileJp} JP/Mgg
-                  </span>
-                </div>
-              </div>
-
-              {/* Quick Navigation and Reset */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-blue-200/50">
-                <div className="flex items-center gap-1.5">
-                  {!isFollowingProfile && (
-                    <button
-                      type="button"
-                      onClick={handleResetToTeacherProfile}
-                      className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition flex items-center gap-1 shadow-2xs"
-                      title="Kembalikan Parameter ke Profil Guru Utama"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      <span>Ikuti Profil Guru</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5 ml-auto">
-                  {onNavigate && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => onNavigate('profil_guru_mapel')}
-                        className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-[11px] font-bold transition shadow-2xs flex items-center gap-1"
-                        title="Buka Profil Guru & CP Master"
-                      >
-                        <UserCheck className="w-3 h-3 text-blue-600" />
-                        <span>Profil Guru</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onNavigate('parameter_kurikulum')}
-                        className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-[11px] font-bold transition shadow-2xs flex items-center gap-1"
-                        title="Buka Parameter Kurikulum & Beban Belajar"
-                      >
-                        <Sliders className="w-3 h-3 text-indigo-600" />
-                        <span>Parameter</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {resetFeedback && (
-                <div className="p-1.5 bg-emerald-50 text-emerald-700 text-[11px] font-semibold rounded-md border border-emerald-200 flex items-center gap-1">
-                  <Check className="w-3 h-3 text-emerald-600" />
-                  <span>{resetFeedback}</span>
-                </div>
-              )}
-            </div>
-
-
-
             {/* Document Type Selector */}
             <div className="space-y-1.5 pb-3 border-b border-slate-200">
               <label className="block text-slate-700 font-bold text-xs flex items-center justify-between">
@@ -1568,13 +1470,40 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                   )}
                 </label>
               </div>
-              <input
-                type="text"
-                value={subject}
-                onChange={(e) => handleSubjectChange(e.target.value)}
-                placeholder="Contoh: Fisika, Matematika, Bahasa Indonesia..."
-                className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600"
-              />
+              <div className="space-y-1.5">
+                <select
+                  value={POPULAR_SUBJECTS.includes(subject) ? subject : 'Lainnya'}
+                  onChange={(e) => {
+                    if (e.target.value !== 'Lainnya') {
+                      handleSubjectChange(e.target.value, true);
+                    }
+                  }}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600 cursor-pointer"
+                >
+                  {POPULAR_SUBJECTS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                  <option value="Lainnya">-- Tulis Manual --</option>
+                </select>
+                <input
+                  type="text"
+                  value={subject}
+                  onChange={(e) => handleSubjectChange(e.target.value)}
+                  placeholder="Contoh: Fisika, Matematika, Pendidikan Agama Islam..."
+                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600"
+                />
+              </div>
+              {isAgamaIslamSubject(subject) && (
+                <div className="mt-2">
+                  <AgamaIslamCPBanner
+                    subject={subject}
+                    onOpenModal={() => setShowAgamaIslamCPModal(true)}
+                    activeFileName={activeMasterCP?.fileName}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Jenjang, Kelas & Fase */}
@@ -3349,6 +3278,27 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
           </div>
         </div>
       )}
+
+      <AgamaIslamCPUploadModal
+        isOpen={showAgamaIslamCPModal}
+        onClose={() => setShowAgamaIslamCPModal(false)}
+        initialSubject={subject}
+        initialLevel={level as any}
+        initialGrade={grade}
+        initialPhase={currentPhase}
+        initialJpPerWeek={hoursPerMeeting}
+        onSyncedComplete={(synced) => {
+          setActiveMasterCP(synced);
+          setSubject(synced.subject);
+          setLevel(synced.level as EducationLevel);
+          setGrade(Number(synced.grade));
+          const mats = semester === 'Genap' ? synced.materialsSem2 : synced.materialsSem1;
+          if (mats && mats.length > 0) {
+            setTopic(mats[0].essentialMaterial || mats[0].tpName);
+          }
+        }}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 };

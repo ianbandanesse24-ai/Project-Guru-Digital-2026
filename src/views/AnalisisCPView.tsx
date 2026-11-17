@@ -51,6 +51,11 @@ import {
   getSubjectPresetByGrade,
   SubjectPreset,
 } from '../lib/subjectMaterialPresets';
+import {
+  AgamaIslamCPUploadModal,
+  AgamaIslamCPBanner,
+  isAgamaIslamSubject,
+} from '../components/AgamaIslamCPUploadModal';
 
 interface AnalisisCPViewProps {
   onNavigate?: (viewId: string) => void;
@@ -156,6 +161,7 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
   const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
   const [catalogSearch, setCatalogSearch] = useState<string>('');
   const [catalogFilterLevel, setCatalogFilterLevel] = useState<string>('ALL');
+  const [showAgamaIslamCPModal, setShowAgamaIslamCPModal] = useState<boolean>(false);
 
   // Direct Format Upload Input
   const formatFileInputRef = useRef<HTMLInputElement>(null);
@@ -313,6 +319,9 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
     setSaveToast(`Preset kurikulum resmi "${preset.subject} (${preset.level} Kelas ${preset.grade})" berhasil diterapkan!`);
     setTimeout(() => setSaveToast(null), 3500);
     setActiveTab('analisis_elemen');
+    if (isAgamaIslamSubject(preset.subject)) {
+      setShowAgamaIslamCPModal(true);
+    }
   };
 
   // Add Element
@@ -556,6 +565,12 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
         </div>
       )}
 
+      <AgamaIslamCPBanner
+        subject={subject}
+        onOpenModal={() => setShowAgamaIslamCPModal(true)}
+        activeFileName={activeMasterCP?.fileName}
+      />
+
       {/* ========================================================================= */}
       {/* 2. THREE CORE NAVIGATION TABS */}
       {/* ========================================================================= */}
@@ -750,8 +765,8 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
                 </select>
               </div>
 
-              <div className="max-h-28 overflow-y-auto space-y-1 custom-scrollbar pr-1">
-                {filteredPresets.slice(0, 5).map((preset, idx) => (
+              <div className="max-h-36 overflow-y-auto space-y-1 custom-scrollbar pr-1">
+                {filteredPresets.map((preset, idx) => (
                   <button
                     key={`${preset.subject}-${preset.grade}-${idx}`}
                     type="button"
@@ -1053,6 +1068,31 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
           </div>
         </div>
       )}
+
+      <AgamaIslamCPUploadModal
+        isOpen={showAgamaIslamCPModal}
+        onClose={() => setShowAgamaIslamCPModal(false)}
+        initialSubject={subject}
+        initialLevel={level}
+        initialGrade={grade}
+        initialPhase={phase}
+        initialJpPerWeek={jpPerWeek}
+        onSyncedComplete={(synced) => {
+          setActiveMasterCP(synced);
+          setSubject(synced.subject);
+          setLevel(synced.level);
+          setGrade(Number(synced.grade));
+          setPhase(synced.phase);
+          setJpPerWeek(synced.jpPerWeek || 3);
+          setCpText(synced.cpText || '');
+          if (synced.elements) setElements(synced.elements);
+          setMaterialsSem1(synced.materialsSem1 || []);
+          setMaterialsSem2(synced.materialsSem2 || []);
+          setSaveToast(`CP Khusus ${synced.subject} berhasil diunggah & disinkronkan ke seluruh perangkat ajar!`);
+          setTimeout(() => setSaveToast(null), 4000);
+        }}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 };

@@ -191,7 +191,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
     },
     {
       id: 'analisis_alokasi_waktu',
-      title: 'Analisis Alokasi Waktu',
+      title: '1. Analisis Alokasi Waktu',
       desc: 'Analisis RBE dari Kalender Pendidikan & unggah format mandiri sinkron PROSEM',
       icon: Table,
       category: 'kaldik',
@@ -199,7 +199,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
     },
     {
       id: 'ai_analisis_cp',
-      title: '1. Analisis Capaian Pembelajaran (CP)',
+      title: '2. Analisis Capaian Pembelajaran (CP)',
       desc: 'Dekomposisi elemen CP, pemetaan kompetensi HOTS & 3 pilar Deep Learning',
       icon: FileSearch,
       category: 'ai',
@@ -207,35 +207,35 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
     },
     {
       id: 'ai_tp',
-      title: '2. Tujuan Pembelajaran (TP)',
+      title: '3. Tujuan Pembelajaran (TP)',
       desc: 'Perumusan kompetensi dan indikator ketercapaian Taksonomi Bloom',
       icon: Target,
       category: 'ai',
     },
     {
       id: 'ai_atp',
-      title: '3. Alur TP (ATP)',
+      title: '4. Alur TP (ATP)',
       desc: 'Penyusunan alur pembelajaran bertahap beserta alokasi jam pelajaran',
       icon: GitMerge,
       category: 'ai',
     },
     {
       id: 'ai_prota',
-      title: '4. Program Tahunan (PROTA)',
+      title: '5. Program Tahunan (PROTA)',
       desc: 'Distribusi dan pembagian materi pembelajaran untuk satu tahun ajaran',
       icon: CalendarRange,
       category: 'ai',
     },
     {
       id: 'ai_prosem',
-      title: '5. Program Semester (PROSEM)',
+      title: '6. Program Semester (PROSEM)',
       desc: 'Matriks alokasi jadwal pekan efektif dan rencana bulanan semester',
       icon: CalendarCheck,
       category: 'ai',
     },
     {
       id: 'ai_kktp',
-      title: '6. Kriteria Ketuntasan (KKTP)',
+      title: '7. Kriteria Ketuntasan (KKTP)',
       desc: 'Interval nilai, rubrik asesmen, dan deskripsi kriteria mutu belajar',
       icon: CheckSquare,
       category: 'ai',
@@ -243,7 +243,7 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
     },
     {
       id: 'ai_modul_ajar',
-      title: '7. RPM (Rencana Pelaksanaan Modul)',
+      title: '8. RPM (Rencana Pelaksanaan Modul)',
       desc: 'Penyusunan Rencana Pelaksanaan Modul dengan sintaks Deep Learning',
       icon: FileText,
       category: 'ai',
@@ -251,14 +251,14 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
     },
     {
       id: 'ai_lkpd',
-      title: '8. Lembar Kerja Siswa (LKPD)',
+      title: '9. Lembar Kerja Siswa (LKPD)',
       desc: 'Aktivitas pembelajaran berdiferensiasi dan penyelidikan terstruktur',
       icon: FileSpreadsheet,
       category: 'ai',
     },
     {
       id: 'ai_rubrik_penilaian',
-      title: '9. Rubrik Penilaian Terpadu',
+      title: '10. Rubrik Penilaian Terpadu',
       desc: 'Rubrik asesmen autentik formatif dan sumatif yang selaras dengan modul',
       icon: HelpCircle,
       category: 'ai',
@@ -404,51 +404,58 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="font-bold text-slate-300 flex items-center space-x-1.5">
                     <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Ekosistem 9 Modul Perangkat Ajar yang Otomatis Tersinkron:</span>
+                    <span>Ekosistem 10 Modul Perangkat Ajar yang Otomatis Tersinkron:</span>
                   </span>
                   <span className="text-[10px] text-emerald-400 font-bold hidden sm:inline">Status: Siap Digunakan / Dicetak</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5 text-[10px]">
                   <button
+                    onClick={() => onNavigate('analisis_alokasi_waktu')}
+                    className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
+                  >
+                    <span>1. Analisis Alokasi Waktu</span>
+                    <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
+                  </button>
+                  <button
                     onClick={() => onNavigate('ai_analisis_cp')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>1. Analisis CP</span>
+                    <span>2. Analisis CP</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_tp')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>2. TP</span>
+                    <span>3. TP</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_atp')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>3. ATP</span>
+                    <span>4. ATP</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_prota')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>4. PROTA</span>
+                    <span>5. PROTA</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_prosem')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>5. PROSEM</span>
+                    <span>6. PROSEM</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_kktp')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>6. KKTP</span>
+                    <span>7. KKTP</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
@@ -456,21 +463,21 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                     className="px-2 py-1 rounded-lg bg-emerald-900/60 hover:bg-emerald-800/80 border border-emerald-500/50 text-emerald-200 font-bold transition flex items-center space-x-1 shadow-xs"
                   >
                     <AMDLogo size="xs" />
-                    <span>7. RPM Deep Learning</span>
+                    <span>8. RPM Deep Learning</span>
                     <ArrowRight className="w-2.5 h-2.5 text-emerald-300" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_lkpd')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>8. LKPD</span>
+                    <span>9. LKPD</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                   <button
                     onClick={() => onNavigate('ai_rubrik_penilaian')}
                     className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-semibold transition flex items-center space-x-1"
                   >
-                    <span>9. Rubrik Penilaian</span>
+                    <span>10. Rubrik Penilaian</span>
                     <ArrowRight className="w-2.5 h-2.5 text-slate-400" />
                   </button>
                 </div>

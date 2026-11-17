@@ -31,7 +31,6 @@ import {
   Bookmark,
   ListOrdered,
   AlertCircle,
-  Sliders,
   UploadCloud,
   GraduationCap,
   BookOpen,
@@ -44,9 +43,7 @@ import {
   FileCheck,
   Info,
   ShieldCheck,
-  ChevronRight,
   Calculator,
-  CalendarDays,
 } from 'lucide-react';
 import {
   SchoolLevel,
@@ -61,6 +58,11 @@ import { ExportService } from '../lib/exportUtils';
 import { SUBJECT_MATERIAL_PRESETS, SubjectPreset, getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
 import { handleNumberInputFocus, parseNumberInput } from '../lib/inputUtils';
 import { UniversalFileParser } from '../lib/universalFileParser';
+import {
+  AgamaIslamCPUploadModal,
+  AgamaIslamCPBanner,
+  isAgamaIslamSubject,
+} from '../components/AgamaIslamCPUploadModal';
 
 const POPULAR_SUBJECTS = [
   'Fisika',
@@ -123,6 +125,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [showSyncSuccessModal, setShowSyncSuccessModal] = useState<boolean>(false);
+  const [showAgamaIslamCPModal, setShowAgamaIslamCPModal] = useState<boolean>(false);
 
   // File Upload State
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -345,6 +348,10 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     setMaterialsSem1(sem1WithIds);
     setMaterialsSem2(sem2WithIds);
     setTotalTPCount(sem1WithIds.length + sem2WithIds.length);
+
+    if (isAgamaIslamSubject(newSub)) {
+      setShowAgamaIslamCPModal(true);
+    }
 
     showNotif(`Mata Pelajaran "${newSub}" dipilih. Lingkup materi Bab & CP otomatis disesuaikan untuk Kelas ${targetGrade} (${preset.phase})!`);
   };
@@ -754,6 +761,9 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     );
 
     setIsPresetModalOpen(false);
+    if (isAgamaIslamSubject(preset.subject)) {
+      setShowAgamaIslamCPModal(true);
+    }
     showNotif(`Template standar BSKAP untuk ${preset.subject} (${preset.phase}) berhasil diterapkan!`);
   };
 
@@ -1711,6 +1721,14 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                         <span>Pilih Preset Mapel</span>
                       </button>
                     </div>
+
+                    <div className="mt-3">
+                      <AgamaIslamCPBanner
+                        subject={subject}
+                        onOpenModal={() => setShowAgamaIslamCPModal(true)}
+                        activeFileName={activeMasterCP?.fileName}
+                      />
+                    </div>
                   </div>
 
                   {/* Jenjang, Kelas & Fase */}
@@ -1840,56 +1858,17 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                 </div>
               </div>
 
-              {/* Action Bar: Shortcut & Save */}
-              <div className="space-y-3">
-                {/* Quick Shortcuts to Kaldik & Parameter */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-2xl flex flex-col justify-between space-y-2">
-                    <div className="space-y-1">
-                      <div className="text-xs font-bold text-blue-900 flex items-center space-x-1.5">
-                        <CalendarDays className="w-4 h-4 text-blue-600" />
-                        <span>Upload Kalender Pendidikan</span>
-                      </div>
-                      <p className="text-[10px] text-slate-600">
-                        Unggah berkas Kaldik resmi sekolah untuk memetakan agenda kegiatan, pekan kalender, dan libur semester.
-                      </p>
-                    </div>
-                    {onNavigate && (
-                      <button
-                        type="button"
-                        onClick={() => onNavigate("kalender_pendidikan")}
-                        className="w-full py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center justify-center space-x-1 shadow-2xs transition cursor-pointer"
-                      >
-                        <span>Buka Upload Kalender Pendidikan</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex flex-col justify-between space-y-2">
-                    <div className="space-y-1">
-                      <div className="text-xs font-bold text-emerald-900 flex items-center space-x-1.5">
-                        <Sliders className="w-4 h-4 text-emerald-600" />
-                        <span>Parameter Bab & Alokasi JP</span>
-                      </div>
-                      <p className="text-[10px] text-slate-600">
-                        {subject} • {level} (Kelas {grade}) • {phase} • {jpPerWeek} JP/Minggu ({jpPerWeek * 36} JP/Thn)
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <button
-                    type="button"
-                    onClick={handleSavePlan}
-                    disabled={isSaving}
-                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-2 shadow-sm transition cursor-pointer"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>{isSaving ? "Menyimpan..." : "Simpan Profil Guru, Sekolah & Parameter Mapel"}</span>
-                  </button>
-                </div>
+              {/* Action Bar: Save */}
+              <div>
+                <button
+                  type="button"
+                  onClick={handleSavePlan}
+                  disabled={isSaving}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-2 shadow-sm transition cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSaving ? "Menyimpan..." : "Simpan Profil Guru, Sekolah & Parameter Mapel"}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2341,44 +2320,48 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
 
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
               <span className="font-bold text-blue-700 block mb-1">
-                Data telah tersinkronisasi otomatis ke 9 Modul Perangkat Pembelajaran:
+                Data telah tersinkronisasi otomatis ke 10 Modul Perangkat Pembelajaran:
               </span>
               <ul className="grid grid-cols-2 gap-1.5 text-slate-700 text-[11px]">
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>1. Analisis Capaian Pembelajaran (CP)</span>
+                  <span>1. Analisis Alokasi Waktu</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>2. Tujuan Pembelajaran (TP)</span>
+                  <span>2. Analisis Capaian Pembelajaran (CP)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>3. Alur Tujuan Pembelajaran (ATP)</span>
+                  <span>3. Tujuan Pembelajaran (TP)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>4. Program Tahunan (PROTA)</span>
+                  <span>4. Alur Tujuan Pembelajaran (ATP)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>5. Program Semester (PROSEM)</span>
+                  <span>5. Program Tahunan (PROTA)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>6. Kriteria Ketuntasan (KKTP)</span>
+                  <span>6. Program Semester (PROSEM)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>7. RPM (Rencana Pelaksanaan Modul)</span>
+                  <span>7. Kriteria Ketuntasan (KKTP)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>8. Lembar Kerja Siswa (LKPD)</span>
+                  <span>8. RPM (Rencana Pelaksanaan Modul)</span>
                 </li>
                 <li className="flex items-center space-x-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>9. Rubrik Penilaian Terpadu</span>
+                  <span>9. Lembar Kerja Siswa (LKPD)</span>
+                </li>
+                <li className="flex items-center space-x-1.5">
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>10. Rubrik Penilaian Terpadu</span>
                 </li>
               </ul>
             </div>
@@ -2647,6 +2630,21 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
           </div>
         </div>
       )}
+
+      <AgamaIslamCPUploadModal
+        isOpen={showAgamaIslamCPModal}
+        onClose={() => setShowAgamaIslamCPModal(false)}
+        initialSubject={subject}
+        initialLevel={level}
+        initialGrade={grade}
+        initialPhase={phase}
+        initialJpPerWeek={jpPerWeek}
+        onSyncedComplete={(synced) => {
+          loadInitialData();
+          showNotif(`CP Khusus ${synced.subject} berhasil diunggah & disinkronkan ke seluruh perangkat ajar!`);
+        }}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 };

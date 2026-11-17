@@ -50,11 +50,12 @@ import { ExportService } from '../lib/exportUtils';
 import { CPUploaderAndAnalyzer } from '../components/CPUploaderAndAnalyzer';
 import { AdminApiKeyManager } from '../components/AdminApiKeyManager';
 import { SupabaseSyncView } from './SupabaseSyncView';
+import { UploadCPMasterView } from './UploadCPMasterView';
 import { handleNumberInputFocus, parseNumberInput } from '../lib/inputUtils';
 import { AMDLogo } from '../components/AMDLogo';
 
 interface AdminDashboardViewProps {
-  initialSubTab?: 'dashboard' | 'tokens' | 'access' | 'sync' | 'api_key' | 'settings';
+  initialSubTab?: 'dashboard' | 'upload_cp' | 'tokens' | 'access' | 'sync' | 'api_key' | 'settings';
   onNavigate?: (tab: string) => void;
 }
 
@@ -62,7 +63,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   initialSubTab = 'dashboard',
   onNavigate,
 }) => {
-  const [subTab, setSubTab] = useState<'dashboard' | 'tokens' | 'access' | 'sync' | 'api_key' | 'settings'>(initialSubTab);
+  const [subTab, setSubTab] = useState<'dashboard' | 'upload_cp' | 'tokens' | 'access' | 'sync' | 'api_key' | 'settings'>(initialSubTab);
   const [users, setUsers] = useState<UserAccount[]>(() => StorageService.getUsers());
   const [logs, setLogs] = useState<AccessLog[]>(() => StorageService.getAccessLogs());
   const [notifications, setNotifications] = useState<UserNotification[]>(() => StorageService.getNotifications());
@@ -514,6 +515,15 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               }`}
             >
               Log Audit ({logs.length})
+            </button>
+            <button
+              onClick={() => setSubTab('upload_cp')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center space-x-1.5 ${
+                subTab === 'upload_cp' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <UploadCloud className="w-3.5 h-3.5 text-sky-400" />
+              <span>Upload CP Master</span>
             </button>
             <button
               onClick={() => setSubTab('tokens')}
@@ -1761,6 +1771,13 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
       {subTab === 'api_key' && (
         <div className="space-y-4">
           <AdminApiKeyManager />
+        </div>
+      )}
+
+      {/* SUBTAB: UPLOAD CP MASTER */}
+      {subTab === 'upload_cp' && (
+        <div className="space-y-4">
+          <UploadCPMasterView onNavigate={onNavigate} />
         </div>
       )}
 

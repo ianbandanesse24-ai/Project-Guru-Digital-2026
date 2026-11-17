@@ -38,6 +38,11 @@ import { getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
 import { handleNumberInputFocus, parseNumberInput } from '../lib/inputUtils';
 import { KalenderPendidikanView } from './KalenderPendidikanView';
 import { CurriculumResetModal } from '../components/CurriculumResetModal';
+import {
+  AgamaIslamCPUploadModal,
+  AgamaIslamCPBanner,
+  isAgamaIslamSubject,
+} from '../components/AgamaIslamCPUploadModal';
 
 const POPULAR_SUBJECTS = [
   'Fisika',
@@ -160,6 +165,7 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
   const [viewCombinedText, setViewCombinedText] = useState<{ [key: string]: boolean }>({});
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showAgamaIslamCPModal, setShowAgamaIslamCPModal] = useState(false);
   const [showSubjectSelector, setShowSubjectSelector] = useState(false);
   const [customSubjectInput, setCustomSubjectInput] = useState('');
 
@@ -278,6 +284,9 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
       targetJp,
       `Mata Pelajaran "${cleanSub}" berhasil dipilih & materi Bab/TP otomatis disinkronkan ke Distribusi Alokasi Waktu, PROSEM, PROTA, & seluruh perangkat ajar!`
     );
+    if (isAgamaIslamSubject(cleanSub)) {
+      setShowAgamaIslamCPModal(true);
+    }
   };
 
   // Chapter management handlers with automatic TP generation according to taught material
@@ -680,7 +689,7 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
               <span>Konfigurasi Terpadu Kurikulum & Kalender Pendidikan</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black tracking-tight">
-              Parameter Kurikulum, Beban Belajar & Kaldik
+              Parameter Kurikulum &amp; Beban Belajar
             </h1>
             <p className="text-xs text-blue-100 max-w-2xl leading-relaxed">
               Pusat pengaturan terpadu: Mata pelajaran, jenjang, fase, beban JP/minggu, alokasi waktu per pertemuan, distribusi Bab materi pokok, serta integrasi Kalender Pendidikan & RBE Alokasi Waktu.
@@ -969,6 +978,12 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                 1 Pertemuan = {jpPerWeek} JP
               </span>
             </div>
+
+            <AgamaIslamCPBanner
+              subject={subject}
+              onOpenModal={() => setShowAgamaIslamCPModal(true)}
+              activeFileName={StorageService.getActiveMasterCP()?.fileName}
+            />
           </div>
 
           {/* Card: Distribusi Bab Materi Pokok & Rumusan TP (Semester 1 & 2) */}
@@ -1672,7 +1687,7 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
               className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-2 shadow-sm transition active:scale-95"
             >
               <Save className="w-4 h-4" />
-              <span>Simpan & Terapkan Perubahan</span>
+              <span>Simpan &amp; Sinkronkan</span>
             </button>
           </div>
         </div>
@@ -1877,6 +1892,28 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
           }}
         />
       )}
+
+      <AgamaIslamCPUploadModal
+        isOpen={showAgamaIslamCPModal}
+        onClose={() => setShowAgamaIslamCPModal(false)}
+        initialSubject={subject}
+        initialLevel={level}
+        initialGrade={grade}
+        initialPhase={phase}
+        initialJpPerWeek={jpPerWeek}
+        onSyncedComplete={(synced) => {
+          setSubject(synced.subject);
+          setLevel(synced.level);
+          setGrade(Number(synced.grade));
+          setPhase(synced.phase);
+          setJpPerWeek(synced.jpPerWeek || 3);
+          setMaterialsSem1(synced.materialsSem1 || []);
+          setMaterialsSem2(synced.materialsSem2 || []);
+          setSaveToast(`✅ CP Khusus ${synced.subject} berhasil diunggah & disinkronkan ke seluruh perangkat ajar!`);
+          setTimeout(() => setSaveToast(null), 4500);
+        }}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 };

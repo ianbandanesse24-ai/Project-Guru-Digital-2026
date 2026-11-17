@@ -3023,20 +3023,20 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                   <div className="bg-slate-900 p-4 rounded-3xl border border-slate-800 space-y-2">
                     <label className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
                       <span>Pilih Jenis Perangkat Ajar:</span>
-                      <span className="text-[10px] text-indigo-400 font-mono">9 Jenis Dokumen</span>
+                      <span className="text-[10px] text-indigo-400 font-mono">10 Jenis Dokumen</span>
                     </label>
                     <div className="space-y-1 max-h-[280px] overflow-y-auto pr-1">
                       {[
-                        { id: 'analisis_alokasi_waktu', label: '0. Analisis Alokasi Waktu (RBE)', desc: 'Pekan Efektif & Siklus Deep Learning' },
-                        { id: 'analisis_cp', label: '1. Analisis & Distribusi CP', desc: 'Dekomposisi Elemen & 3 Pilar Deep Learning' },
-                        { id: 'tp', label: '2. Tujuan Pembelajaran (TP)', desc: 'Formula ABCD, Bloom HOTS & Deep Learning' },
-                        { id: 'atp', label: '3. Alur Tujuan Pembelajaran (ATP)', desc: 'Standar 10 Kolom, 3 Pilar & Alokasi JP' },
-                        { id: 'prota', label: '4. Program Tahunan (PROTA)', desc: 'Format 4 Kolom & Alokasi Tahunan 3 Pilar' },
-                        { id: 'prosem', label: '5. Program Semester (PROSEM)', desc: 'Matriks Pekan Efektif & Siklus Deep Learning' },
-                        { id: 'kktp', label: '6. Kriteria Ketuntasan (KKTP)', desc: 'Interval Nilai & Rubrik 4 Level Deep Learning' },
-                        { id: 'modul_ajar', label: '7. Modul Ajar Deep Learning', desc: '6 Fase Sintaks: Mindful, Meaningful, Joyful' },
-                        { id: 'lkpd', label: '8. LKPD Deep Learning', desc: 'Inkuiri Kontekstual, Kanvas Siswa & Refleksi' },
-                        { id: 'rubrik_penilaian', label: '9. Rubrik Penilaian & 6C', desc: 'Asesmen Karakter 6C, Kinerja & Sumatif HOTS' },
+                        { id: 'analisis_alokasi_waktu', label: '1. Analisis Alokasi Waktu (RBE)', desc: 'Pekan Efektif & Siklus Deep Learning' },
+                        { id: 'analisis_cp', label: '2. Analisis & Distribusi CP', desc: 'Dekomposisi Elemen & 3 Pilar Deep Learning' },
+                        { id: 'tp', label: '3. Tujuan Pembelajaran (TP)', desc: 'Formula ABCD, Bloom HOTS & Deep Learning' },
+                        { id: 'atp', label: '4. Alur Tujuan Pembelajaran (ATP)', desc: 'Standar 10 Kolom, 3 Pilar & Alokasi JP' },
+                        { id: 'prota', label: '5. Program Tahunan (PROTA)', desc: 'Format 4 Kolom & Alokasi Tahunan 3 Pilar' },
+                        { id: 'prosem', label: '6. Program Semester (PROSEM)', desc: 'Matriks Pekan Efektif & Siklus Deep Learning' },
+                        { id: 'kktp', label: '7. Kriteria Ketuntasan (KKTP)', desc: 'Interval Nilai & Rubrik 4 Level Deep Learning' },
+                        { id: 'modul_ajar', label: '8. Modul Ajar Deep Learning', desc: '6 Fase Sintaks: Mindful, Meaningful, Joyful' },
+                        { id: 'lkpd', label: '9. LKPD Deep Learning', desc: 'Inkuiri Kontekstual, Kanvas Siswa & Refleksi' },
+                        { id: 'rubrik_penilaian', label: '10. Rubrik Penilaian & 6C', desc: 'Asesmen Karakter 6C, Kinerja & Sumatif HOTS' },
                       ].map((doc) => (
                         <button
                           key={doc.id}

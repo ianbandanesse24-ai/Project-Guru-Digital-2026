@@ -26,7 +26,25 @@ export class ExportService {
    */
   static cleanDuplicateKop(text: string): string {
     if (!text) return '';
-    return text.trim();
+    let cleaned = text.trim();
+
+    // Strip redundant top-of-document banner blocks (TP -> Rubrik Penilaian) that duplicate Kop Surat & title-box
+    const redundantTopBannerRegex = /^(?:#\s*(?:PERUMUSAN TUJUAN PEMBELAJARAN \(TP\)|ALUR TUJUAN PEMBELAJARAN \(ATP\)|PROGRAM TAHUNAN \(PROTA\)|KRITERIA KETERCAPAIAN TUJUAN PEMBELAJARAN \(KKTP\)|RENCANA PELAKSANAAN MODUL \(RPM\)|LEMBAR KERJA PESERTA DIDIK \(LKPD\)|RUBRIK PENILAIAN TERPADU)[^\n]*(?:\r?\n|$))+(?:#{2,4}\s*(?:PENDEKATAN DEEP LEARNING|KURIKULUM BERBASIS DEEP LEARNING|INTEGRASI FORMULASI|TAHUN PELAJARAN|TAHUN AJARAN|\(MINDFUL,|PENDIDIKAN DEEP LEARNING|CAKUPAN 1 TAHUN|Model Pembelajaran:|Mata Pelajaran:|TEMA PERTEMUAN|MATA PELAJARAN:|SINKRON DENGAN RENCANA)[^\n]*(?:\r?\n|$))*(?:\s*(?:---|\*\*\*|___)\s*(?:\r?\n|$))*/i;
+    cleaned = cleaned.replace(redundantTopBannerRegex, '').trim();
+
+    // Also strip redundant PROSEM top banner div if present
+    cleaned = cleaned.replace(
+      /^<div[^>]*>\s*<div[^>]*>PROGRAM SEMESTER\s*\(\s*PROSEM\s*\)<\/div>[\s\S]*?<\/div>\s*/i,
+      ''
+    ).trim();
+
+    // Also strip redundant LKPD meeting headers immediately after page-break divs
+    cleaned = cleaned.replace(
+      /(<div class="page-break"[^>]*><\/div>\s*)(?:#\s*LEMBAR KERJA PESERTA DIDIK \(LKPD\)[^\n]*(?:\r?\n|$))(?:#{2,4}\s*(?:TEMA PERTEMUAN|MATA PELAJARAN:)[^\n]*(?:\r?\n|$))*(?:\s*(?:---|\*\*\*|___)\s*(?:\r?\n|$))*/gi,
+      '$1'
+    );
+
+    return cleaned.trim();
   }
 
   /**
@@ -309,15 +327,15 @@ export class ExportService {
           }
         });
 
-        // Detect RPM & ATP table types
+        // Detect curriculum table types across all 10 teaching tools
         const headerStr = tableHeaders.join(' ').toUpperCase();
         const isAtpTable = headerStr.includes('ALUR TUJUAN') || (headerStr.includes('TUJUAN PEMBELAJARAN') && (headerStr.includes('MATERI') || headerStr.includes('INDIKATOR') || headerStr.includes('GLOSARIUM') || headerStr.includes('SUMBER') || headerStr.includes('PENILAIAN') || tableHeaders.length >= 7));
-        const isSintaksTable = headerStr.includes('TAHAP SINTAKS') || (headerStr.includes('FASE') && headerStr.includes('TUJUAN'));
+        const isSintaksTable = headerStr.includes('TAHAP SINTAKS') || headerStr.includes('FASE SINTAKS') || (headerStr.includes('FASE') && headerStr.includes('TUJUAN'));
         const isMeetingScenarioTable = headerStr.includes('KEGIATAN GURU') || headerStr.includes('KEGIATAN PESERTA DIDIK') || (headerStr.includes('FASE') && headerStr.includes('WAKTU'));
-        const isMeeting1 = isMeetingScenarioTable && (lastHeading.includes('PERTEMUAN 1') || lastHeading.includes('PERTEMUAN KE 1') || lastHeading.includes('PERTEMUAN KE-1') || headerStr.includes('PERTEMUAN 1'));
+        const isMeeting1 = isMeetingScenarioTable && (lastHeading.toUpperCase().includes('PERTEMUAN 1') || lastHeading.toUpperCase().includes('PERTEMUAN KE 1') || lastHeading.toUpperCase().includes('PERTEMUAN KE-1') || headerStr.includes('PERTEMUAN 1'));
         const isMeeting2Plus = isMeetingScenarioTable && !isMeeting1;
         const isDiferensiasiTable = headerStr.includes('REGULER') || headerStr.includes('DIFERENSIASI') || (headerStr.includes('KEBUTUHAN KHUSUS') && headerStr.includes('BERPRESTASI'));
-        const isAsesmenTable = headerStr.includes('JENIS ASESMEN') || headerStr.includes('KISI-KISI') || (headerStr.includes('INSTRUMEN') && headerStr.includes('ASPEK YANG DINILAI')) || headerStr.includes('RUBRIK');
+        const isAsesmenTable = headerStr.includes('JENIS ASESMEN') || headerStr.includes('KISI-KISI') || (headerStr.includes('INSTRUMEN') && headerStr.includes('ASPEK')) || headerStr.includes('RUBRIK') || headerStr.includes('KRITERIA') || headerStr.includes('DIMENSI 6C') || headerStr.includes('DIAGNOSTIK') || headerStr.includes('ASPEK PENILAIAN');
         const isIdentitasTable =
           lastHeading.toUpperCase().includes('IDENTITAS') ||
           headerStr.includes('KOMPONEN IDENTITAS') ||
@@ -327,15 +345,28 @@ export class ExportService {
               const c0 = (r[0] || '').toUpperCase();
               return c0.includes('SATUAN PENDIDIKAN') || c0.includes('MATA PELAJARAN') || c0.includes('NAMA KELOMPOK');
             }));
-        const isMediaTable = headerStr.includes('RINCIAN MEDIA') || lastHeading.includes('MEDIA, ALAT') || tableRows.some(r => (r[0] || '').toUpperCase().includes('MEDIA PEMBELAJARAN') || (r[0] || '').toUpperCase().includes('ALAT & BAHAN'));
+        const isMediaTable = headerStr.includes('RINCIAN MEDIA') || lastHeading.toUpperCase().includes('MEDIA, ALAT') || tableRows.some(r => (r[0] || '').toUpperCase().includes('MEDIA PEMBELAJARAN') || (r[0] || '').toUpperCase().includes('ALAT & BAHAN'));
+        const isProtaTable = headerStr.includes('ALUR TUJUAN') && headerStr.includes('ALOKASI WAKTU') && tableHeaders.length === 4;
+        const isKktpMatrixTable = headerStr.includes('0 - 40%') || headerStr.includes('0-40%') || (headerStr.includes('TUJUAN PEMBELAJARAN') && tableHeaders.length === 6);
+        const isKktpRubrikTable = headerStr.includes('KODE & FOKUS TP') || (headerStr.includes('BARU BERKEMBANG') && tableHeaders.length >= 6);
+        const isKktpChecklistTable = headerStr.includes('NAMA PESERTA DIDIK') && tableHeaders.length >= 6;
+        const isRbeMonthlyTable = headerStr.includes('NAMA BULAN') && headerStr.includes('PEKAN EFEKTIF');
+        const isRbeRekapTable = headerStr.includes('JUMLAH PEKAN KALENDER') && headerStr.includes('TOTAL JAM EFEKTIF');
+        const isRbeDistTable = headerStr.includes('BAB / LINGKUP MATERI') && headerStr.includes('BEBAN JP');
+        const isAnalisisCpElTable = headerStr.includes('ELEMEN CP') && headerStr.includes('KOMPETENSI ESENSIAL');
+        const isAnalisisCpDistTable = headerStr.includes('KODE TP') && headerStr.includes('JML PERTEMUAN');
+        const isLkpdDataTable = headerStr.includes('PARAMETER / OBJEK YANG DISELIDIKI');
+        const isRubrikSoalTable = headerStr.includes('NO SOAL') && headerStr.includes('SKOR MAKS');
+        const isPredikatTable = headerStr.includes('RENTANG NILAI') && headerStr.includes('PREDIKAT');
 
-        let tableBorderColor = '#1e3a8a';
-        let defaultHeaderBg = '#1e3a8a';
+        // Unified clean palette modeled after Tujuan Pembelajaran (TP: #0f766e), preserving Identitas (#0288d1) and Meeting scenarios
+        let tableBorderColor = '#0f766e';
+        let defaultHeaderBg = '#0f766e';
         let defaultHeaderColor = '#ffffff';
 
-        if (isAtpTable) {
-          tableBorderColor = '#0f766e';
-          defaultHeaderBg = '#0f766e';
+        if (isIdentitasTable) {
+          tableBorderColor = '#0288d1';
+          defaultHeaderBg = '#0288d1';
           defaultHeaderColor = '#ffffff';
         } else if (isMeeting1) {
           tableBorderColor = '#d84315';
@@ -343,76 +374,202 @@ export class ExportService {
         } else if (isMeeting2Plus) {
           tableBorderColor = '#0288d1';
           defaultHeaderBg = '#0288d1';
-        } else if (isSintaksTable) {
-          tableBorderColor = '#00695c';
-          defaultHeaderBg = '#00695c';
-        } else if (isDiferensiasiTable || isAsesmenTable) {
-          tableBorderColor = '#0288d1';
-          defaultHeaderBg = '#0288d1';
+        } else if (isAtpTable || isProtaTable || isKktpMatrixTable || isKktpRubrikTable || isKktpChecklistTable || isAnalisisCpElTable || isAnalisisCpDistTable || isSintaksTable || isMediaTable) {
+          tableBorderColor = '#0f766e';
+          defaultHeaderBg = '#0f766e';
           defaultHeaderColor = '#ffffff';
-        } else if (isIdentitasTable) {
-          tableBorderColor = '#0288d1';
-          defaultHeaderBg = '#0288d1';
+        } else if (isDiferensiasiTable || isAsesmenTable || isRubrikSoalTable || isPredikatTable) {
+          tableBorderColor = '#0f766e';
+          defaultHeaderBg = '#0f766e';
           defaultHeaderColor = '#ffffff';
-        } else if (isMediaTable) {
-          tableBorderColor = '#00897b';
-          defaultHeaderBg = '#00897b';
+        } else {
+          tableBorderColor = '#0f766e';
+          defaultHeaderBg = '#0f766e';
           defaultHeaderColor = '#ffffff';
         }
 
-        // Calculate specific column widths
+        // Calculate proportional column widths (all rows sum to 100%)
         const getColumnWidth = (cIdx: number, totalCols: number): string => {
           if (isAtpTable && totalCols === 10) {
-            // Standar Baku 10 Kolom ATP Kemendikbudristek
-            if (cIdx === 0) return 'width: 17%; min-width: 130px;'; // Tujuan Pembelajaran
-            if (cIdx === 1) return 'width: 10%; min-width: 90px;';  // Materi
-            if (cIdx === 2) return 'width: 15%; min-width: 120px;'; // Indikator TP
-            if (cIdx === 3) return 'width: 11%; min-width: 95px;';  // Profil Pancasila & 6C
-            if (cIdx === 4) return 'width: 7%; min-width: 65px;';   // Kata Kunci
-            if (cIdx === 5) return 'width: 16%; min-width: 130px;'; // Kegiatan Pembelajaran
-            if (cIdx === 6) return 'width: 7%; min-width: 65px;';   // Glosarium
-            if (cIdx === 7) return 'width: 5%; min-width: 45px; text-align: center;'; // Alokasi Waktu
-            if (cIdx === 8) return 'width: 6%; min-width: 75px;';   // Sumber Belajar
-            if (cIdx === 9) return 'width: 6%; min-width: 75px;';   // Penilaian
+            if (cIdx === 0) return 'width: 13.5%;';
+            if (cIdx === 1) return 'width: 9%;';
+            if (cIdx === 2) return 'width: 13%;';
+            if (cIdx === 3) return 'width: 11%;';
+            if (cIdx === 4) return 'width: 8%;';
+            if (cIdx === 5) return 'width: 13.5%;';
+            if (cIdx === 6) return 'width: 8.5%;';
+            if (cIdx === 7) return 'width: 6.5%; text-align: center;';
+            if (cIdx === 8) return 'width: 8.5%;';
+            if (cIdx === 9) return 'width: 8.5%;';
           }
-          if (totalCols === 2 && isIdentitasTable) {
-            return cIdx === 0 ? 'width: 28%; min-width: 170px; text-align: left;' : 'width: 72%; text-align: left;';
+          if (totalCols === 8 && isRbeDistTable) {
+            const w = ['4.5%', '10%', '22%', '9%', '9.5%', '10%', '16%', '19%'];
+            const c = (cIdx === 0 || cIdx === 1 || cIdx === 3 || cIdx === 4 || cIdx === 5) ? ' text-align: center;' : '';
+            return `width: ${w[cIdx]};${c}`;
           }
-          if (totalCols === 2) {
-            return cIdx === 0 ? 'width: 28%;' : 'width: 72%;';
+          if (totalCols === 8 && isRbeRekapTable) {
+            const w = ['5%', '19%', '12%', '12%', '12%', '14%', '12%', '14%'];
+            const c = cIdx !== 1 ? ' text-align: center;' : '';
+            return `width: ${w[cIdx]};${c}`;
+          }
+          if (totalCols === 8 && isKktpChecklistTable) {
+            const w = ['4.5%', '17.5%', '11.5%', '11.5%', '11.5%', '11.5%', '12%', '20%'];
+            const c = (cIdx === 0 || (cIdx >= 2 && cIdx <= 6)) ? ' text-align: center;' : '';
+            return `width: ${w[cIdx]};${c}`;
+          }
+          if (totalCols === 8) {
+            const w = ['5%', '13%', '14%', '13%', '13%', '14%', '14%', '14%'];
+            return `width: ${w[cIdx]};${cIdx === 0 ? ' text-align: center;' : ''}`;
+          }
+          if (totalCols === 7 && isAnalisisCpDistTable) {
+            const w = ['4.5%', '10.5%', '30%', '18%', '8.5%', '9.5%', '19%'];
+            const c = (cIdx === 0 || cIdx === 1 || cIdx === 4 || cIdx === 5) ? ' text-align: center;' : '';
+            return `width: ${w[cIdx]};${c}`;
+          }
+          if (totalCols === 7 && isKktpRubrikTable) {
+            const w = ['11%', '19%', '14.5%', '14.5%', '14.5%', '14.5%', '12%'];
+            const c = (cIdx === 0 || cIdx === 6) ? ' text-align: center;' : '';
+            return `width: ${w[cIdx]};${c}`;
+          }
+          if (totalCols === 7 && isAtpTable) {
+            // Tujuan Pembelajaran (TP) 7-kolom — standar baku rapi
+            const w = ['9.5%', '13.5%', '24%', '14%', '11%', '12%', '16%'];
+            return `width: ${w[cIdx]};${cIdx === 0 ? ' text-align: center;' : ''}`;
+          }
+          if (totalCols === 7) {
+            const w = ['10%', '15%', '22%', '14%', '13%', '13%', '13%'];
+            return `width: ${w[cIdx]};${cIdx === 0 ? ' text-align: center;' : ''}`;
+          }
+          if (totalCols === 6 && isMeetingScenarioTable) {
+            const w = ['12.5%', '14.5%', '8.5%', '27.5%', '25%', '12%'];
+            const c = (cIdx === 0 || cIdx === 2) ? ' text-align: center;' : '';
+            return `width: ${w[cIdx]};${c}`;
+          }
+          if (totalCols === 6 && isKktpMatrixTable) {
+            const w = ['16%', '28%', '14%', '14%', '14%', '14%'];
+            return `width: ${w[cIdx]};`;
+          }
+          if (totalCols === 6 && isRbeMonthlyTable) {
+            const w = ['5%', '18%', '12%', '12%', '12%', '41%'];
+            const c = (cIdx === 0 || (cIdx >= 2 && cIdx <= 4)) ? ' text-align: center;' : '';
+            return `width: ${w[cIdx]};${c}`;
+          }
+          if (totalCols === 6 && headerStr.includes('JENIS ASESMEN')) {
+            const w = ['5%', '15%', '17%', '22%', '25%', '16%'];
+            return `width: ${w[cIdx]};${cIdx === 0 ? ' text-align: center;' : ''}`;
+          }
+          if (totalCols === 6) {
+            const w = ['17%', '19%', '16%', '16%', '16%', '16%'];
+            return `width: ${w[cIdx]};`;
           }
           if (totalCols === 5 && isMeetingScenarioTable) {
-            if (cIdx === 0) return 'width: 13%; min-width: 95px;';
-            if (cIdx === 1) return 'width: 18%; min-width: 115px;';
-            if (cIdx === 2) return 'width: 9%; min-width: 65px; text-align: center;';
-            if (cIdx === 3) return 'width: 30%;';
-            if (cIdx === 4) return 'width: 30%;';
+            const w = ['13%', '18%', '9%', '30%', '30%'];
+            const c = (cIdx === 0 || cIdx === 2) ? ' text-align: center;' : '';
+            return `width: ${w[cIdx]};${c}`;
+          }
+          if (totalCols === 5 && isAnalisisCpElTable) {
+            const w = ['5%', '18%', '28%', '24%', '25%'];
+            return `width: ${w[cIdx]};${cIdx === 0 ? ' text-align: center;' : ''}`;
+          }
+          if (totalCols === 5 && isRbeRekapTable === false && headerStr.includes('KOMPONEN')) {
+            const w = ['26%', '15%', '15%', '17%', '27%'];
+            const c = (cIdx >= 1 && cIdx <= 3) ? ' text-align: center;' : '';
+            return `width: ${w[cIdx]};${c}`;
+          }
+          if (totalCols === 5) {
+            const w = ['18%', '20.5%', '20.5%', '20.5%', '20.5%'];
+            return `width: ${w[cIdx]};`;
+          }
+          if (totalCols === 4 && isProtaTable) {
+            const w = ['20%', '40%', '26%', '14%'];
+            return `width: ${w[cIdx]};${cIdx === 3 ? ' text-align: center;' : ''}`;
+          }
+          if (totalCols === 4 && isSintaksTable) {
+            const w = ['13%', '24%', '18%', '45%'];
+            const c = (cIdx === 0 || cIdx === 2) ? ' text-align: center;' : '';
+            return `width: ${w[cIdx]};${c}`;
+          }
+          if (totalCols === 4 && isLkpdDataTable) {
+            const w = ['6%', '30%', '32%', '32%'];
+            return `width: ${w[cIdx]};${cIdx === 0 ? ' text-align: center;' : ''}`;
+          }
+          if (totalCols === 4 && isRubrikSoalTable) {
+            const w = ['9%', '25%', '54%', '12%'];
+            return `width: ${w[cIdx]};${(cIdx === 0 || cIdx === 3) ? ' text-align: center;' : ''}`;
           }
           if (totalCols === 4 && isMeetingScenarioTable) {
-            if (cIdx === 0) return 'width: 17%; min-width: 110px;';
-            if (cIdx === 1) return 'width: 11%; min-width: 75px;';
-            if (cIdx === 2) return 'width: 36%;';
-            if (cIdx === 3) return 'width: 36%;';
+            const w = ['17%', '11%', '36%', '36%'];
+            return `width: ${w[cIdx]};`;
           }
           if (totalCols === 4 && (isAsesmenTable || isDiferensiasiTable)) {
-            if (cIdx === 0) return 'width: 20%;';
-            if (cIdx === 1) return 'width: 25%;';
-            if (cIdx === 2) return 'width: 30%;';
-            if (cIdx === 3) return 'width: 25%;';
+            const w = ['20%', '25%', '30%', '25%'];
+            return `width: ${w[cIdx]};`;
+          }
+          if (totalCols === 4) {
+            const w = ['20%', '26%', '27%', '27%'];
+            return `width: ${w[cIdx]};`;
+          }
+          if (totalCols === 3 && isPredikatTable) {
+            const w = ['18%', '22%', '60%'];
+            return `width: ${w[cIdx]};${cIdx < 2 ? ' text-align: center;' : ''}`;
+          }
+          if (totalCols === 3 && headerStr.includes('FORMULA')) {
+            const w = ['30%', '46%', '24%'];
+            return `width: ${w[cIdx]};${cIdx === 2 ? ' text-align: center;' : ''}`;
           }
           if (totalCols === 3) {
-            if (cIdx === 0) return 'width: 25%;';
-            if (cIdx === 1) return 'width: 35%;';
-            if (cIdx === 2) return 'width: 40%;';
+            const w = ['25%', '35%', '40%'];
+            return `width: ${w[cIdx]};`;
+          }
+          if (totalCols === 2 && isIdentitasTable) {
+            return cIdx === 0 ? 'width: 28%; text-align: left;' : 'width: 72%; text-align: left;';
+          }
+          if (totalCols === 2) {
+            return cIdx === 0 ? 'width: 30%;' : 'width: 70%;';
           }
           return '';
         };
 
+        // Compute vertical rowspan map for `^` placeholder cells (used in TP and Analisis CP)
+        const rowspanMap: number[][] = tableRows.map((row) => row.map(() => 1));
+        const skipCellMap: boolean[][] = tableRows.map((row) => row.map(() => false));
+        for (let r = 0; r < tableRows.length; r++) {
+          for (let c = 0; c < tableRows[r].length; c++) {
+            const cleanVal = (tableRows[r][c] || '').replace(/<[^>]+>/g, '').trim();
+            if (cleanVal === '^' && r > 0) {
+              let baseR = r - 1;
+              while (baseR > 0 && skipCellMap[baseR][c]) {
+                baseR--;
+              }
+              if (!skipCellMap[baseR][c]) {
+                rowspanMap[baseR][c] += 1;
+                skipCellMap[r][c] = true;
+              }
+            }
+          }
+        }
+
+        const totalColsCount = tableHeaders.length;
+        const isAtp10Col = isAtpTable && totalColsCount === 10;
+        const isWideTable = !isAtp10Col && totalColsCount >= 6;
+        const hasFixedColumnWidths = totalColsCount >= 2 && totalColsCount <= 10;
+
         let tableHtml = '';
         if (isForWord) {
-          tableHtml = `<table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-size:10pt; mso-table-lspace:0pt; mso-table-rspace:0pt; border:1pt solid #334155; margin:12pt 0 14pt 0;">`;
+          const fontSize = isAtp10Col ? '7.5pt' : isWideTable ? '8.5pt' : '9.5pt';
+          const cellPad = isAtp10Col ? '3' : isWideTable ? '4' : '5';
+          const fixedLayout = hasFixedColumnWidths ? 'table-layout:fixed;' : '';
+          tableHtml = `<table border="1" cellspacing="0" cellpadding="${cellPad}" style="width:100%; ${fixedLayout} border-collapse:collapse; font-size:${fontSize}; mso-table-lspace:0pt; mso-table-rspace:0pt; border:1pt solid ${tableBorderColor}; margin:10pt 0 14pt 0;">`;
         } else {
-          tableHtml = `<div class="table-responsive" style="overflow-x:auto; margin:14px 0; page-break-inside:auto; break-inside:auto;"><table border="1" cellspacing="0" cellpadding="6" style="width:100%; border-collapse:collapse; font-size:9.5pt; border:1.5px solid ${tableBorderColor}; page-break-inside:auto; break-inside:auto;">`;
+          const fontSize = isAtp10Col ? '7.5pt' : isWideTable ? '8.5pt' : '9pt';
+          const padding = isAtp10Col ? '4' : isWideTable ? '5' : '6';
+          const fixedLayout = hasFixedColumnWidths ? 'table-layout:fixed;' : '';
+          const containerClass = isAtp10Col
+            ? 'table-responsive atp-10-col-container'
+            : isWideTable
+            ? 'table-responsive wide-curriculum-table-container'
+            : 'table-responsive curriculum-table-container';
+          tableHtml = `<div class="${containerClass}" style="overflow-x:auto; margin:12px 0; page-break-inside:auto; break-inside:auto;"><table border="1" cellspacing="0" cellpadding="${padding}" class="${isIdentitasTable ? 'identitas-table' : ''}" style="width:100%; ${fixedLayout} border-collapse:collapse; font-size:${fontSize}; border:1.5px solid ${tableBorderColor}; page-break-inside:auto; break-inside:auto;">`;
         }
 
         if (tableHeaders.length > 0) {
@@ -463,9 +620,17 @@ export class ExportService {
             const colWidth = getColumnWidth(cIdx, tableHeaders.length);
             const thAlign = isIdentitasTable ? 'text-align:left;' : 'text-align:center;';
             if (isForWord) {
-              tableHtml += `<th style="border:1pt solid ${headerBorder}; mso-border-alt:solid ${headerBorder} .75pt; padding:6pt 8pt; font-weight:bold; ${thAlign} color:${headerColor}; background-color:${headerBg}; font-size:9.5pt; ${colWidth}">${th}</th>`;
+              const thPadding = isAtp10Col ? '4pt 3pt' : isWideTable ? '4.5pt 4pt' : '5.5pt 7pt';
+              const thFontSize = isAtp10Col ? '7.5pt' : isWideTable ? '8pt' : '9pt';
+              tableHtml += `<th style="border:1pt solid ${headerBorder}; mso-border-alt:solid ${headerBorder} .75pt; padding:${thPadding}; font-weight:bold; ${thAlign} color:${headerColor}; background-color:${headerBg}; font-size:${thFontSize}; line-height:1.25; word-wrap:break-word; ${colWidth}">${th}</th>`;
             } else {
-              tableHtml += `<th style="border:1px solid ${headerBorder}; padding:7px 10px; font-weight:bold; ${thAlign} color:${headerColor}; background-color:${headerBg}; font-size:9pt; ${colWidth}">${th}</th>`;
+              const thPadding = isAtp10Col ? '4px 3px' : isWideTable ? '6px 5px' : '7px 9px';
+              const thFontSize = isAtp10Col
+                ? 'clamp(7.2px, 0.88cqi, 10px)'
+                : isWideTable
+                ? 'clamp(9px, 1.42cqi, 11.5px)'
+                : '9pt';
+              tableHtml += `<th style="border:1px solid ${headerBorder}; padding:${thPadding}; font-weight:bold; ${thAlign} color:${headerColor}; background-color:${headerBg}; font-size:${thFontSize}; line-height:1.28; white-space:normal; word-break:normal; overflow-wrap:break-word; hyphens:none; vertical-align:middle; ${colWidth}">${th}</th>`;
             }
           });
           tableHtml += '</tr></thead>';
@@ -494,33 +659,61 @@ export class ExportService {
           }
 
           row.forEach((cell, cIdx) => {
-            const vAlign = (isMeetingScenarioTable || isAtpTable || isIdentitasTable) ? 'top' : 'middle';
-            const identBorderColor = isIdentitasTable ? '#cbd5e1' : tableBorderColor;
-            let cellStyle = isForWord
-              ? `border:1pt solid ${identBorderColor}; mso-border-alt:solid ${identBorderColor} .5pt; padding:5pt 8pt; vertical-align:${vAlign};`
-              : `border:1px solid ${identBorderColor}; padding:6px 10px; vertical-align:${vAlign};`;
+            if (skipCellMap[rIdx]?.[cIdx]) {
+              return;
+            }
 
-            // Alignment determination with justified text (rata kiri kanan) for narrative content & ATP
-            let align = 'text-align:left;';
+            const vAlign = 'top';
+            const identBorderColor = isIdentitasTable ? '#cbd5e1' : '#cbd5e1';
+            const tdPaddingWord = isAtp10Col ? '3.5pt 4pt' : isWideTable ? '4pt 5pt' : '5pt 7pt';
+            const tdPaddingHtml = isAtp10Col ? '4px 5px' : isWideTable ? '5px 6px' : '6px 9px';
+            let cellStyle = isForWord
+              ? `border:1pt solid ${identBorderColor}; mso-border-alt:solid ${identBorderColor} .5pt; padding:${tdPaddingWord}; vertical-align:${vAlign};`
+              : `border:1px solid ${identBorderColor}; padding:${tdPaddingHtml}; vertical-align:${vAlign};`;
+
+            const plainCell = cell.replace(/<[^>]+>/g, '').trim();
+            const isDotsPlaceholder = /^\.{10,}$/.test(plainCell) || /^·{10,}$/.test(plainCell);
+
+            // Uniform left-alignment across all curriculum tables (matching Tujuan Pembelajaran), centering only short IDs, counts, and badge/score cells
+            let align = 'text-align:left; line-height:1.45; word-break:normal; overflow-wrap:break-word;';
+            if (!isForWord && isWideTable) {
+              align += ' font-size:clamp(9px, 1.44cqi, 11.5px);';
+            }
+
             if (isIdentitasTable) {
               align = 'text-align:left; line-height:1.45;';
-            } else if (isAtpTable) {
-              if (cIdx === 7 || (cIdx === 0 && cell.length <= 4)) {
-                align = 'text-align:center; font-weight:bold;';
+            } else if (isAtp10Col) {
+              if (cIdx === 7 || (cIdx === 0 && plainCell.length <= 4)) {
+                align = `text-align:center; font-weight:bold; white-space:nowrap;${!isForWord ? ' font-size:clamp(7.5px, 0.92cqi, 10.5px);' : ''}`;
               } else {
-                align = 'text-align:justify; text-justify:inter-word; line-height:1.45; word-break:normal; hyphens:auto;';
+                align = `text-align:left; line-height:1.36; word-break:normal; overflow-wrap:break-word;${!isForWord ? ' font-size:clamp(7.5px, 0.92cqi, 10.5px);' : ''}`;
               }
-            } else if ((cIdx === 0 && cell.length <= 5) || cell.includes('span') || cell.length <= 6) {
-              align = 'text-align:center;';
-            } else if (cell.length > 35 || cell.includes('<br') || cell.includes('•') || cell.includes('- ')) {
-              align = 'text-align:justify; text-justify:inter-word; line-height:1.4;';
+            } else if (isAtpTable) {
+              if ((cIdx === 0 && plainCell.length <= 16) || cIdx === 7) {
+                align = `text-align:center; font-weight:bold; line-height:1.4;${!isForWord && isWideTable ? ' font-size:clamp(9px, 1.44cqi, 11.5px);' : ''}`;
+              }
+            } else if (isDotsPlaceholder) {
+              align = 'text-align:left; vertical-align:middle;';
+            } else if (
+              (cIdx === 0 && plainCell.length <= 6) ||
+              (/^\d+(\s*(JP|Pekan|Pertemuan|Menit|%))?$/i.test(plainCell) && plainCell.length <= 14) ||
+              (plainCell.length <= 8 && !cell.includes('<br') && cIdx > 0 && isRbeRekapTable)
+            ) {
+              align = `text-align:center; line-height:1.4;${!isForWord && isWideTable ? ' font-size:clamp(9px, 1.44cqi, 11.5px);' : ''}`;
             }
+
             cellStyle += ` ${align}`;
+
+            // Apply explicit column width rule hints to body cells as well for Word & consistent centering
+            const colWidthHint = getColumnWidth(cIdx, tableHeaders.length);
+            if (colWidthHint.includes('text-align: center;') && !isDotsPlaceholder && cIdx > 0) {
+              cellStyle += ' text-align:center;';
+            }
 
             // Specialized RPM & Identitas Column Styling
             if (cIdx === 0) {
               if (isSintaksTable) {
-                cellStyle += ' font-weight:bold; color:#00897b; text-align:center;';
+                cellStyle += ' font-weight:bold; color:#0f766e; text-align:center;';
               } else if (isMeeting1) {
                 cellStyle += ' font-weight:bold; color:#d84315; text-align:center;';
               } else if (isMeeting2Plus) {
@@ -528,11 +721,11 @@ export class ExportService {
               } else if (isIdentitasTable) {
                 cellStyle += ' width:28%; font-weight:bold; color:#0369a1; background-color:#f0f9ff; text-align:left;';
               } else if (isMediaTable) {
-                cellStyle += ' font-weight:bold; color:#00897b; background-color:#f0fdf4;';
+                cellStyle += ' font-weight:bold; color:#0f766e; background-color:#f0fdf4;';
               }
             } else if (isIdentitasTable && cIdx === 1) {
               cellStyle += ' width:72%; color:#0f172a; background-color:#ffffff; text-align:left;';
-            } else if (cIdx === 2 && isMeetingScenarioTable && tableHeaders.length === 5) {
+            } else if (cIdx === 2 && isMeetingScenarioTable && (tableHeaders.length === 5 || tableHeaders.length === 6)) {
               cellStyle += ' font-weight:bold; color:#1e293b; text-align:center; white-space:nowrap; background-color:#f8fafc;';
             }
 
@@ -540,7 +733,9 @@ export class ExportService {
             const inheritedColType = isIdentitasTable ? null : colType[cIdx];
             const activeType = cellType || (inheritedColType && (cell === '-' || cell === '---' || cell === '' || isAgendaRow) ? inheritedColType : null);
 
-            let cellContent = cell;
+            let cellContent = isDotsPlaceholder
+              ? '<div style="border-bottom:1.5px dotted #94a3b8; height:18px; width:100%;"></div>'
+              : cell;
 
             if (activeType === 'libur') {
               cellStyle += ' background-color:#fee2e2 !important; border:1px solid #fca5a5 !important; color:#991b1b !important; font-weight:bold; text-align:center;';
@@ -588,7 +783,9 @@ export class ExportService {
               cellStyle += ' font-weight:bold; color:#0f172a;';
             }
 
-            tableHtml += `<td style="${cellStyle}">${cellContent}</td>`;
+            const rSpan = rowspanMap[rIdx]?.[cIdx] || 1;
+            const rSpanAttr = rSpan > 1 ? ` rowspan="${rSpan}"` : '';
+            tableHtml += `<td${rSpanAttr} style="${cellStyle}">${cellContent}</td>`;
           });
           tableHtml += '</tr>';
         });
@@ -1418,6 +1615,10 @@ export class ExportService {
     const headmasterNip = schoolProfileOrOptions.headmasterNip || '-';
     const city = schoolProfileOrOptions.city || 'Maluku Tengah';
     const phase = resolvePhaseLetter(grade, schoolProfileOrOptions.phase);
+    const isAtpLandscapeDoc =
+      schoolProfileOrOptions.docType === 'atp' ||
+      contentHtml.includes('table-layout:fixed;') ||
+      cleaned.toUpperCase().includes('10 KOLOM');
 
     const docHtml = `
       <!DOCTYPE html>
@@ -1436,8 +1637,9 @@ export class ExportService {
         <![endif]-->
         <style>
           @page Section1 {
-            size: 595.3pt 841.9pt;
-            margin: 42.5pt 42.5pt 42.5pt 42.5pt;
+            size: ${isAtpLandscapeDoc ? '841.9pt 595.3pt' : '595.3pt 841.9pt'};
+            ${isAtpLandscapeDoc ? 'mso-page-orientation: landscape;' : ''}
+            margin: ${isAtpLandscapeDoc ? '36pt 36pt 36pt 36pt' : '42.5pt 42.5pt 42.5pt 42.5pt'};
             mso-header-margin: 35.4pt;
             mso-footer-margin: 35.4pt;
             mso-paper-source: 0;
@@ -1580,20 +1782,20 @@ export class ExportService {
             width: 100%;
             border-collapse: collapse;
             margin: 10pt 0 14pt 0;
-            font-size: 9.5pt;
+            font-size: 9pt;
             mso-table-lspace: 0pt;
             mso-table-rspace: 0pt;
-            border: 1pt solid #334155;
+            border: 1pt solid #0f766e;
           }
           th, td {
-            border: 1pt solid #334155;
-            mso-border-alt: solid #334155 .5pt;
-            padding: 5pt 7pt;
+            border: 1pt solid #cbd5e1;
+            mso-border-alt: solid #cbd5e1 .5pt;
+            padding: 5pt 6pt;
             text-align: left;
             vertical-align: top;
           }
           th {
-            background-color: #1e3a8a;
+            background-color: #0f766e;
             color: #ffffff;
             font-weight: bold;
             text-align: center;
@@ -1779,6 +1981,10 @@ export class ExportService {
     const headmasterNip = schoolProfileOrOptions.headmasterNip || '-';
     const city = schoolProfileOrOptions.city || 'Maluku Tengah';
     const phase = resolvePhaseLetter(grade, schoolProfileOrOptions.phase);
+    const isAtpLandscapeDoc =
+      schoolProfileOrOptions.docType === 'atp' ||
+      contentHtml.includes('atp-10-col-container') ||
+      cleaned.toUpperCase().includes('10 KOLOM');
 
     const fullHtml = `
       <!DOCTYPE html>
@@ -1789,8 +1995,8 @@ export class ExportService {
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
         <style>
           @page {
-            size: A4 portrait;
-            margin: 12mm 15mm 15mm 15mm;
+            size: ${isAtpLandscapeDoc ? 'A4 landscape' : 'A4 portrait'};
+            margin: ${isAtpLandscapeDoc ? '10mm 12mm 12mm 12mm' : '12mm 15mm 15mm 15mm'};
           }
           * {
             box-sizing: border-box;
@@ -1898,10 +2104,10 @@ export class ExportService {
           table {
             width: 100%;
             border-collapse: collapse;
-            margin: 14px 0;
+            margin: 12px 0;
             font-size: 8.5pt;
             page-break-inside: auto;
-            border: 1px solid #334155;
+            border: 1px solid #0f766e;
           }
           tr {
             page-break-inside: avoid;
@@ -1909,15 +2115,57 @@ export class ExportService {
           }
           th, td {
             border: 1px solid #cbd5e1;
-            padding: 6px 8px;
+            padding: 5px 7px;
             vertical-align: top;
+            word-break: normal;
+            overflow-wrap: break-word;
           }
           th {
-            background-color: #1e3a8a;
+            background-color: #0f766e;
             color: #ffffff;
             font-weight: bold;
             text-align: center;
-            border: 1px solid #1e3a8a;
+            vertical-align: middle;
+            border: 1px solid #0f766e;
+            white-space: normal;
+            hyphens: none;
+          }
+          .curriculum-table-container,
+          .wide-curriculum-table-container,
+          .atp-10-col-container,
+          .prosem-matrix-container {
+            overflow-x: visible !important;
+          }
+          .curriculum-table-container table,
+          .wide-curriculum-table-container table {
+            width: 100% !important;
+            table-layout: fixed !important;
+          }
+          .wide-curriculum-table-container th,
+          .wide-curriculum-table-container td {
+            font-size: 8pt !important;
+            padding: 4px 5px !important;
+            line-height: 1.38 !important;
+          }
+          .atp-10-col-container table {
+            width: 100% !important;
+            table-layout: fixed !important;
+            font-size: 7.5pt !important;
+          }
+          .atp-10-col-container th {
+            font-size: 7.5pt !important;
+            padding: 4px 3px !important;
+            line-height: 1.25 !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+          }
+          .atp-10-col-container td {
+            font-size: 7.5pt !important;
+            padding: 4px 4px !important;
+            line-height: 1.35 !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
           }
           .katex {
             font-size: 1.05em;

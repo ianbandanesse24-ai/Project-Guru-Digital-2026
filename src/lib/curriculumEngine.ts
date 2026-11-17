@@ -333,14 +333,17 @@ export function generateExpertCurriculumDocument(
         sumSem1Jp += hours;
         sumSem1Meetings += totalMeetings;
 
-        const baseCode = mat.tpCode || `TP.${grade}.1.${babNum}`;
+        const rawTpCode = (mat.tpCode || '').trim();
+        const baseCode = rawTpCode && rawTpCode.split('.').length >= 4
+          ? rawTpCode
+          : `TP.${grade}.1.${babNum}`;
         const elem = mat.elementName || (mIdx % 2 === 0 ? 'Pemahaman Konseptual' : 'Keterampilan Proses');
         const assess = mat.assessmentStrategy || 'Asesmen Formatif (LKPD & Kuis)';
         const method = mat.deepLearningMethod || 'Inquiry & Mindful Exploration';
 
         for (let t = 1; t <= numTPs; t++) {
           sem1RowIndex++;
-          const currentCode = baseCode.includes('.') && baseCode.split('.').length >= 3 ? `${baseCode.substring(0, baseCode.lastIndexOf('.'))}.${t}` : `${baseCode}.${t}`;
+          const currentCode = numTPs > 1 ? `${baseCode}.${t}` : baseCode;
           
           const tpDesc = t === 1 && mat.tpName && !mat.tpName.includes('Peserta didik dapat') 
             ? mat.tpName 
@@ -382,14 +385,17 @@ export function generateExpertCurriculumDocument(
         sumSem2Jp += hours;
         sumSem2Meetings += totalMeetings;
 
-        const baseCode = mat.tpCode || `TP.${grade}.2.${mIdx + 1}`;
+        const rawTpCode = (mat.tpCode || '').trim();
+        const baseCode = rawTpCode && rawTpCode.split('.').length >= 4
+          ? rawTpCode
+          : `TP.${grade}.2.${mIdx + 1}`;
         const elem = mat.elementName || (mIdx % 2 === 0 ? 'Pemahaman Konseptual' : 'Aplikasi & Refleksi Kritis');
         const assess = mat.assessmentStrategy || 'Asesmen Formatif (Tes Tulis & Diskusi)';
         const method = mat.deepLearningMethod || 'Meaningful Inquiry & Joyful Project';
 
         for (let t = 1; t <= numTPs; t++) {
           sem2RowIndex++;
-          const currentCode = baseCode.includes('.') && baseCode.split('.').length >= 3 ? `${baseCode.substring(0, baseCode.lastIndexOf('.'))}.${t}` : `${baseCode}.${t}`;
+          const currentCode = numTPs > 1 ? `${baseCode}.${t}` : baseCode;
           
           const tpDesc = t === 1 && mat.tpName && !mat.tpName.includes('Peserta didik dapat') 
             ? mat.tpName 
@@ -576,12 +582,15 @@ ${buildOfficialLembarPengesahan({
             const babNum = mIdx + 1;
             const babName = mat.essentialMaterial || mat.tpName || `Bab ${babNum}`;
             const semNum = mat.semester || semesterNumber;
-            const baseCode = mat.tpCode || `TP.${grade}.${semNum}.${babNum}`;
+            const rawTpCode = (mat.tpCode || '').trim();
+            const baseCode = rawTpCode && rawTpCode.split('.').length >= 4
+              ? rawTpCode
+              : `TP.${grade}.${semNum}.${babNum}`;
             const numTPs = Number(mat.tpCount) > 0 ? Number(mat.tpCount) : (mat.tpName ? 1 : (mIdx % 2 === 0 ? 3 : 2));
 
             const rows: string[] = [];
             for (let t = 1; t <= numTPs; t++) {
-              const currentCode = baseCode.includes('.') && baseCode.split('.').length >= 3 ? `${baseCode.substring(0, baseCode.lastIndexOf('.'))}.${t}` : `${baseCode}.${t}`;
+              const currentCode = numTPs > 1 ? `${baseCode}.${t}` : baseCode;
               const pilarLabel = t === 1 
                 ? '**1. Mindful Learning** *(Kesadaran Diri & Pemahaman Konsep)*' 
                 : t === 2 
@@ -634,13 +643,7 @@ ${buildOfficialLembarPengesahan({
 2. *Mengapa pemahaman mendalam (deep understanding) terhadap prinsip ini sangat penting dalam pengambilan keputusan yang etis dan bijak?*
 3. *Gagasan kreasi atau inovasi menyenangkan apa yang dapat kalian ciptakan bersama tim untuk memecahkan tantangan di topik ini?*`;
 
-      return `# PERUMUSAN TUJUAN PEMBELAJARAN (TP)
-## PENDEKATAN DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
-### INTEGRASI FORMULASI ABCD, TAKSONOMI BLOOM HOTS, & KARAKTER 6C
-
----
-
-${buildOfficialIdentitas({
+      return `${buildOfficialIdentitas({
   sectionHeading: '### A. IDENTITAS PERANGKAT',
   schoolName,
   subject,
@@ -760,13 +763,7 @@ ${buildOfficialLembarPengesahan({
 * **Alokasi Jam:** ${Math.round((sem2Materials.length > 0 ? sem2Materials.reduce((acc: number, m: any) => acc + (Number(m.allocatedHours) || 18), 0) : 54) * 0.6)} JP`;
         }
 
-        return `# ALUR TUJUAN PEMBELAJARAN (ATP) - FORMAT KRONOLOGIS TAHAPAN
-## KURIKULUM BERBASIS DEEP LEARNING — TAHAPAN LOGIS DARI KONKRET KE ABSTRAK
-### TAHUN PELAJARAN ${resolvedAcademicYear}
-
----
-
-${buildOfficialIdentitas({
+        return `${buildOfficialIdentitas({
   sectionHeading: '### A. IDENTITAS PERANGKAT',
   schoolName,
   subject,
@@ -809,12 +806,12 @@ ${buildOfficialLembarPengesahan({
       let calcTotalSemJp = 0;
       const allMaterialsToUse = [...sem1Materials, ...sem2Materials];
       const defaultSem1AtpMats = [
-        { essentialMaterial: `Hakikat ${subject}, Konsep Dasar, dan Pengukurannya`, allocatedHours: 18, tpCount: 3, semester: 1 },
-        { essentialMaterial: `Energi, Perubahan Sistem, dan Aplikasinya`, allocatedHours: 18, tpCount: 2, semester: 1 },
+        { essentialMaterial: `Hakikat ${subject}, Konsep Dasar, dan Pengukurannya`, allocatedHours: 18, tpCount: 3, semester: 1, tpCode: `TP.${grade}.1.1` },
+        { essentialMaterial: `Energi, Perubahan Sistem, dan Aplikasinya`, allocatedHours: 18, tpCount: 2, semester: 1, tpCode: `TP.${grade}.1.2` },
       ];
       const defaultSem2AtpMats = [
-        { essentialMaterial: `Gejala Fenomena Lingkungan dan Pemanasan Global`, allocatedHours: 18, tpCount: 3, semester: 2 },
-        { essentialMaterial: `Aksi Nyata Mitigasi Perubahan Iklim`, allocatedHours: 18, tpCount: 2, semester: 2 },
+        { essentialMaterial: `Gejala Fenomena Lingkungan dan Pemanasan Global`, allocatedHours: 18, tpCount: 3, semester: 2, tpCode: `TP.${grade}.2.1` },
+        { essentialMaterial: `Aksi Nyata Mitigasi Perubahan Iklim`, allocatedHours: 18, tpCount: 2, semester: 2, tpCode: `TP.${grade}.2.2` },
       ];
       const materialsToUse = isSem1Only
         ? (sem1Materials.length > 0 ? sem1Materials : defaultSem1AtpMats)
@@ -824,6 +821,8 @@ ${buildOfficialLembarPengesahan({
 
       // Build official 10-column table rows
       const tableRows: string[] = [];
+      let atpSem1Counter = 0;
+      let atpSem2Counter = 0;
 
       materialsToUse.forEach((mat, mIdx) => {
         const matIndex = mIdx + 1;
@@ -831,38 +830,50 @@ ${buildOfficialLembarPengesahan({
         const hours = Number(mat.allocatedHours) || 18;
         calcTotalSemJp += hours;
         const numTPs = Number(mat.tpCount) > 0 ? Number(mat.tpCount) : (mat.tpName ? 1 : 2);
-        const semLabel = mat.semester === 2 ? 'Semester Genap' : 'Semester Ganjil';
+        const semNum = mat.semester === 2 ? 2 : 1;
+        if (semNum === 2) atpSem2Counter++;
+        else atpSem1Counter++;
+        const semBabOrder = semNum === 2 ? atpSem2Counter : atpSem1Counter;
+        const semLabel = semNum === 2 ? 'Semester Genap' : 'Semester Ganjil';
 
         const subjectLow = subject.toLowerCase();
-        let sampleKeywords = 'akurasi, angka penting, besaran, hipotesis, ketidakpastian pengukuran, metode ilmiah, notasi ilmiah, presisi, satuan, variabel.';
-        let sampleGlossary = 'akurasi, angka penting, besaran, hipotesis, ketidakpastian pengukuran, metode ilmiah, notasi ilmiah, presisi, satuan, variabel.';
+        let sampleKeywords = 'akurasi, angka penting, besaran, hipotesis, metode ilmiah, notasi ilmiah, presisi, satuan.';
+        let sampleGlossary = '<strong>Akurasi:</strong> kedekatan hasil ukur ke nilai benar.<br/><strong>Presisi:</strong> ketelitian berulang.<br/><strong>Variabel:</strong> besaran yang berubah.';
 
         if (matTitle.toLowerCase().includes('energi') || matTitle.toLowerCase().includes('usaha') || subjectLow.includes('fisika')) {
-          sampleKeywords = 'energi potensial, energi kinetik, energi terbarukan, fosil, hukum kekekalan energi, efisiensi energi, transformasi energi.';
-          sampleGlossary = 'energi potensial, energi kinetik, energi terbarukan, fosil, hukum kekekalan energi, efisiensi energi, transformasi energi.';
+          sampleKeywords = 'energi potensial, energi kinetik, energi terbarukan, efisiensi energi, transformasi energi.';
+          sampleGlossary = '<strong>Kinetik:</strong> energi gerak benda.<br/><strong>Potensial:</strong> energi akibat posisi.<br/><strong>Efisiensi:</strong> rasio energi berguna.';
         } else if (matTitle.toLowerCase().includes('lingkungan') || matTitle.toLowerCase().includes('pemanasan') || matTitle.toLowerCase().includes('iklim')) {
-          sampleKeywords = 'anomali, efek rumah kaca, el nino, gas rumah kaca, gletser, iklim, lapisan ozon, emisi karbon, mitigasi adaptasi.';
-          sampleGlossary = 'anomali, efek rumah kaca, el nino, gas rumah kaca, gletser, iklim, lapisan ozon, emisi karbon, mitigasi adaptasi.';
+          sampleKeywords = 'efek rumah kaca, emisi karbon, gas rumah kaca, iklim, lapisan ozon, mitigasi.';
+          sampleGlossary = '<strong>Emisi:</strong> pelepasan gas karbon.<br/><strong>Mitigasi:</strong> upaya tekan risiko iklim.<br/><strong>Ozon:</strong> pelindung sinar UV.';
         } else if (subjectLow.includes('matematika')) {
-          sampleKeywords = 'eksponen, logaritma, fungsi, grafik, pemodelan matematis, variabel, relasi, domain, kodomain, sistem persamaan.';
-          sampleGlossary = 'eksponen, logaritma, fungsi, grafik, pemodelan matematis, variabel, relasi, domain, kodomain, sistem persamaan.';
+          sampleKeywords = 'eksponen, logaritma, fungsi, grafik, pemodelan matematis, variabel, domain, kodomain.';
+          sampleGlossary = '<strong>Domain:</strong> daerah asal fungsi.<br/><strong>Kodomain:</strong> daerah kawan.<br/><strong>Eksponen:</strong> bentuk pangkat.';
         } else if (subjectLow.includes('biologi') || subjectLow.includes('ipa')) {
-          sampleKeywords = 'keanekaragaman hayati, ekosistem, sel, jaringan, interaksi biotik-abiotik, bioteknologi, konservasi, metabolisme.';
-          sampleGlossary = 'keanekaragaman hayati, ekosistem, sel, jaringan, interaksi biotik-abiotik, bioteknologi, konservasi, metabolisme.';
+          sampleKeywords = 'keanekaragaman hayati, ekosistem, sel, jaringan, interaksi biotik-abiotik, konservasi.';
+          sampleGlossary = '<strong>Ekosistem:</strong> interaksi biotik-abiotik.<br/><strong>Konservasi:</strong> pelestarian hayati.<br/><strong>Sel:</strong> unit dasar makhluk hidup.';
         } else if (subjectLow.includes('kimia')) {
-          sampleKeywords = 'struktur atom, ikatan kimia, reaksi redoks, stoikiometri, larutan, tabel periodik, hukum dasar kimia, termokimia.';
-          sampleGlossary = 'struktur atom, ikatan kimia, reaksi redoks, stoikiometri, larutan, tabel periodik, hukum dasar kimia, termokimia.';
+          sampleKeywords = 'struktur atom, ikatan kimia, reaksi redoks, stoikiometri, larutan, termokimia.';
+          sampleGlossary = '<strong>Stoikiometri:</strong> hitungan zat reaksi.<br/><strong>Redoks:</strong> reaksi reduksi-oksidasi.<br/><strong>Mol:</strong> satuan jumlah zat.';
         } else if (subjectLow.includes('bahasa')) {
-          sampleKeywords = 'struktur teks, fakta, opini, kaidah kebahasaan, gagasan pokok, kohesi, koherensi, diksi.';
-          sampleGlossary = 'struktur teks, fakta, opini, kaidah kebahasaan, gagasan pokok, kohesi, koherensi, diksi.';
+          sampleKeywords = 'struktur teks, fakta, opini, kaidah kebahasaan, gagasan pokok, kohesi, diksi.';
+          sampleGlossary = '<strong>Kohesi:</strong> kepaduan bentuk teks.<br/><strong>Koherensi:</strong> kepaduan makna.<br/><strong>Diksi:</strong> pilihan kata tepat.';
+        } else if (subjectLow.includes('agama') || subjectLow.includes('budi pekerti')) {
+          sampleKeywords = 'akhlak mulia, keteladanan, toleransi, ibadah, nilai luhur, refleksi spiritual.';
+          sampleGlossary = '<strong>Akhlak:</strong> perilaku terpuji.<br/><strong>Toleransi:</strong> sikap saling menghargai.<br/><strong>Moderat:</strong> adil dan seimbang.';
         }
 
-        const baseCode = mat.tpCode || `TP.${grade}.${matIndex}`;
+        const rawTpCode = (mat.tpCode || '').trim();
+        const baseCode = rawTpCode && rawTpCode.split('.').length >= 4
+          ? rawTpCode
+          : `TP.${grade}.${semNum}.${semBabOrder}`;
+        const individualTPList = parseTPList(mat.tpName, numTPs, matTitle, subject);
         const tpItems: string[] = [];
         for (let t = 1; t <= numTPs; t++) {
-          const currentCode = baseCode.includes('.') && baseCode.split('.').length >= 3 ? `${baseCode.substring(0, baseCode.lastIndexOf('.'))}.${t}` : `${baseCode}.${t}`;
-          const desc = t === 1 && mat.tpName && !mat.tpName.includes('Peserta didik dapat') 
-            ? mat.tpName 
+          const currentCode = numTPs > 1 ? `${baseCode}.${t}` : baseCode;
+          const specificTP = individualTPList[t - 1] || (t === 1 ? mat.tpName : '');
+          const desc = specificTP && specificTP.trim() && !specificTP.includes('Peserta didik dapat')
+            ? specificTP
             : (t === 1 
                 ? `Peserta didik mampu mengidentifikasi karakteristik, konsep dasar, dan komponen utama terkait ${matTitle} secara kritis.` 
                 : t === 2 
@@ -876,7 +887,7 @@ ${buildOfficialLembarPengesahan({
         const indicatorList = `• mengidentifikasi konsep dan komponen esensial ${matTitle}.<br/>• menganalisis data empiris dan variabel terkait.<br/>• menyajikan kesimpulan dan solusi kreatif.`;
         const profilPancasila = `• <strong>Dimensi 6C:</strong> Character, Critical Thinking, Creativity, Collaboration, Communication, Citizenship.<br/>• <strong>Profil Pancasila:</strong> Beriman, Bernalar Kritis, Bergotong Royong, Kreatif, Mandiri.`;
         const deepLearningActivities = `• <strong>Mindful:</strong> Observasi kesadaran penuh terhadap fenomena ${matTitle}.<br/>• <strong>Meaningful:</strong> Penyelidikan inkuiri berbasis data nyata.<br/>• <strong>Joyful:</strong> Kreasi karya inovatif & selebrasi belajar.`;
-        const sumberBelajar = `• Buku Teks ${subject} ${level} Kelas ${grade} (Kemendikbudristek).<br/>• Modul Ajar & LKPD Berbasis Deep Learning.<br/>• Sumber Digital & Lingkungan Kontekstual.`;
+        const sumberBelajar = `• Buku Teks ${subject} ${level} Kelas ${grade} (Kemdikbud).<br/>• Modul Ajar & LKPD Berbasis Deep Learning.<br/>• Sumber Digital & Lingkungan Kontekstual.`;
         const penilaian = `• Asesmen Diagnostik & Formatif Sikap 6C.<br/>• Penilaian Kinerja Keterampilan Proses.<br/>• Asesmen Sumatif Lingkup Materi.`;
         const hoursPerTp = Math.round((hours / numTPs) * 10) / 10;
 
@@ -914,13 +925,7 @@ ${buildOfficialLembarPengesahan({
 
       const totalEffectiveJP = calcTotalSemJp > 0 ? calcTotalSemJp : (activeMaterials.length * 18 || 54);
 
-      return `# ALUR TUJUAN PEMBELAJARAN (ATP)
-## PENDEKATAN DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
-### KURIKULUM BERBASIS DEEP LEARNING — TAHUN PELAJARAN ${resolvedAcademicYear}
-
----
-
-${buildOfficialIdentitas({
+      return `${buildOfficialIdentitas({
   sectionHeading: '### A. IDENTITAS PERANGKAT',
   schoolName,
   subject,
@@ -1301,13 +1306,7 @@ ${buildOfficialLembarPengesahan({
 
       const grandTotalMeetings = Math.max(1, Math.round(grandTotalJP / (hoursPerWeek || 1)));
 
-      return `# PROGRAM TAHUNAN (PROTA)
-## KURIKULUM BERBASIS DEEP LEARNING
-### (MINDFUL, MEANINGFUL, & JOYFUL LEARNING) — TAHUN PELAJARAN ${resolvedAcademicYear}
-
----
-
-${buildOfficialIdentitas({
+      return `${buildOfficialIdentitas({
   sectionHeading: '### A. IDENTITAS PROGRAM',
   schoolName,
   subject,
@@ -1400,18 +1399,18 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
       if (masterElements && masterElements.length > 0) {
         elementsRowsHtml = masterElements.map((el: any) => `
       <tr>
-        <td style="border: 1px solid #333333; padding: 6px; font-weight: bold; vertical-align: top; width: 180px;">${el.name || 'Elemen'}</td>
-        <td style="border: 1px solid #333333; padding: 6px; text-align: justify; vertical-align: top; line-height: 1.4;">${el.description || el.content || ''}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px 10px; font-weight: bold; color: #0f766e; background-color: #f8fafc; vertical-align: top; text-align: left; width: 22%;">${el.name || 'Elemen'}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; vertical-align: top; line-height: 1.45; width: 78%;">${el.description || el.content || ''}</td>
       </tr>`).join('');
       } else {
         elementsRowsHtml = `
       <tr>
-        <td style="border: 1px solid #333333; padding: 6px; font-weight: bold; vertical-align: top; width: 180px;">Pemahaman Konsep</td>
-        <td style="border: 1px solid #333333; padding: 6px; text-align: justify; vertical-align: top; line-height: 1.4;">${cpPemahamanKonsep}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px 10px; font-weight: bold; color: #0f766e; background-color: #f8fafc; vertical-align: top; text-align: left; width: 22%;">Pemahaman Konsep</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; vertical-align: top; line-height: 1.45; width: 78%;">${cpPemahamanKonsep}</td>
       </tr>
       <tr>
-        <td style="border: 1px solid #333333; padding: 6px; font-weight: bold; vertical-align: top; width: 180px;">Keterampilan Proses</td>
-        <td style="border: 1px solid #333333; padding: 6px; text-align: justify; vertical-align: top; line-height: 1.4;">${cpKeterampilanProses}</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px 10px; font-weight: bold; color: #0f766e; background-color: #f8fafc; vertical-align: top; text-align: left; width: 22%;">Keterampilan Proses</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; vertical-align: top; line-height: 1.45; width: 78%;">${cpKeterampilanProses}</td>
       </tr>`;
       }
 
@@ -1582,12 +1581,12 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
 
       // HTML Month Headers with Calendar Colors
       const monthThsHtml = monthsHeader.map(m =>
-        `<th colspan="${m.weeks}" style="border: 1px solid #333333; background-color: ${m.bg}; color: ${m.color}; padding: 6px 3px; font-weight: bold; font-size: 9.5pt; text-align: center;">${m.name}</th>`
+        `<th colspan="${m.weeks}" style="border: 1px solid #334155; background-color: ${m.bg}; color: ${m.color}; padding: 5px 2px; font-weight: bold; font-size: 8.5pt; text-align: center;">${m.name}</th>`
       ).join('');
 
       // HTML Week Number Headers (1 2 3 4 5 under each month)
       const weekThsHtml = monthsHeader.flatMap(m =>
-        Array.from({ length: m.weeks }, (_, i) => `<th style="border: 1px solid #333333; background-color: ${m.bg}; color: ${m.color}; padding: 3px 1px; font-size: 8.5pt; font-weight: bold; width: 22px; text-align: center;">${i + 1}</th>`)
+        Array.from({ length: m.weeks }, (_, i) => `<th style="border: 1px solid #334155; background-color: ${m.bg}; color: ${m.color}; padding: 2px 1px; font-size: 7.5pt; font-weight: bold; width: 17px; text-align: center;">${i + 1}</th>`)
       ).join('');
 
       // HTML Table Body Rows (Bab Banner Rows + TP Rows)
@@ -1609,27 +1608,27 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
         const cellsHtml = weekSlots.map(slot => {
           const val = matrix[mIdx][slot.index];
           if (!slot.isEffective) {
-            return `<td style="border: 1px solid #333333; background-color: ${slot.bg}; color: ${slot.color}; font-size: 7.5pt; font-weight: bold; text-align: center; padding: 2px 0;">${slot.tag}</td>`;
+            return `<td style="border: 1px solid #cbd5e1; background-color: ${slot.bg}; color: ${slot.color}; font-size: 6.8pt; font-weight: bold; text-align: center; padding: 2px 0;">${slot.tag}</td>`;
           }
-          return `<td style="border: 1px solid #333333; text-align: center; font-weight: ${val ? 'bold' : 'normal'}; padding: 4px 1px; ${val ? 'background-color: #e0f2fe; color: #0284c7;' : ''}">${val || ''}</td>`;
+          return `<td style="border: 1px solid #cbd5e1; text-align: center; font-weight: ${val ? 'bold' : 'normal'}; padding: 4px 1px; font-size: 8pt; ${val ? 'background-color: #e0f2fe; color: #0284c7;' : ''}">${val || ''}</td>`;
         }).join('');
 
         return `<!-- BAB ${babNum} HEADER ROW -->
-        <tr style="background-color: #f3f4f6; font-weight: bold;">
-          <td colspan="33" style="border: 1px solid #333333; padding: 6px 10px; text-align: left; font-size: 9.5pt; text-transform: uppercase;">
+        <tr style="background-color: #f1f5f9; font-weight: bold;">
+          <td colspan="33" style="border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; font-size: 9pt; color: #0f172a; text-transform: uppercase;">
             BAB ${babNum} : ${babTitle}
           </td>
         </tr>
         <!-- BAB ${babNum} TP ROW -->
         <tr style="background-color: #ffffff;">
-          <td style="border: 1px solid #333333; padding: 6px; text-align: center; vertical-align: top; font-weight: bold; font-size: 9pt;">
+          <td style="border: 1px solid #cbd5e1; padding: 6px 4px; text-align: center; vertical-align: top; font-weight: bold; font-size: 8.5pt;">
             ${babNum}
           </td>
-          <td style="border: 1px solid #333333; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 9pt;">
+          <td style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 8.5pt; line-height: 1.42;">
             ${tpContentFormatted}
           </td>
-          <td style="border: 1px solid #333333; padding: 6px 4px; font-weight: bold; text-align: center; vertical-align: middle; background-color: #f8fafc; font-size: 9pt;">
-            ${m.jp} JP<br/><span style="font-size: 8pt; font-weight: bold; color: #0284c7;">(${m.meetingCount} Pertemuan)</span>
+          <td style="border: 1px solid #cbd5e1; padding: 6px 4px; font-weight: bold; text-align: center; vertical-align: middle; background-color: #f8fafc; font-size: 8.5pt;">
+            ${m.jp} JP<br/><span style="font-size: 7.5pt; font-weight: bold; color: #0284c7;">(${m.meetingCount} Pertemuan)</span>
           </td>
           ${cellsHtml}
         </tr>`;
@@ -1638,10 +1637,10 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
       // Weekly total cells
       const weeklyTotalCellsHtml = weekSlots.map(slot => {
         if (!slot.isEffective) {
-          return `<td style="border: 1px solid #333333; background-color: ${slot.bg}; color: ${slot.color}; font-weight: bold; font-size: 7.5pt; text-align: center;">${slot.tag}</td>`;
+          return `<td style="border: 1px solid #cbd5e1; background-color: ${slot.bg}; color: ${slot.color}; font-weight: bold; font-size: 6.8pt; text-align: center;">${slot.tag}</td>`;
         }
         const tot = weeklyTotals[slot.index];
-        return `<td style="border: 1px solid #333333; font-weight: bold; padding: 4px 1px; text-align: center; font-size: 8.5pt;">${tot || ''}</td>`;
+        return `<td style="border: 1px solid #cbd5e1; font-weight: bold; padding: 4px 1px; text-align: center; font-size: 8pt;">${tot || ''}</td>`;
       }).join('');
 
       const totalSemesterJP = materialAllocations.reduce((s, m) => s + m.jp, 0);
@@ -1651,12 +1650,7 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
       const wakaName = (params as any).wakaName || (schoolProfile as any)?.wakaName || 'Alpiyan Prasetiya Marasabessy, S.Pd., Gr.';
       const wakaNip = (params as any).wakaNip || (schoolProfile as any)?.wakaNip || '199010062019031013';
 
-      return `<div style="background-color: #b4d6e4; color: #000000; padding: 12px; text-align: center; border: 1.5px solid #000000; margin-bottom: 20px;">
-  <div style="font-size: 14pt; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">PROGRAM SEMESTER ( PROSEM )</div>
-  <div style="font-size: 11pt; font-weight: bold; margin-top: 2px;">${phase.toUpperCase()} — KELAS ${resolvedGradeText} (${resolvedGradeWords})</div>
-</div>
-
-${buildOfficialIdentitas({
+      return `${buildOfficialIdentitas({
   sectionHeading: 'A. IDENTITAS PROGRAM SEMESTER',
   schoolName,
   subject,
@@ -1677,36 +1671,38 @@ ${buildOfficialIdentitas({
   layout: 'html',
 })}
 
-<div style="margin-bottom: 20px;">
-  <div style="font-weight: bold; font-size: 10.5pt; text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid #333333; padding-bottom: 4px;">
-    CAPAIAN PEMBELAJARAN ${subject.toUpperCase()} (${phase.toUpperCase()})
-  </div>
-  <div style="font-size: 9.5pt; text-align: justify; line-height: 1.5; margin-bottom: 12px;">
+<div style="margin-bottom: 18px;">
+  <h3 style="font-size: 11.5pt; font-weight: bold; color: #0369a1; border-left: 4px solid #0284c7; padding: 4px 10px; margin: 12px 0 8px 0; background-color: #f0f9ff; border-radius: 0 4px 4px 0;">
+    B. CAPAIAN PEMBELAJARAN ${subject.toUpperCase()} (${phase.toUpperCase()})
+  </h3>
+  <div style="font-size: 9.5pt; text-align: left; line-height: 1.5; margin-bottom: 10px; color: #0f172a;">
     ${cpText}
   </div>
-  <table style="width: 100%; border-collapse: collapse; font-size: 9pt; border: 1px solid #333333;">
-    <thead>
-      <tr style="background-color: #f1f5f9; font-weight: bold; text-align: center;">
-        <th style="border: 1px solid #333333; padding: 6px; width: 180px;">Elemen</th>
-        <th style="border: 1px solid #333333; padding: 6px;">Capaian Pembelajaran</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${elementsRowsHtml}
-    </tbody>
-  </table>
+  <div class="table-responsive" style="overflow-x: auto; margin: 10px 0;">
+    <table style="width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 9pt; border: 1.5px solid #0f766e;">
+      <thead>
+        <tr style="background-color: #0f766e; color: #ffffff; font-weight: bold; text-align: center;">
+          <th style="border: 1px solid #0f766e; padding: 7px 10px; width: 22%; text-align: left; color: #ffffff; background-color: #0f766e;">Elemen</th>
+          <th style="border: 1px solid #0f766e; padding: 7px 10px; width: 78%; text-align: left; color: #ffffff; background-color: #0f766e;">Capaian Pembelajaran</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${elementsRowsHtml}
+      </tbody>
+    </table>
+  </div>
 </div>
 
-<div style="overflow-x: auto; margin: 16px 0;">
-  <table style="width: 100%; border-collapse: collapse; font-size: 8.5pt; border: 1.5px solid #000000; text-align: center;">
+<div class="table-responsive prosem-matrix-container" style="overflow-x: auto; margin: 14px 0;">
+  <table style="width: 100%; border-collapse: collapse; font-size: 8pt; border: 1.5px solid #0f766e; text-align: center;">
     <thead>
-      <tr style="background-color: #e2e8f0; color: #000000; font-weight: bold;">
-        <th rowspan="2" style="border: 1px solid #333333; padding: 6px 4px; width: 35px; text-align: center; vertical-align: middle;">No</th>
-        <th rowspan="2" style="border: 1px solid #333333; padding: 6px 8px; width: 280px; text-align: center; vertical-align: middle;">TUJUAN PEMBELAJARAN</th>
-        <th rowspan="2" style="border: 1px solid #333333; padding: 6px 4px; width: 60px; text-align: center; vertical-align: middle;">Alokasi Waktu</th>
+      <tr style="background-color: #0f766e; color: #ffffff; font-weight: bold;">
+        <th rowspan="2" style="border: 1px solid #0f766e; padding: 6px 4px; width: 30px; text-align: center; vertical-align: middle; background-color: #0f766e; color: #ffffff;">No</th>
+        <th rowspan="2" style="border: 1px solid #0f766e; padding: 6px 8px; width: 220px; text-align: center; vertical-align: middle; background-color: #0f766e; color: #ffffff;">TUJUAN PEMBELAJARAN</th>
+        <th rowspan="2" style="border: 1px solid #0f766e; padding: 6px 4px; width: 58px; text-align: center; vertical-align: middle; background-color: #0f766e; color: #ffffff;">Alokasi Waktu</th>
         ${monthThsHtml}
       </tr>
-      <tr style="color: #000000; font-weight: bold; font-size: 8pt;">
+      <tr style="color: #000000; font-weight: bold; font-size: 7.5pt;">
         ${weekThsHtml}
       </tr>
     </thead>
@@ -1714,8 +1710,8 @@ ${buildOfficialIdentitas({
       ${tableRowsHtml}
       <!-- BARIS JUMLAH JAM PELAJARAN -->
       <tr style="background-color: #e2e8f0; font-weight: bold;">
-        <td style="border: 1px solid #333333; padding: 6px 8px; text-align: left; font-weight: bold;" colspan="2">TOTAL ALOKASI WAKTU SEMESTER</td>
-        <td style="border: 1px solid #333333; padding: 6px 4px; font-weight: bold; text-align: center; background-color: #cbd5e1;">${totalSemesterJP} JP<br/><span style="font-size: 8pt; font-weight: bold; color: #0f172a;">(${totalSemesterMeetings} Pertemuan)</span></td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: bold; color: #0f172a;" colspan="2">TOTAL ALOKASI WAKTU SEMESTER</td>
+        <td style="border: 1px solid #cbd5e1; padding: 6px 4px; font-weight: bold; text-align: center; background-color: #cbd5e1; color: #0f172a;">${totalSemesterJP} JP<br/><span style="font-size: 7.5pt; font-weight: bold; color: #0f172a;">(${totalSemesterMeetings} Pertemuan)</span></td>
         ${weeklyTotalCellsHtml}
       </tr>
     </tbody>
@@ -1899,13 +1895,7 @@ ${buildOfficialLembarPengesahan({
 
       const semesterLabel = String(semester) === '1' || String(semester).toLowerCase().includes('1') || String(semester).toLowerCase().includes('ganjil') ? 'Semester 1 (Ganjil)' : 'Semester 2 (Genap)';
 
-      return `# RENCANA PELAKSANAAN MODUL (RPM)
-### Model Pembelajaran: DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
-#### Mata Pelajaran: ${subject} | ${level} Kelas ${grade} (${phase}) - ${semesterLabel}
-
----
-
-${buildOfficialIdentitas({
+      return `${buildOfficialIdentitas({
   sectionHeading: '## A. IDENTITAS MODUL',
   schoolName,
   subject,
@@ -2062,14 +2052,7 @@ ${buildOfficialLembarPengesahan({
             ? `Kreasi Rekayasa Solusi, Pameran Karya & Asesmen Autentik`
             : `Pengolahan Data Empiris & Analisis Komparasi Berjenjang`;
 
-        meetingBlocks.push(`
-# LEMBAR KERJA PESERTA DIDIK (LKPD) DEEP LEARNING - PERTEMUAN ${m} DARI ${resolvedMeetingCount}
-## TEMA PERTEMUAN ${m}: ${meetingTheme.toUpperCase()}
-### MATA PELAJARAN: ${subject.toUpperCase()} - KELAS ${grade} (${phase}) - ${semester.toUpperCase()}
-
----
-
-${buildOfficialIdentitas({
+        meetingBlocks.push(`${buildOfficialIdentitas({
   sectionHeading: '### I. IDENTITAS PERANGKAT & KELOMPOK BELAJAR',
   schoolName,
   subject,
@@ -2084,6 +2067,7 @@ ${buildOfficialIdentitas({
   headmasterName,
   headmasterNip,
   extraRows: [
+    { label: 'Pertemuan & Tema', value: `Pertemuan ${m} dari ${resolvedMeetingCount} — ${meetingTheme}` },
     { label: 'Materi Pokok', value: topic },
     { label: 'Profil Karakter 6C', value: '*Character, Critical Thinking, Creativity, Collaboration, Communication, Citizenship*' },
   ],
@@ -2368,13 +2352,7 @@ Gambarkan rancangan diagram ide, bagan sistem prototipe, poster mini, atau ilust
           `| 5 | Farhan Maulana | 40 (Baru Berkembang) | 55 (Layak) | 50 (Layak) | **48.3%** | **BELUM TUNTAS** | Bimbingan intensif konsep ${baseCode}.1 & latihan terstruktur |`
         ].join('\n');
 
-        return `# KRITERIA KETERCAPAIAN TUJUAN PEMBELAJARAN (KKTP)
-## TAHUN AJARAN ${resolvedAcademicYear}
-### PENDIDIKAN DEEP LEARNING (BERMAKNA, BERKESAN, MENYENANGKAN)
-
----
-
-${buildOfficialIdentitas({
+        return `${buildOfficialIdentitas({
   sectionHeading: '### A. IDENTITAS PERANGKAT KKTP',
   schoolName,
   subject,
@@ -2488,14 +2466,7 @@ ${buildOfficialLembarPengesahan({
           );
         }).join('\n');
 
-        return `# KRITERIA KETERCAPAIAN TUJUAN PEMBELAJARAN (KKTP)
-## TAHUN AJARAN ${resolvedAcademicYear}
-### PENDIDIKAN DEEP LEARNING (BERMAKNA, BERKESAN, MENYENANGKAN)
-#### CAKUPAN 1 TAHUN PELAJARAN PENUH (SEMESTER 1 GANJIL & SEMESTER 2 GENAP)
-
----
-
-${buildOfficialIdentitas({
+        return `${buildOfficialIdentitas({
   sectionHeading: '### A. IDENTITAS PERANGKAT KKTP TAHUNAN',
   schoolName,
   subject,
@@ -2600,13 +2571,7 @@ ${buildOfficialLembarPengesahan({
         `| 5 | Farhan Maulana | 40 (Berkembang) | 55 (Layak) | 50 (Layak) | **48.3%** | **BELUM TUNTAS** | Pendampingan Intensif & Scaffolding |`
       ].join('\n');
 
-      return `# KRITERIA KETERCAPAIAN TUJUAN PEMBELAJARAN (KKTP)
-## TAHUN AJARAN ${resolvedAcademicYear}
-### PENDIDIKAN DEEP LEARNING (BERMAKNA, BERKESAN, MENYENANGKAN)
-
----
-
-${buildOfficialIdentitas({
+      return `${buildOfficialIdentitas({
   sectionHeading: '### A. IDENTITAS PERANGKAT KKTP',
   schoolName,
   subject,
@@ -2686,13 +2651,7 @@ ${buildOfficialLembarPengesahan({
 
     case 'rubrik_penilaian':
     case 'asesmen':
-      return `# RUBRIK PENILAIAN TERPADU BERBASIS DEEP LEARNING & KARAKTER 6C
-## SINKRON DENGAN RENCANA PELAKSANAAN MODUL (RPM) & KURIKULUM BERBASIS DEEP LEARNING
-### PENDEKATAN DEEP LEARNING (MINDFUL, MEANINGFUL, & JOYFUL LEARNING)
-
----
-
-${buildOfficialIdentitas({
+      return `${buildOfficialIdentitas({
   sectionHeading: '### A. IDENTITAS PERANGKAT ASESMEN',
   schoolName,
   subject,

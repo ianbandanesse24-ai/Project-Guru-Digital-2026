@@ -963,7 +963,7 @@ export const SUBJECT_MATERIAL_PRESETS: SubjectPreset[] = [
   // SMA - PAI (PENDIDIKAN AGAMA ISLAM)
   // ==========================================
   {
-    subject: 'Pendidikan Agama Islam',
+    subject: 'Pendidikan Agama & Budi Pekerti',
     level: 'SMA',
     grade: 10,
     phase: 'Fase E',

@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { School, X, Save, CheckCircle2 } from 'lucide-react';
 import { SchoolProfile, StorageService } from '../lib/storage';
+import {
+  AgamaIslamCPUploadModal,
+  AgamaIslamCPBanner,
+  isAgamaIslamSubject,
+} from './AgamaIslamCPUploadModal';
 
 interface SchoolProfileModalProps {
   isOpen: boolean;
@@ -16,6 +21,7 @@ export const SchoolProfileModal: React.FC<SchoolProfileModalProps> = ({
   const [profile, setProfile] = useState<SchoolProfile>(() => StorageService.getSchoolProfile());
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [autoSavedTime, setAutoSavedTime] = useState<string | null>(null);
+  const [showAgamaIslamCPModal, setShowAgamaIslamCPModal] = useState(false);
   const isInitialMount = useRef(true);
 
   // Auto-save on change with 600ms debounce
@@ -152,11 +158,36 @@ export const SchoolProfileModal: React.FC<SchoolProfileModalProps> = ({
                 <label className="block text-slate-700 font-medium mb-1">Mata Pelajaran</label>
                 <input
                   type="text"
+                  list="schoolProfileSubjectList"
                   value={profile.subject || 'Fisika'}
-                  onChange={(e) => setProfile({ ...profile, subject: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const wasAgama = isAgamaIslamSubject(profile.subject);
+                    setProfile({ ...profile, subject: val });
+                    if (isAgamaIslamSubject(val) && !wasAgama) {
+                      setShowAgamaIslamCPModal(true);
+                    }
+                  }}
                   className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:border-blue-600 text-xs font-semibold"
-                  placeholder="Contoh: Fisika, Matematika..."
+                  placeholder="Contoh: Fisika, Matematika, Pendidikan Agama & Budi Pekerti..."
                 />
+                <datalist id="schoolProfileSubjectList">
+                  <option value="Fisika" />
+                  <option value="Matematika" />
+                  <option value="Kimia" />
+                  <option value="Biologi" />
+                  <option value="Informatika" />
+                  <option value="Bahasa Indonesia" />
+                  <option value="Bahasa Inggris" />
+                  <option value="Pendidikan Pancasila" />
+                  <option value="Sejarah" />
+                  <option value="Geografi" />
+                  <option value="Ekonomi" />
+                  <option value="Sosiologi" />
+                  <option value="Pendidikan Agama & Budi Pekerti" />
+                  <option value="PJOK" />
+                  <option value="Seni Budaya" />
+                </datalist>
               </div>
               <div>
                 <label className="block text-slate-700 font-medium mb-1">Jenjang Pendidikan</label>
@@ -217,6 +248,14 @@ export const SchoolProfileModal: React.FC<SchoolProfileModalProps> = ({
                 />
               </div>
             </div>
+
+            {isAgamaIslamSubject(profile.subject) && (
+              <AgamaIslamCPBanner
+                subject={profile.subject || ''}
+                onOpenModal={() => setShowAgamaIslamCPModal(true)}
+                activeFileName={StorageService.getActiveMasterCP()?.fileName}
+              />
+            )}
           </div>
 
           <div className="pt-2 border-t border-slate-200 space-y-3">
@@ -283,6 +322,29 @@ export const SchoolProfileModal: React.FC<SchoolProfileModalProps> = ({
           </div>
         </form>
       </div>
+
+      <AgamaIslamCPUploadModal
+        isOpen={showAgamaIslamCPModal}
+        onClose={() => setShowAgamaIslamCPModal(false)}
+        initialSubject={profile.subject}
+        initialLevel={(profile.level as any) || 'SMA'}
+        initialGrade={profile.grade || 10}
+        initialPhase={profile.phase || 'Fase E'}
+        initialJpPerWeek={profile.jpPerWeek || 3}
+        onSyncedComplete={(synced) => {
+          setProfile((prev) => ({
+            ...prev,
+            subject: synced.subject,
+            level: synced.level,
+            grade: Number(synced.grade),
+            phase: synced.phase,
+            jpPerWeek: synced.jpPerWeek,
+            totalHoursPerYear: synced.totalHoursPerYear,
+            cpText: synced.cpText,
+          }));
+          onSaved();
+        }}
+      />
     </div>
   );
 };

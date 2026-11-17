@@ -49,6 +49,7 @@ import { ParameterKurikulumView } from './views/ParameterKurikulumView';
 import { KalenderPendidikanView } from './views/KalenderPendidikanView';
 import { AnalisisAlokasiWaktuView } from './views/AnalisisAlokasiWaktuView';
 import { AnalisisCPView } from './views/AnalisisCPView';
+import { UploadCPMasterView } from './views/UploadCPMasterView';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() =>
@@ -216,52 +217,50 @@ export default function App() {
       case 'pembagian_materi':
       case 'deep_learning':
         return { label: 'Parameter Kurikulum & Bab TP', category: 'Kurikulum & Perangkat' };
-      case 'ai_analisis_cp':
-      case 'analisis_cp':
-      case 'cp':
-      case 'upload_cp':
-      case 'upload_cp_master':
-      case 'analisis_cp_distribusi':
-      case 'ai_analisis_cp_distribusi':
-        return { label: '1. Analisis Capaian Pembelajaran (CP)', category: 'Kurikulum & Perangkat' };
       case 'analisis_alokasi_waktu':
       case 'alokasi_waktu':
       case 'ai_analisis_alokasi_waktu':
-        return { label: 'Analisis Alokasi Waktu (Upload Format Sendiri & RBE)', category: 'Kurikulum & Perangkat' };
+        return { label: '1. Analisis Alokasi Waktu (Upload Format Sendiri & RBE)', category: 'Kurikulum & Perangkat' };
+      case 'ai_analisis_cp':
+      case 'analisis_cp':
+      case 'cp':
+      case 'analisis_cp_distribusi':
+      case 'ai_analisis_cp_distribusi':
+        return { label: '2. Analisis Capaian Pembelajaran (CP)', category: 'Kurikulum & Perangkat' };
       case 'ai_tp':
       case 'tp':
-        return { label: '2. Tujuan Pembelajaran (TP)', category: 'Kurikulum & Perangkat' };
+        return { label: '3. Tujuan Pembelajaran (TP)', category: 'Kurikulum & Perangkat' };
       case 'ai_atp':
       case 'atp':
-        return { label: '3. Alur TP (ATP)', category: 'Kurikulum & Perangkat' };
+        return { label: '4. Alur TP (ATP)', category: 'Kurikulum & Perangkat' };
       case 'ai_prota':
       case 'prota':
-        return { label: '4. Program Tahunan (PROTA)', category: 'Kurikulum & Perangkat' };
+        return { label: '5. Program Tahunan (PROTA)', category: 'Kurikulum & Perangkat' };
       case 'ai_prosem':
       case 'prosem':
-        return { label: '5. Program Semester (PROSEM)', category: 'Kurikulum & Perangkat' };
+        return { label: '6. Program Semester (PROSEM)', category: 'Kurikulum & Perangkat' };
       case 'ai_kktp':
       case 'kktp':
-        return { label: '6. Kriteria Ketuntasan (KKTP)', category: 'Kurikulum & Perangkat' };
+        return { label: '7. Kriteria Ketuntasan (KKTP)', category: 'Kurikulum & Perangkat' };
       case 'ai_modul_ajar':
       case 'rpm':
       case 'modul_ajar':
-        return { label: '7. RPM (Rencana Pelaksanaan Modul)', category: 'Kurikulum & Perangkat' };
+        return { label: '8. RPM (Rencana Pelaksanaan Modul)', category: 'Kurikulum & Perangkat' };
       case 'ai_lkpd':
       case 'lkpd':
-        return { label: '8. Lembar Kerja Siswa (LKPD)', category: 'Kurikulum & Perangkat' };
+        return { label: '9. Lembar Kerja Siswa (LKPD)', category: 'Kurikulum & Perangkat' };
       case 'ai_rubrik_penilaian':
       case 'ai_asesmen':
       case 'rubrik':
       case 'rubrik_penilaian':
-        return { label: '9. Rubrik Penilaian Terpadu', category: 'Kurikulum & Perangkat' };
+        return { label: '10. Rubrik Penilaian Terpadu', category: 'Kurikulum & Perangkat' };
       case 'admin_dashboard':
       case 'admin_activity_logs':
         return { label: 'Log Audit & Dashboard', category: 'Admin Panel' };
       case 'admin_upload_cp':
       case 'upload_cp':
       case 'upload_cp_master':
-        return { label: 'Upload File CP Master Terbaru', category: 'Capaian Pembelajaran' };
+        return { label: 'Upload CP Master', category: 'Admin Panel' };
       case 'admin_api_key':
       case 'admin_gemini_key':
       case 'admin_api_config':
@@ -320,10 +319,16 @@ export default function App() {
     ) {
       return <KelasSiswaView />;
     }
+    if (activeView === 'admin_upload_cp') {
+      if (currentUser.role !== 'admin') {
+        return <DashboardHomeView currentUser={currentUser} onNavigate={handleNavigateView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
+      }
+      return <UploadCPMasterView onNavigate={handleNavigateView} />;
+    }
+    if (activeView === 'upload_cp' || activeView === 'upload_cp_master') {
+      return <UploadCPMasterView onNavigate={handleNavigateView} />;
+    }
     if (
-      activeView === 'admin_upload_cp' ||
-      activeView === 'upload_cp' ||
-      activeView === 'upload_cp_master' ||
       activeView === 'analisis_cp_distribusi' ||
       activeView === 'ai_analisis_cp_distribusi' ||
       activeView === 'cp_distribusi' ||
@@ -431,19 +436,19 @@ export default function App() {
       if (currentUser.role !== 'admin') {
         return <DashboardHomeView currentUser={currentUser} onNavigate={handleNavigateView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
       }
-      return <AdminDashboardView initialSubTab="tokens" />;
+      return <AdminDashboardView initialSubTab="tokens" onNavigate={handleNavigateView} />;
     }
     if (activeView === 'admin_dashboard' || activeView === 'admin_activity_logs') {
       if (currentUser.role !== 'admin') {
         return <DashboardHomeView currentUser={currentUser} onNavigate={handleNavigateView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
       }
-      return <AdminDashboardView initialSubTab="dashboard" />;
+      return <AdminDashboardView initialSubTab="dashboard" onNavigate={handleNavigateView} />;
     }
     if (activeView === 'admin_access' || activeView === 'admin_user_approval') {
       if (currentUser.role !== 'admin') {
         return <DashboardHomeView currentUser={currentUser} onNavigate={handleNavigateView} onOpenSchoolProfile={() => setShowSchoolModal(true)} theme={theme} />;
       }
-      return <AdminDashboardView initialSubTab="access" />;
+      return <AdminDashboardView initialSubTab="access" onNavigate={handleNavigateView} />;
     }
     if (
       activeView === 'admin_sync' ||
