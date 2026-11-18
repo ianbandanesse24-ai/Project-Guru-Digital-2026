@@ -1,6 +1,7 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import dotenv from 'dotenv';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
@@ -17,6 +18,66 @@ import {
 import { getSubjectPresetByGrade } from './src/lib/subjectMaterialPresets';
 
 dotenv.config();
+
+function extractBasicTextFromPdfBuffer(buffer: Buffer): string {
+  try {
+    const rawLatin = buffer.toString('latin1');
+    const chunks: string[] = [];
+    const decodePdfLiteral = (s: string) =>
+      s
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\n')
+        .replace(/\\t/g, ' ')
+        .replace(/\\\(/g, '(')
+        .replace(/\\\)/g, ')')
+        .replace(/\\\\/g, '\\');
+
+    const extractTextOps = (content: string) => {
+      const tjMatches = content.match(/\(([^()]{2,300})\)\s*Tj/g) || [];
+      for (const m of tjMatches) {
+        const inner = m.slice(1, m.lastIndexOf(')'));
+        const clean = decodePdfLiteral(inner).replace(/[^\x20-\x7E\u00C0-\u024F\n]/g, ' ').trim();
+        if (clean.length >= 2) chunks.push(clean);
+      }
+      const tjArrMatches = content.match(/\[((?:[^[\]]|\([^)]*\)){4,1500})\]\s*TJ/g) || [];
+      for (const arrM of tjArrMatches) {
+        const lits = arrM.match(/\(([^()]*)\)/g) || [];
+        const combined = lits
+          .map((l) => decodePdfLiteral(l.slice(1, -1)))
+          .join('')
+          .replace(/[^\x20-\x7E\u00C0-\u024F\n]/g, ' ')
+          .trim();
+        if (combined.length >= 2) chunks.push(combined);
+      }
+    };
+
+    // Scan FlateDecode streams first
+    const streamRegex = /stream[\r\n]+([\s\S]*?)[\r\n]*endstream/g;
+    let streamMatch: RegExpExecArray | null;
+    let streamCount = 0;
+    while ((streamMatch = streamRegex.exec(rawLatin)) !== null && streamCount < 150) {
+      streamCount++;
+      const streamBytes = Buffer.from(streamMatch[1], 'latin1');
+      let inflatedStr = '';
+      try {
+        inflatedStr = zlib.inflateSync(streamBytes).toString('latin1');
+      } catch {
+        try {
+          inflatedStr = zlib.inflateRawSync(streamBytes).toString('latin1');
+        } catch {
+          inflatedStr = streamMatch[1];
+        }
+      }
+      if (inflatedStr.includes('Tj') || inflatedStr.includes('TJ')) {
+        extractTextOps(inflatedStr);
+      }
+    }
+
+    return chunks.join(' ').replace(/\s+/g, ' ').trim();
+  } catch {
+    return '';
+  }
+}
 
 const app = express();
 const PORT = 3000;
@@ -1282,6 +1343,14 @@ app.post('/api/ai/parse-uploaded-file', async (req, res) => {
       }
     } else if (safeName.endsWith('.pdf') || safeType.includes('pdf')) {
       category = 'pdf';
+      if (fileBase64 && !extractedText) {
+        const cleanBase64 = fileBase64.replace(/^data:.*?;base64,/, '');
+        const buffer = Buffer.from(cleanBase64, 'base64');
+        const parsedPdfText = extractBasicTextFromPdfBuffer(buffer);
+        if (parsedPdfText && parsedPdfText.length >= 30) {
+          extractedText = parsedPdfText;
+        }
+      }
       extractedText = extractedText || `[Dokumen PDF terlampir: ${fileName}]`;
     } else if (safeType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'bmp'].some(ext => safeName.endsWith(ext))) {
       category = 'image';
@@ -1326,7 +1395,14 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
       return res.status(400).json({ error: 'Konten file, file dokumen (PDF/Word/Excel/Gambar), atau mata pelajaran harus disediakan.' });
     }
 
-    let extractedText = fileContent || '';
+    let extractedText = (fileContent || '').trim();
+    if (
+      extractedText.startsWith('[Dokumen PDF terlampir:') ||
+      extractedText.startsWith('[Lampiran Gambar Visual:') ||
+      extractedText.startsWith('[Gambar Format Dokumen')
+    ) {
+      extractedText = '';
+    }
     let pdfInlinePart: any = null;
     const safeFileName = (fileName || '').toLowerCase();
     const safeMime = (fileType || '').toLowerCase();
@@ -1373,7 +1449,7 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
       }
     }
 
-    // 3. Handle PDF file or Image (pass inlineData to Gemini for multimodal vision)
+    // 3. Handle PDF file or Image (pass inlineData to Gemini + attempt basic PDF text extraction fallback)
     if (fileBase64 && (safeFileName.endsWith('.pdf') || safeMime.includes('pdf'))) {
       try {
         const cleanBase64 = fileBase64.replace(/^data:.*?;base64,/, '');
@@ -1383,6 +1459,13 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
             mimeType: 'application/pdf',
           },
         };
+        if (!extractedText) {
+          const buffer = Buffer.from(cleanBase64, 'base64');
+          const parsedPdf = extractBasicTextFromPdfBuffer(buffer);
+          if (parsedPdf && parsedPdf.length >= 30) {
+            extractedText = parsedPdf;
+          }
+        }
       } catch (pdfErr) {
         console.warn('PDF base64 preparation warning:', (pdfErr as Error)?.message || pdfErr);
       }
@@ -1436,7 +1519,7 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
         - Perkiraan Awal: Mapel ${subject}, Jenjang ${level} (${phase} - Kelas ${grade}), Alokasi ${totalHours} JP/Tahun (${jpPerWeek} JP/Minggu)
         ${customPrompt ? `- Catatan Khusus Pengguna: ${customPrompt}` : ''}
 
-        ${extractedText ? `KONTEN TEKS DOKUMEN CP RESMI:\n---\n${extractedText.substring(0, 60000)}\n---` : '(Dokumen terlampir via format PDF inline)'}
+        ${extractedText ? `KONTEN TEKS DOKUMEN CP RESMI:\n---\n${extractedText.substring(0, 100000)}\n---` : '(Dokumen terlampir via format PDF inline)'}
 
         ATURAN BAKU KLASIFIKASI TINGKAT SEKOLAH, FASE, DAN KELAS (WAJIB DIPATUHI):
         1. Analisis Tingkat Sekolah: SD, SMP, SMA (SMA/MA/Paket C), dan SMK (SMK/MAK) secara terpisah dan presisi.
@@ -1457,7 +1540,7 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
         1. DETEKSI OTOMATIS METADATA, TINGKAT SEKOLAH & SEMUA MATA PELAJARAN CP:
            - Identifikasi Tingkat Sekolah secara akurat ("SD", "SMP", "SMA", atau "SMK") beserta subLevelLabel-nya (misal: "SD / MI / Paket A", "SMP / MTs / Paket B", "SMA / MA / Paket C", "SMK / MAK (Program 3 Tahun)", atau "SMK / MAK (Program 4 Tahun)").
            - Tentukan Fase Capaian (Fase A, B, C, D, E, atau F) dan Kelas (1 - 13) sesuai aturan baku di atas.
-           - WAJIB deteksi dan daftarkan SEMUA Mata Pelajaran (Subject) yang tercantum dalam dokumen CP pada array "analyzedSubjects" (jangan hanya mengambil 1 mapel jika dokumen memuat banyak mapel seperti BSKAP SMA/MA/Paket C!). Lengkapi masing-masing dengan level, phase, grade, materialsSem1, dan materialsSem2.
+           - WAJIB deteksi dan daftarkan SEMUA Mata Pelajaran (Subject) lintas jenjang yang tercantum dalam dokumen CP pada array "analyzedSubjects" (mencakup seluruh jenjang SD, SMP, SMA, maupun SMK yang ada pada dokumen — pisahkan entri SMA vs SMK vs SMP vs SD secara presisi). Lengkapi masing-masing dengan level, phase, grade, materialsSem1, dan materialsSem2.
 
         2. DEKOMPOSISI ELEMEN CP & KOMPETENSI ESENSIAL:
            - Identifikasi setiap elemen CP resmi (misal: "Pemahaman Konsep/Sains", "Keterampilan Proses", dll.).

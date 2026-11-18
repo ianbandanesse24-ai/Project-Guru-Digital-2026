@@ -67,9 +67,7 @@ import {
   isAgamaIslamSubject,
 } from '../components/AgamaIslamCPUploadModal';
 import {
-  getDefaultSubjectsByLevel,
   getSchoolLevelDisplay,
-  isSubjectAllowedForLevel,
 } from '../lib/curriculumLevels';
 
 export interface SyncedTPItem {
@@ -395,6 +393,8 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
     });
 
     window.addEventListener('master-cp-updated', handleCPEvent);
+    window.addEventListener('master-cp-catalog-updated', updateUserData);
+    window.addEventListener('admin-cp-updated', updateUserData);
     window.addEventListener('school-profile-updated', handleCPEvent);
     window.addEventListener('curriculum-parameters-synced', handleCPEvent);
     window.addEventListener('curriculum-materials-changed', handleCPEvent);
@@ -403,6 +403,8 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
     return () => {
       unsubscribe();
       window.removeEventListener('master-cp-updated', handleCPEvent);
+      window.removeEventListener('master-cp-catalog-updated', updateUserData);
+      window.removeEventListener('admin-cp-updated', updateUserData);
       window.removeEventListener('school-profile-updated', handleCPEvent);
       window.removeEventListener('curriculum-parameters-synced', handleCPEvent);
       window.removeEventListener('curriculum-materials-changed', handleCPEvent);
@@ -661,15 +663,14 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
 
   const levelSubjectOptions = useMemo(() => {
     const masterList = StorageService.getSubjectsFromMasterCPByLevel(level).map((m) => m.subject);
-    const defaults = getDefaultSubjectsByLevel(level);
     const merged: string[] = [];
-    [...masterList, ...defaults].forEach((s) => {
+    masterList.forEach((s) => {
       if (s && !merged.some((existing) => existing.toLowerCase() === s.toLowerCase())) {
         merged.push(s);
       }
     });
     return merged;
-  }, [level, activeMasterCP]);
+  }, [level, activeMasterCP, allPlans]);
 
   const currentLevelShortLabel = useMemo(() => getSchoolLevelDisplay(level, grade).shortLabel, [level, grade]);
 
@@ -1468,13 +1469,11 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                     setGrade(nextG);
 
                     const masterForLvl = StorageService.getSubjectsFromMasterCPByLevel(newLvl);
-                    const defaultsForLvl = getDefaultSubjectsByLevel(newLvl);
-                    const valid =
-                      isSubjectAllowedForLevel(subject, newLvl) &&
-                      (masterForLvl.some((m) => m.subject.toLowerCase() === subject.trim().toLowerCase()) ||
-                        defaultsForLvl.some((s) => s.toLowerCase() === subject.trim().toLowerCase()));
-                    if (!valid) {
-                      const nextSub = masterForLvl[0]?.subject || defaultsForLvl[0] || 'Pendidikan Pancasila';
+                    const matched = masterForLvl.find(
+                      (m) => m.subject.trim().toLowerCase() === subject.trim().toLowerCase()
+                    );
+                    if (!matched) {
+                      const nextSub = masterForLvl[0]?.subject || '';
                       handleSubjectChange(nextSub, true);
                     }
                   }}
@@ -1526,19 +1525,28 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
               </div>
               <div className="space-y-1.5">
                 <select
-                  value={levelSubjectOptions.includes(subject) ? subject : 'Lainnya'}
+                  value={
+                    levelSubjectOptions.find((s) => s.toLowerCase() === subject.trim().toLowerCase()) ||
+                    (levelSubjectOptions.length === 0 && !subject.trim() ? '' : 'Lainnya')
+                  }
                   onChange={(e) => {
-                    if (e.target.value !== 'Lainnya') {
+                    if (e.target.value && e.target.value !== 'Lainnya') {
                       handleSubjectChange(e.target.value, true);
                     }
                   }}
                   className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600 cursor-pointer"
                 >
-                  {levelSubjectOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
+                  {levelSubjectOptions.length > 0 ? (
+                    levelSubjectOptions.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      -- Belum ada CP yang dianalisis untuk {currentLevelShortLabel} --
                     </option>
-                  ))}
+                  )}
                   <option value="Lainnya">-- Tulis Manual --</option>
                 </select>
                 <input

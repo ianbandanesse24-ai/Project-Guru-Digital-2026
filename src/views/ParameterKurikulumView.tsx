@@ -1032,33 +1032,69 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                 {TIERED_SCHOOL_LEVEL_CARDS.map((card) => {
                   const isActiveTier = currentLevelGroup === card.group;
                   const masterCount = StorageService.getSubjectsFromMasterCPByLevel(card.primaryLevel).length;
+
+                  const getCardTheme = (grp: string, active: boolean) => {
+                    switch (grp) {
+                      case 'SD':
+                        return active
+                          ? 'bg-emerald-100/90 border-emerald-600 ring-2 ring-emerald-500/40 shadow-md text-emerald-950'
+                          : 'bg-emerald-50/70 border-emerald-200 hover:border-emerald-400 text-slate-900';
+                      case 'SMP':
+                        return active
+                          ? 'bg-amber-100/90 border-amber-600 ring-2 ring-amber-500/40 shadow-md text-amber-950'
+                          : 'bg-amber-50/70 border-amber-200 hover:border-amber-400 text-slate-900';
+                      case 'SMA':
+                        return active
+                          ? 'bg-blue-100/90 border-blue-600 ring-2 ring-blue-500/40 shadow-md text-blue-950'
+                          : 'bg-blue-50/70 border-blue-200 hover:border-blue-400 text-slate-900';
+                      case 'SMK':
+                        return active
+                          ? 'bg-purple-100/90 border-purple-600 ring-2 ring-purple-500/40 shadow-md text-purple-950'
+                          : 'bg-purple-50/70 border-purple-200 hover:border-purple-400 text-slate-900';
+                      default:
+                        return active
+                          ? 'bg-blue-100 border-blue-600 ring-2 ring-blue-500/40 shadow-md text-blue-950'
+                          : 'bg-white border-slate-200 hover:border-blue-300 text-slate-900';
+                    }
+                  };
+
+                  const getBadgeTheme = (grp: string) => {
+                    switch (grp) {
+                      case 'SD': return 'bg-emerald-600 text-white';
+                      case 'SMP': return 'bg-amber-600 text-white';
+                      case 'SMA': return 'bg-blue-600 text-white';
+                      case 'SMK': return 'bg-purple-600 text-white';
+                      default: return 'bg-indigo-600 text-white';
+                    }
+                  };
+
                   return (
                     <button
                       key={card.group}
                       type="button"
                       onClick={() => handleLevelChange(card.primaryLevel)}
-                      className={`p-3 rounded-xl border transition text-left w-full cursor-pointer flex flex-col justify-between ${
-                        isActiveTier
-                          ? 'bg-blue-600/10 border-blue-600 ring-1 ring-blue-500/40 shadow-xs'
-                          : 'bg-white border-slate-200 hover:border-blue-300'
-                      }`}
+                      className={`p-3.5 rounded-2xl border transition text-left w-full cursor-pointer flex flex-col justify-between shadow-xs ${getCardTheme(card.group, isActiveTier)}`}
                     >
                       <div>
                         <div className="flex items-center justify-between gap-1.5">
-                          <span className={`text-xs font-extrabold ${isActiveTier ? 'text-blue-800' : 'text-slate-900'}`}>
-                            {card.aliases}
-                          </span>
+                          <div className="flex items-center space-x-1.5">
+                            <span className={`w-2 h-2 rounded-full ${getBadgeTheme(card.group)}`} />
+                            <span className="text-xs font-extrabold">
+                              {card.group}
+                            </span>
+                          </div>
                           {masterCount > 0 && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold shrink-0">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-600 text-white font-bold shrink-0 shadow-2xs">
                               {masterCount} CP
                             </span>
                           )}
                         </div>
-                        <div className="text-[10px] text-slate-600 font-semibold mt-0.5">{card.title}</div>
-                        <ul className="mt-1.5 space-y-0.5 text-[10px] text-slate-500 leading-snug">
+                        <div className="text-[11px] font-black mt-1 tracking-tight">{card.aliases}</div>
+                        <div className="text-[10px] opacity-75 font-semibold">{card.title}</div>
+                        <ul className="mt-2 space-y-0.5 text-[10px] opacity-90 leading-snug font-medium">
                           {card.phaseDetails.map((detail, dIdx) => (
                             <li key={dIdx} className="flex items-start space-x-1">
-                              <span className="text-blue-500 font-bold">&bull;</span>
+                              <span className="font-bold opacity-80">&bull;</span>
                               <span>{detail}</span>
                             </li>
                           ))}

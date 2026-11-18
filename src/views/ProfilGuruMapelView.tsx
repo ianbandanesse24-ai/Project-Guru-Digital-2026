@@ -65,9 +65,7 @@ import {
 } from '../components/AgamaIslamCPUploadModal';
 
 import {
-  getDefaultSubjectsByLevel,
   getSchoolLevelDisplay,
-  isSubjectAllowedForLevel,
 } from '../lib/curriculumLevels';
 import { getDefaultTPText, countTPsInText, parseTPList, generateAutoTPForMaterial } from '../lib/curriculumData';
 export { getDefaultTPText, countTPsInText, parseTPList, generateAutoTPForMaterial };
@@ -99,6 +97,19 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     !isAdmin && initialTab === 'bank' ? 'profile' : initialTab
   );
   const [activeMasterCP, setActiveMasterCP] = useState<ActiveMasterCPData | null>(() => StorageService.getActiveMasterCP());
+  const [catalogVersion, setCatalogVersion] = useState<number>(0);
+
+  useEffect(() => {
+    const bump = () => setCatalogVersion((v) => v + 1);
+    window.addEventListener('master-cp-updated', bump);
+    window.addEventListener('master-cp-catalog-updated', bump);
+    window.addEventListener('admin-cp-updated', bump);
+    return () => {
+      window.removeEventListener('master-cp-updated', bump);
+      window.removeEventListener('master-cp-catalog-updated', bump);
+      window.removeEventListener('admin-cp-updated', bump);
+    };
+  }, []);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [analysisProgress, setAnalysisProgress] = useState<number>(0);
   const [analysisStep, setAnalysisStep] = useState<string>('');
@@ -380,21 +391,14 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     setTimeAllocationPerWeek(defaultTime);
 
     const masterForLvl = StorageService.getSubjectsFromMasterCPByLevel(newLvl);
-    const levelDefaults = getDefaultSubjectsByLevel(newLvl);
-    const isCurrentValid =
-      isSubjectAllowedForLevel(subject, newLvl) &&
-      (masterForLvl.some((m) => m.subject.toLowerCase() === subject.trim().toLowerCase()) ||
-        levelDefaults.some((s) => s.toLowerCase() === subject.trim().toLowerCase()));
+    const matchedCurrent = masterForLvl.find(
+      (m) => m.subject.trim().toLowerCase() === subject.trim().toLowerCase()
+    );
 
-    const nextSubject = isCurrentValid
-      ? subject
-      : masterForLvl[0]?.subject || levelDefaults[0] || 'Pendidikan Pancasila';
-
+    const nextSubject = matchedCurrent?.subject || masterForLvl[0]?.subject || '';
     setSubject(nextSubject);
 
-    const matchedMaster = masterForLvl.find(
-      (m) => m.subject.toLowerCase() === nextSubject.toLowerCase()
-    );
+    const matchedMaster = matchedCurrent || masterForLvl[0] || null;
 
     if (
       matchedMaster &&
@@ -417,7 +421,17 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
       setMaterialsSem1(sem1WithIds);
       setMaterialsSem2(sem2WithIds);
       setTotalTPCount(sem1WithIds.length + sem2WithIds.length);
-      showNotif(`Jenjang ${getSchoolLevelDisplay(newLvl, defaultGrade).shortLabel} dipilih. Mata pelajaran disinkronkan ke "${nextSubject}" (${mPhase}).`);
+      showNotif(`Jenjang ${getSchoolLevelDisplay(newLvl, defaultGrade).shortLabel} dipilih. Mata pelajaran disinkronkan ke "${nextSubject}".`);
+      return;
+    }
+
+    if (!nextSubject) {
+      const fallbackPhase = newLvl === 'SD' ? 'Fase B' : newLvl === 'SMP' ? 'Fase D' : 'Fase E';
+      setPhase(fallbackPhase);
+      setMaterialsSem1([]);
+      setMaterialsSem2([]);
+      setTotalTPCount(0);
+      showNotif(`Jenjang ${getSchoolLevelDisplay(newLvl, defaultGrade).shortLabel} dipilih. Belum ada CP yang dianalisis untuk jenjang ini — silakan Upload / Analisis CP terlebih dahulu.`, 'info');
       return;
     }
 
@@ -1356,15 +1370,14 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
 
   const levelSubjectOptions = useMemo(() => {
     const masterList = StorageService.getSubjectsFromMasterCPByLevel(level).map((m) => m.subject);
-    const defaults = getDefaultSubjectsByLevel(level);
     const merged: string[] = [];
-    [...masterList, ...defaults].forEach((s) => {
+    masterList.forEach((s) => {
       if (s && !merged.some((existing) => existing.toLowerCase() === s.toLowerCase())) {
         merged.push(s);
       }
     });
     return merged;
-  }, [level, activeMasterCP]);
+  }, [level, activeMasterCP, catalogVersion]);
 
   const currentLevelLabel = useMemo(() => getSchoolLevelDisplay(level, grade).shortLabel, [level, grade]);
 
@@ -1764,24 +1777,35 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                         2. Mata Pelajaran ({currentLevelLabel}) *
                       </label>
                       <span className="text-[11px] text-blue-600 font-semibold">
-                        ✓ Menampilkan khusus mapel {currentLevelLabel}
+                        {levelSubjectOptions.length > 0
+                          ? `✓ Diambil dari CP yang dianalisis (${levelSubjectOptions.length} Mapel)`
+                          : `Belum ada CP dianalisis untuk ${currentLevelLabel}`}
                       </span>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <select
-                        value={levelSubjectOptions.includes(subject) ? subject : 'Lainnya'}
+                        value={
+                          levelSubjectOptions.find((s) => s.toLowerCase() === subject.trim().toLowerCase()) ||
+                          (levelSubjectOptions.length === 0 && !subject.trim() ? '' : 'Lainnya')
+                        }
                         onChange={(e) => {
-                          if (e.target.value !== 'Lainnya') {
+                          if (e.target.value && e.target.value !== 'Lainnya') {
                             handleSubjectChange(e.target.value);
                           }
                         }}
                         className="p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-blue-600 font-semibold"
                       >
-                        {levelSubjectOptions.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
+                        {levelSubjectOptions.length > 0 ? (
+                          levelSubjectOptions.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="" disabled>
+                            -- Belum ada CP yang dianalisis untuk {currentLevelLabel} --
                           </option>
-                        ))}
+                        )}
                         <option value="Lainnya">-- Tulis Manual --</option>
                       </select>
                       <input

@@ -226,13 +226,13 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
       processSelectedFile(droppedFiles[0], 'Folder_CP_Upload');
       if (isAdmin) {
         const folderItems = droppedFiles.map((f, idx) => {
-          const meta = detectCPMetadataFromName(f.name);
+          const meta = detectCPMetadataFromName(f.name, false);
           return {
             id: `admin-folder-cp-${Date.now()}-${idx + 1}`,
             fileName: f.name,
             docNumber: docNumber.trim() || meta.docNumber || undefined,
             folderName: 'Folder_CP_Upload',
-            subject: meta.subject,
+            subject: meta.subject || undefined,
             level: meta.level,
             grade: meta.grade,
             phase: meta.phase,
@@ -256,8 +256,8 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
     }
     setErrorMsg('');
 
-    // Auto-detect subject / level / phase / grade from file name
-    const detectedFromName = detectCPMetadataFromName(selected.name);
+    // Auto-detect subject / level / phase / grade from file name (do not force stale subject if unrecognized)
+    const detectedFromName = detectCPMetadataFromName(selected.name, activeFolderName === undefined);
     if (detectedFromName.subject) setSubject(detectedFromName.subject);
     setLevel(detectedFromName.level);
     setPhase(detectedFromName.phase);
@@ -306,10 +306,15 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
         if (parsed.base64) {
           setFileBase64(parsed.base64);
         }
-        if (parsed.extractedText) {
-          setRawTextContent(parsed.extractedText);
+        const extracted = (parsed.extractedText || '').trim();
+        const isPlaceholder =
+          extracted.startsWith('[Dokumen PDF terlampir:') ||
+          extracted.startsWith('[Lampiran Gambar Visual:') ||
+          extracted.startsWith('[Gambar Format Dokumen');
+        if (extracted && !isPlaceholder) {
+          setRawTextContent(extracted);
           const textLevelMeta = detectLevelPhaseGradeFromText(
-            `${selected.name}\n${parsed.extractedText.substring(0, 4000)}`,
+            `${selected.name}\n${extracted.substring(0, 6000)}`,
             detectedFromName.level,
             detectedFromName.grade,
             detectedFromName.phase
@@ -318,10 +323,12 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
           setPhase(textLevelMeta.phase);
           setGrade(textLevelMeta.grade);
 
-          const textNoMatch = parsed.extractedText.match(/(?:Nomor|No\.?)\s*[:.]?\s*([0-9]{1,4}(?:\/[A-Za-z0-9.-]+){1,4}(?:\s*Tahun\s*\d{4})?)/i);
+          const textNoMatch = extracted.match(/(?:Nomor|No\.?)\s*[:.]?\s*([0-9]{1,4}(?:\/[A-Za-z0-9.-]+){1,4}(?:\s*Tahun\s*\d{4})?)/i);
           if (textNoMatch && textNoMatch[1]) {
             setDocNumber((prev) => prev.trim() || textNoMatch[1].trim());
           }
+        } else {
+          setRawTextContent('');
         }
       })
       .catch((parseErr) => {
@@ -335,10 +342,15 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
       });
   };
 
-  const detectCPMetadataFromName = (name: string) => {
-    const cleanName = name || '';
-    const lvlMeta = detectLevelPhaseGradeFromText(cleanName, level, grade, phase);
-    let detectedSub = subject;
+  const detectCPMetadataFromName = (name: string, inheritUiState = true) => {
+    const cleanName = (name || '').replace(/[_-]+/g, ' ');
+    const lvlMeta = detectLevelPhaseGradeFromText(
+      cleanName,
+      inheritUiState ? level : undefined,
+      inheritUiState ? grade : undefined,
+      inheritUiState ? phase : undefined
+    );
+    let detectedSub = '';
     let detectedNo = '';
 
     for (const entry of KNOWN_SUBJECT_PATTERNS) {
@@ -348,7 +360,22 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
       }
     }
 
-    const fileNoMatch = cleanName.match(/(?:no|nomor)[\s._-]*([a-z0-9./-]+)/i);
+    if (!detectedSub) {
+      // Extract clean subject fallback from filename if possible
+      const stripped = cleanName
+        .replace(/\.[^.]+$/, '')
+        .replace(/\b(?:cp|capaian\s+pembelajaran|kurikulum\s+merdeka|bskap|kemendikdasmen|kemendikbud|master|revisi|terbaru|sd|mi|smp|mts|sma|ma|smk|mak|paket\s*[abc]|fase\s*[a-f]|kelas\s*\d{1,2}|no(?:mor)?\s*[a-z0-9./-]+)\b/gi, ' ')
+        .replace(/\b\d+\b/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (stripped.length >= 3 && stripped.length <= 60) {
+        detectedSub = stripped.replace(/\b\w/g, (c) => c.toUpperCase());
+      } else if (inheritUiState) {
+        detectedSub = subject;
+      }
+    }
+
+    const fileNoMatch = name.match(/(?:no|nomor)[\s._-]*([a-z0-9./-]+)/i);
     if (fileNoMatch && fileNoMatch[1]) {
       detectedNo = fileNoMatch[1].replace(/\.[^.]+$/, '');
     }
@@ -379,13 +406,13 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
 
     if (isAdmin) {
       const folderItems = validFiles.map((f, idx) => {
-        const meta = detectCPMetadataFromName(f.name);
+        const meta = detectCPMetadataFromName(f.name, false);
         return {
           id: `admin-folder-cp-${Date.now()}-${idx + 1}`,
           fileName: f.name,
           docNumber: docNumber.trim() || meta.docNumber || undefined,
           folderName: detectedFolder,
-          subject: meta.subject,
+          subject: meta.subject || undefined,
           level: meta.level,
           grade: meta.grade,
           phase: meta.phase,
@@ -394,7 +421,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
       const updatedList = StorageService.recordAdminUploadedFolderCPs(folderItems, currentUser);
       setAdminUploadedCPs(updatedList);
       setSyncedNotification(
-        `Folder CP "${detectedFolder}" (${validFiles.length} file) berhasil diunggah & dicatat ke daftar Ucapan Selamat!`
+        `Folder CP "${detectedFolder}" (${validFiles.length} file) berhasil diunggah & dicatat ke daftar Ucapan Selamat! Klik "Analisis & Sinkronkan" untuk mengekstrak seluruh mata pelajaran.`
       );
     }
   };
@@ -743,23 +770,87 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
         analyzedSubjects = mergeAnalyzedSubjects(analyzedSubjects, textHeuristic.analyzedSubjects);
       }
 
-      // Batch-analyze any additional files inside an uploaded Folder CP so every subject file enters analyzedSubjects & Catalog
+      // Batch-analyze any additional files inside an uploaded Folder CP so every subject file across SD/SMP/SMA/SMK enters analyzedSubjects & Catalog
       if (folderFiles.length > 1) {
         for (let fIdx = 1; fIdx < folderFiles.length; fIdx++) {
           const extraFile = folderFiles[fIdx];
+          setCurrentPhaseDetail(`Menganalisis berkas Folder CP (${fIdx + 1}/${folderFiles.length}): ${extraFile.name}...`);
           try {
-            const extraMeta = detectCPMetadataFromName(extraFile.name);
+            const extraMeta = detectCPMetadataFromName(extraFile.name, false);
             let extraText = '';
+            let extraBase64 = '';
             try {
               const parsedExtra = await UniversalFileParser.parseFile(extraFile);
-              extraText = parsedExtra.extractedText || '';
+              extraBase64 = parsedExtra.base64 || '';
+              const rawExtra = (parsedExtra.extractedText || '').trim();
+              const isPlaceholder =
+                rawExtra.startsWith('[Dokumen PDF terlampir:') ||
+                rawExtra.startsWith('[Lampiran Gambar Visual:') ||
+                rawExtra.startsWith('[Gambar Format Dokumen');
+              extraText = isPlaceholder ? '' : rawExtra;
             } catch {
               extraText = '';
             }
+
+            let extraApiSubjects: CPSubjectEntry[] = [];
+            // For PDFs/images or files with little extracted text, invoke /api/ai/analyze-cp-file so multi-file Folders analyze binary PDFs completely
+            if (!extraText && extraBase64) {
+              try {
+                const extraRes = await fetch('/api/ai/analyze-cp-file', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    fileName: extraFile.name,
+                    fileBase64: extraBase64,
+                    fileType: extraFile.type || 'application/pdf',
+                    subject: extraMeta.subject,
+                    level: extraMeta.level,
+                    grade: extraMeta.grade,
+                    phase: extraMeta.phase,
+                    totalHoursPerYear: extraMeta.level === 'SD' ? 144 : 108,
+                    jpPerWeek: extraMeta.level === 'SD' ? 4 : 3,
+                    totalTPCount,
+                  }),
+                });
+                if (extraRes.ok) {
+                  const extraJson = await extraRes.json();
+                  const ed = extraJson?.data;
+                  if (extraJson?.rawText && !extraText) {
+                    extraText = extraJson.rawText;
+                  }
+                  if (ed && Array.isArray(ed.analyzedSubjects)) {
+                    extraApiSubjects = ed.analyzedSubjects.map((entry: any, idx: number) => {
+                      const entryLvl = normalizeSchoolLevel(entry.level || extraMeta.level, entry.subject);
+                      const entryGrd = Number(entry.grade) || extraMeta.grade;
+                      const entryPhs = entry.phase || resolvePhaseByLevelAndGrade(entryLvl, entryGrd);
+                      const eSem1 = normalizeMaterials(entry.materialsSem1?.length ? entry.materialsSem1 : [], 1, entryGrd, 1);
+                      const eSem2 = normalizeMaterials(entry.materialsSem2?.length ? entry.materialsSem2 : [], 2, entryGrd, eSem1.length + 1);
+                      return {
+                        id: entry.id || `cp-folder-${fIdx}-${idx + 1}`,
+                        subject: entry.subject || extraMeta.subject,
+                        level: entryLvl,
+                        subLevelLabel: entry.subLevelLabel || getSchoolLevelDisplay(entryLvl, entryGrd).subLabel,
+                        grade: entryGrd,
+                        phase: entryPhs,
+                        jpPerWeek: Number(entry.jpPerWeek) || (entryLvl === 'SD' ? 4 : 3),
+                        totalHoursPerYear: Number(entry.totalHoursPerYear) || (entryLvl === 'SD' ? 144 : 108),
+                        cpText: entry.cpText || ed.extractedCpText || `Capaian Pembelajaran ${entry.subject || extraMeta.subject} ${entryLvl}`,
+                        elements: entry.elements || ed.elements,
+                        materialsSem1: eSem1,
+                        materialsSem2: eSem2,
+                      };
+                    });
+                  }
+                }
+              } catch {
+                // ignore and use heuristic fallback below
+              }
+            }
+
             const extraHeuristic = analyzeCPTextHeuristic({
               fileName: extraFile.name,
               rawText: extraText,
-              subjectHint: extraMeta.subject,
+              subjectHint: extraMeta.subject || undefined,
               levelHint: extraMeta.level,
               gradeHint: extraMeta.grade,
               phaseHint: extraMeta.phase,
@@ -767,7 +858,10 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
               jpPerWeekHint: extraMeta.level === 'SD' ? 4 : 3,
               getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
             });
-            analyzedSubjects = mergeAnalyzedSubjects(analyzedSubjects, extraHeuristic.analyzedSubjects);
+            analyzedSubjects = mergeAnalyzedSubjects(
+              analyzedSubjects,
+              mergeAnalyzedSubjects(extraApiSubjects, extraHeuristic.analyzedSubjects)
+            );
           } catch (extraErr) {
             console.warn('Gagal menganalisis file tambahan dalam Folder CP:', extraFile.name, extraErr);
           }
