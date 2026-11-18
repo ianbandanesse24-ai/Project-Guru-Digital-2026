@@ -1,4 +1,5 @@
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import mammoth from 'mammoth';
@@ -6,6 +7,14 @@ import * as XLSX from 'xlsx';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import { generateExpertCurriculumDocument, generateFullCurriculumBundle, GenerateCurriculumParams } from './src/lib/curriculumEngine';
+import {
+  analyzeCPTextHeuristic,
+  getSchoolLevelDisplay,
+  mergeAnalyzedSubjects,
+  normalizeSchoolLevel,
+  resolvePhaseByLevelAndGrade,
+} from './src/lib/curriculumLevels';
+import { getSubjectPresetByGrade } from './src/lib/subjectMaterialPresets';
 
 dotenv.config();
 
@@ -448,6 +457,36 @@ let cachedAdminSettings: any = {
   updatedBy: 'Sistem Master Admin',
 };
 
+const ADMIN_SETTINGS_FILE = path.join(process.cwd(), '.data', 'admin-settings.json');
+
+function loadPersistedAdminSettings() {
+  try {
+    if (fs.existsSync(ADMIN_SETTINGS_FILE)) {
+      const raw = fs.readFileSync(ADMIN_SETTINGS_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        cachedAdminSettings = { ...cachedAdminSettings, ...parsed };
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load persisted admin settings:', err);
+  }
+}
+
+function savePersistedAdminSettings(settings: any) {
+  try {
+    const dir = path.dirname(ADMIN_SETTINGS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(ADMIN_SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Could not save persisted admin settings:', err);
+  }
+}
+
+loadPersistedAdminSettings();
+
 // ==========================================
 // CONTEXT CACHING & TOKEN METRICS APIS
 // ==========================================
@@ -580,6 +619,7 @@ app.post('/api/admin/settings', (req, res) => {
         ...updated,
         lastUpdated: new Date().toISOString(),
       };
+      savePersistedAdminSettings(cachedAdminSettings);
       return res.json({
         success: true,
         message: 'Pengaturan Admin berhasil disimpan otomatis di server.',
@@ -601,6 +641,7 @@ app.post('/api/admin/auto-save-sync', (req, res) => {
         ...settings,
         lastUpdated: timestamp || new Date().toISOString(),
       };
+      savePersistedAdminSettings(cachedAdminSettings);
     }
     res.json({
       success: true,
@@ -1357,6 +1398,13 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
       } catch (imgErr) {
         console.warn('Image base64 preparation warning:', (imgErr as Error)?.message || imgErr);
       }
+    } else if (fileBase64 && !extractedText.trim()) {
+      try {
+        const cleanBase64 = fileBase64.replace(/^data:.*?;base64,/, '');
+        extractedText = Buffer.from(cleanBase64, 'base64').toString('utf8');
+      } catch (txtErr) {
+        console.warn('Text base64 decode warning:', (txtErr as Error)?.message || txtErr);
+      }
     }
 
     const ai = getAIClient();
@@ -1388,15 +1436,28 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
         - Perkiraan Awal: Mapel ${subject}, Jenjang ${level} (${phase} - Kelas ${grade}), Alokasi ${totalHours} JP/Tahun (${jpPerWeek} JP/Minggu)
         ${customPrompt ? `- Catatan Khusus Pengguna: ${customPrompt}` : ''}
 
-        ${extractedText ? `KONTEN TEKS DOKUMEN CP RESMI:\n---\n${extractedText.substring(0, 35000)}\n---` : '(Dokumen terlampir via format PDF inline)'}
+        ${extractedText ? `KONTEN TEKS DOKUMEN CP RESMI:\n---\n${extractedText.substring(0, 60000)}\n---` : '(Dokumen terlampir via format PDF inline)'}
+
+        ATURAN BAKU KLASIFIKASI TINGKAT SEKOLAH, FASE, DAN KELAS (WAJIB DIPATUHI):
+        1. Analisis Tingkat Sekolah: SD, SMP, SMA (SMA/MA/Paket C), dan SMK (SMK/MAK) secara terpisah dan presisi.
+        2. Jenjang Sekolah Dasar (SD / MI / Paket A):
+           • Fase A: Kelas 1 – 2 SD
+           • Fase B: Kelas 3 – 4 SD
+           • Fase C: Kelas 5 – 6 SD
+        3. Jenjang Sekolah Menengah Pertama (SMP / MTs / Paket B):
+           • Fase D: Kelas 7 – 9 SMP
+        4. Jenjang Sekolah Menengah Atas (SMA / MA / Paket C):
+           • Fase E: Kelas 10 SMA / MA / Paket C
+           • Fase F: Kelas 11 – 12 SMA / MA / Paket C
+        5. Jenjang Sekolah Menengah Kejuruan (SMK / MAK):
+           • Fase E: Kelas 10 SMK / MAK
+           • Fase F: Kelas 11 – 12 SMK/MAK (program 3 tahun) & Kelas 11 – 13 SMK/MAK (program 4 tahun)
 
         INSTRUKSI ANALISIS MENDALAM WAJIB:
-        1. DETEKSI OTOMATIS METADATA CP:
-           - Tentukan Mata Pelajaran (Subject) resmi yang dianalisis secara akurat (contoh: Fisika, Matematika, Biologi, Kimia, Informatika, Bahasa Indonesia, Pendidikan Pancasila, Sejarah, IPAS, PJOK, dll.).
-           - Tentukan Tingkat Jenjang (SD, SMP, SMA, SMK).
-           - Tentukan Fase Capaian (Fase A, B, C, D, E, atau F).
-           - Tentukan Kelas (1 - 12) yang relevan.
-           - Tentukan Alokasi Standar Kurikulum Nasional: totalHoursPerYear dan jpPerWeek.
+        1. DETEKSI OTOMATIS METADATA, TINGKAT SEKOLAH & SEMUA MATA PELAJARAN CP:
+           - Identifikasi Tingkat Sekolah secara akurat ("SD", "SMP", "SMA", atau "SMK") beserta subLevelLabel-nya (misal: "SD / MI / Paket A", "SMP / MTs / Paket B", "SMA / MA / Paket C", "SMK / MAK (Program 3 Tahun)", atau "SMK / MAK (Program 4 Tahun)").
+           - Tentukan Fase Capaian (Fase A, B, C, D, E, atau F) dan Kelas (1 - 13) sesuai aturan baku di atas.
+           - WAJIB deteksi dan daftarkan SEMUA Mata Pelajaran (Subject) yang tercantum dalam dokumen CP pada array "analyzedSubjects" (jangan hanya mengambil 1 mapel jika dokumen memuat banyak mapel seperti BSKAP SMA/MA/Paket C!). Lengkapi masing-masing dengan level, phase, grade, materialsSem1, dan materialsSem2.
 
         2. DEKOMPOSISI ELEMEN CP & KOMPETENSI ESENSIAL:
            - Identifikasi setiap elemen CP resmi (misal: "Pemahaman Konsep/Sains", "Keterampilan Proses", dll.).
@@ -1404,12 +1465,15 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
 
         3. PERUMUSAN TUJUAN PEMBELAJARAN (TP) BERBASIS DEEP LEARNING:
            - Rumuskan TP operasional lengkap (komponen ABCD: Audience, Behavior, Condition, Degree).
-           - Integrasikan 6 Dimensi Karakter (6C: Character, Citizenship, Critical Thinking, Creativity, Collaboration, Communication).
-           - Integrasikan 3 Pilar Deep Learning (Mindful Learning, Meaningful Learning, Joyful Learning).
+           - Integrasikan 6 Dimensi Karakter (6C: Character, Citizenship, Critical Thinking, Creativity, Collaboration, Communication) & 3 Pilar Deep Learning.
 
-        4. PEMBAGIAN & DISTRIBUSI MATERI SEMESTER 1 (GANJIL) & SEMESTER 2 (GENAP):
-           - Bagi materi dan TP secara proporsional dan terstruktur antara Semester 1 dan Semester 2.
-           - Cantumkan alokasi JP per TP, indikator asesmen (formatif & sumatif), serta strategi Deep Learning spesifik.
+        4. ANALISIS MATERI AJAR, BAB & RUANG LINGKUP MATERI YANG TEPAT SESUAI CP (KRITIS!):
+           - Ekstrak secara langsung topik materi ajar / konsep esensial / ruang lingkup materi yang BENAR-BENAR TERTULIS dalam teks/PDF dokumen CP yang dianalisis!
+           - DILARANG keras menggunakan judul generik atau mengarang materi di luar CP (contoh YANG DILARANG: "Bab 1: Lingkup Materi 1", "Bab 1: Konsep Dasar", "Unit 1").
+           - WAJIB menamai setiap item di "materialsSem1" & "materialsSem2" dengan format "Bab X: <Judul Lingkup Materi Spesifik dari Teks CP>" (misal: "Bab 1: Besaran Fisis, Pengukuran & Angka Penting", "Bab 2: Energi Terbarukan & Efisiensi Konversi").
+           - Urutkan Bab secara progresif: konsep dasar/prasyarat di Semester 1 (Ganjil) dan penerapan/analisis lanjut/proyek di Semester 2 (Genap), khusus untuk Kelas ${grade} (${phase}).
+           - Dalam "tpName" dan "deepLearningMethod", jabarkan sub-materi ajar yang diturunkan persis dari rumusan CP elemen terkait.
+           - Cantumkan juga "extractedCpText" berisi transkrip/ringkasan teks CP asli dari dokumen yang dibaca (terutama jika sumbernya PDF/gambar).
 
         5. MATRIKS KKTP & ASESMEN TERPADU:
            - Berikan panduan interval ketuntasan dan rubrik deskriptif ketercapaian tujuan pembelajaran.
@@ -1419,20 +1483,57 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
         {
           "identifiedMetadata": {
             "title": "Judul resmi dokumen CP",
-            "subject": "Nama Mata Pelajaran Terdeteksi",
-            "level": "SD / SMP / SMA / SMK",
-            "phase": "Fase A / B / C / D / E / F",
+            "subject": "Nama Mata Pelajaran Utama Terdeteksi",
+            "level": "SD | SMP | SMA | SMK",
+            "subLevelLabel": "SD / MI / Paket A | SMP / MTs / Paket B | SMA / MA / Paket C | SMK / MAK Program 3/4 Tahun",
+            "phase": "Fase A | Fase B | Fase C | Fase D | Fase E | Fase F",
             "grade": 10,
             "totalHoursPerYear": 108,
             "jpPerWeek": 3
           },
-          "executiveSummary": "Ringkasan analisis mendalam filosofi CP, rasional mata pelajaran, integrasi 3 pilar Deep Learning (Mindful, Meaningful, Joyful), dan penguatan 6C.",
+          "extractedCpText": "Teks inti/kutipan utuh Capaian Pembelajaran resmi yang terdeteksi dari dokumen",
+          "analyzedSubjects": [
+            {
+              "subject": "Nama Mata Pelajaran",
+              "level": "SD | SMP | SMA | SMK",
+              "subLevelLabel": "Keterangan Jenjang & Program",
+              "phase": "Fase A..F",
+              "grade": 10,
+              "jpPerWeek": 3,
+              "totalHoursPerYear": 108,
+              "materialsSem1": [
+                {
+                  "orderNumber": 1,
+                  "tpCode": "TP.10.1.1",
+                  "tpName": "Rumusan TP operasional ABCD berdasarkan materi CP",
+                  "essentialMaterial": "Bab 1: Judul Materi Ajar / Lingkup Materi Spesifik dari CP",
+                  "elementName": "Elemen CP Terkait",
+                  "allocatedHours": 18,
+                  "assessmentStrategy": "Tes Formatif & Kinerja 6C",
+                  "deepLearningMethod": "Sub-materi & Strategi Mindful, Meaningful, Joyful"
+                }
+              ],
+              "materialsSem2": [
+                {
+                  "orderNumber": 2,
+                  "tpCode": "TP.10.2.1",
+                  "tpName": "Rumusan TP operasional ABCD berdasarkan materi CP",
+                  "essentialMaterial": "Bab 2: Judul Materi Ajar / Lingkup Materi Spesifik Semester 2 dari CP",
+                  "elementName": "Elemen CP Terkait",
+                  "allocatedHours": 18,
+                  "assessmentStrategy": "Penilaian Proyek Sumatif",
+                  "deepLearningMethod": "Sub-materi & Strategi Mindful, Meaningful, Joyful"
+                }
+              ]
+            }
+          ],
+          "executiveSummary": "Ringkasan analisis mendalam tingkat sekolah, mata pelajaran, materi ajar spesifik sesuai CP, integrasi 3 pilar Deep Learning (Mindful, Meaningful, Joyful), dan penguatan 6C.",
           "elements": [
             {
               "name": "Nama Elemen CP Resmi",
-              "description": "Deskripsi capaian elemen pembelajaran",
+              "description": "Deskripsi capaian elemen pembelajaran sesuai dokumen CP",
               "competencies": ["Kompetensi KKO HOTS 1", "Kompetensi KKO HOTS 2"],
-              "essentialMaterials": ["Materi Esensial Pokok 1", "Materi Esensial Pokok 2"]
+              "essentialMaterials": ["Topik / Materi Esensial Spesifik 1", "Topik / Materi Esensial Spesifik 2"]
             }
           ],
           "materialsSem1": [
@@ -1440,7 +1541,7 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
               "orderNumber": 1,
               "tpCode": "TP.10.1.1",
               "tpName": "Rumusan TP operasional ABCD & HOTS (C4-C6)",
-              "essentialMaterial": "Judul Materi Pokok Esensial",
+              "essentialMaterial": "Bab 1: Judul Bab / Lingkup Materi Spesifik Semester 1 sesuai CP",
               "elementName": "Nama Elemen CP",
               "allocatedHours": 18,
               "assessmentStrategy": "Bentuk Asesmen Formatif & Kinerja 6C",
@@ -1452,7 +1553,7 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
               "orderNumber": 4,
               "tpCode": "TP.10.2.1",
               "tpName": "Rumusan TP operasional ABCD & HOTS (C4-C6)",
-              "essentialMaterial": "Judul Materi Pokok Esensial",
+              "essentialMaterial": "Bab 4: Judul Bab / Lingkup Materi Spesifik Semester 2 sesuai CP",
               "elementName": "Nama Elemen CP",
               "allocatedHours": 18,
               "assessmentStrategy": "Bentuk Asesmen Formatif & Sumatif Proyek Rekayasa",
@@ -1472,8 +1573,8 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
           ai,
           contentPayload,
           {
-            systemInstruction: 'Anda adalah Analis & Kurator Kurikulum Nasional Kemendikdasmen RI yang sangat teliti, presisi, dan selalu menyajikan struktur kurikulum berstandar Deep Learning dalam JSON valid.',
-            temperature: 0.3,
+            systemInstruction: 'Anda adalah Analis & Kurator Kurikulum Nasional Kemendikdasmen RI yang sangat teliti, presisi, selalu mengekstrak materi ajar/Bab/lingkup materi secara akurat langsung dari isi dokumen CP dalam format JSON valid.',
+            temperature: 0.25,
           },
           'gemini-3.8-flash'
         );
@@ -1496,82 +1597,87 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
       }
     }
 
-    // Prepare robust fallback if AI didn't return full JSON
+    // Prepare intelligent CP-grounded fallback using shared heuristic + official presets
     if (!analysisResult) {
-      const fallbackSem1 = Array.from({ length: sem1TPCount }).map((_, i) => ({
-        orderNumber: i + 1,
-        tpCode: `TP.${grade}.1.${i + 1}`,
-        tpName: `Menganalisis dan menerapkan konsep materi pokok ${i + 1} ${subject} dengan pendekatan Deep Learning melalui observasi kesadaran konsep dan penyelidikan ilmiah.`,
-        essentialMaterial: `Materi Esensial ${i + 1} ${subject}`,
-        elementName: i % 2 === 0 ? 'Pemahaman Konsep' : 'Keterampilan Proses',
-        allocatedHours: Math.round(sem1Hours / sem1TPCount),
-        assessmentStrategy: 'Tes Formatif, Penilaian Kinerja 6C & Asesmen Sumatif Lingkup Materi',
-        deepLearningMethod: 'Mindful: Observasi kesadaran konsep, Meaningful: Studi kasus kontekstual nyata, Joyful: Praktikum kolaboratif interaktif.',
-      }));
+      const heuristic = analyzeCPTextHeuristic({
+        fileName: fileName || `Capaian Pembelajaran ${subject}`,
+        rawText: extractedText,
+        subjectHint: reqSubject,
+        levelHint: level as any,
+        gradeHint: grade,
+        phaseHint: phase,
+        totalHoursHint: totalHours,
+        jpPerWeekHint: jpPerWeek,
+        getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+      });
 
-      const fallbackSem2 = Array.from({ length: sem2TPCount }).map((_, i) => ({
-        orderNumber: sem1TPCount + i + 1,
-        tpCode: `TP.${grade}.2.${i + 1}`,
-        tpName: `Mengevaluasi dan mengkreasikan solusi inovatif materi pokok ${sem1TPCount + i + 1} ${subject} berbasis 6C dan Deep Learning.`,
-        essentialMaterial: `Materi Esensial ${sem1TPCount + i + 1} ${subject}`,
-        elementName: i % 2 === 0 ? 'Pemahaman Konsep' : 'Keterampilan Proses',
-        allocatedHours: Math.round(sem2Hours / sem2TPCount),
-        assessmentStrategy: 'Penilaian Proyek Sumatif, Portofolio & Rubrik Kinerja 6C',
-        deepLearningMethod: 'Mindful: Refleksi metakognitif, Meaningful: Pemecahan masalah lingkungan, Joyful: Presentasi karya kreatif.',
-      }));
+      const mdElements = (heuristic.elements || [])
+        .map(
+          (el: any, i: number) =>
+            `#### ${i + 1}. Elemen ${el.name}\n- **Capaian:** ${el.description}\n- **Materi Esensial:** ${(el.essentialMaterials || []).join(', ')}\n- **Kompetensi:** ${(el.competencies || []).join('; ')}`
+        )
+        .join('\n\n');
+
+      const mdSem1 = heuristic.materialsSem1
+        .map((m, i) => `${i + 1}. **${m.essentialMaterial}** (${m.allocatedHours} JP) — *${m.tpName}*`)
+        .join('\n');
+      const mdSem2 = heuristic.materialsSem2
+        .map((m, i) => `${i + 1}. **${m.essentialMaterial}** (${m.allocatedHours} JP) — *${m.tpName}*`)
+        .join('\n');
 
       analysisResult = {
-        identifiedMetadata: {
-          title: fileName || `Capaian Pembelajaran ${subject}`,
-          subject,
-          level,
-          phase,
-          grade,
-          totalHoursPerYear: totalHours,
-          jpPerWeek,
-        },
-        executiveSummary: `Hasil analisis komprehensif Capaian Pembelajaran untuk mata pelajaran ${subject} jenjang ${level} (${phase}) mengintegrasikan 3 pilar Deep Learning (Mindful, Meaningful, Joyful) dan penguatan karakter 6C. Dokumen ini menjadi acuan tunggal seluruh perangkat ajar.`,
-        elements: [
-          {
-            name: 'Pemahaman Konsep / Keilmuan',
-            description: `Peserta didik memiliki kemampuan memahami, mengaitkan, dan mengaplikasikan konsep inti ${subject} dalam konteks nyata.`,
-            competencies: ['Mengidentifikasi fenomena', 'Menjelaskan hubungan konsep', 'Menganalisis data ilmiah'],
-            essentialMaterials: [`Konsep Fundamental ${subject}`, `Aplikasi Praktis ${subject}`],
-          },
-          {
-            name: 'Keterampilan Proses & Penyelidikan',
-            description: `Peserta didik mampu merencanakan penyelidikan, mengumpulkan data objektif, menganalisis hubungan sebab-akibat, dan mengomunikasikan hasil karya.`,
-            competencies: ['Mengamati fenomena', 'Merancang eksperimen', 'Mengomunikasikan solusi'],
-            essentialMaterials: [`Metode Investigasi ${subject}`, `Proyek Inovasi ${subject}`],
-          },
-        ],
-        materialsSem1: fallbackSem1,
-        materialsSem2: fallbackSem2,
-        kktpSummary: `KKTP dirumuskan menggunakan pendekatan Rubrik Deskriptif (Perlu Bimbingan < 65, Cukup 65-74, Baik 75-87, Sangat Baik 88-100) berbasis KKO HOTS dan observasi karakter 6C.`,
-        fullMarkdownReport: summaryMarkdown || `# LAPORAN HASIL ANALISIS MENDALAM CAPAIAN PEMBELAJARAN (CP) MASTER
-## DOKUMEN ACUAN: ${fileName || subject}
-**Mata Pelajaran:** ${subject} | **Jenjang:** ${level} (${phase} - Kelas ${grade}) | **Alokasi:** ${totalHours} JP/Tahun
-
----
-
-### 1. EKSTRAKSI ELEMEN CP & KOMPETENSI ESENSIAL
-* **Elemen Pemahaman Konsep:** Fokus pada pemahaman bermakna (*Meaningful Learning*).
-* **Elemen Keterampilan Proses:** Penyelidikan ilmiah, berpikir kritis, dan kreativitas (6C).
-
----
-
-### 2. PEMBAGIAN MATERI & TUJUAN PEMBELAJARAN
-* **Semester 1 (Ganjil):** ${sem1TPCount} TP (${sem1Hours} JP)
-* **Semester 2 (Genap):** ${sem2TPCount} TP (${sem2Hours} JP)
-
----
-
-### 3. INTEGRASI DEEP LEARNING (MINDFUL, MEANINGFUL, JOYFUL)
-* **Mindful Learning:** Melatih kesadaran penuh dan fokus belajar siswa.
-* **Meaningful Learning:** Mengaitkan materi pembelajaran dengan kehidupan sehari-hari siswa.
-* **Joyful Learning:** Menciptakan suasana belajar kolaboratif yang menggugah semangat belajar.
-`,
+        ...heuristic,
+        fullMarkdownReport:
+          summaryMarkdown ||
+          `# LAPORAN HASIL ANALISIS CAPAIAN PEMBELAJARAN (CP) MASTER\n## DOKUMEN ACUAN: ${fileName || heuristic.identifiedMetadata.subject}\n**Mata Pelajaran:** ${heuristic.identifiedMetadata.subject} | **Jenjang:** ${heuristic.identifiedMetadata.subLevelLabel} (${heuristic.identifiedMetadata.phase} - Kelas ${heuristic.identifiedMetadata.grade}) | **Alokasi:** ${heuristic.identifiedMetadata.totalHoursPerYear} JP/Tahun\n\n---\n\n### 1. DEKOMPOSISI ELEMEN CP & LINGKUP MATERI\n${mdElements}\n\n---\n\n### 2. PEMBAGIAN BAB / LINGKUP MATERI AJAR SEMESTER 1 & 2\n**Semester 1 (Ganjil):**\n${mdSem1}\n\n**Semester 2 (Genap):**\n${mdSem2}\n`,
       };
+    }
+
+    if (!extractedText.trim() && (analysisResult.extractedCpText || analysisResult.executiveSummary)) {
+      extractedText = analysisResult.extractedCpText || analysisResult.executiveSummary;
+    }
+
+    // Always run heuristic multi-subject extraction & merge with AI results so NO subject inside the analyzed CP is omitted
+    const effectiveRawText = (extractedText || analysisResult.fullMarkdownReport || '').trim();
+    if (effectiveRawText) {
+      const aiMeta = analysisResult.identifiedMetadata || {};
+      const resolvedAiLevel = normalizeSchoolLevel(aiMeta.level || level, effectiveRawText.slice(0, 4000));
+      const resolvedAiGrade = Number(aiMeta.grade) || Number(grade) || 10;
+      const resolvedAiPhase = aiMeta.phase || resolvePhaseByLevelAndGrade(resolvedAiLevel, resolvedAiGrade);
+
+      const heuristicSupp = analyzeCPTextHeuristic({
+        fileName: fileName || `Capaian Pembelajaran ${aiMeta.subject || subject}`,
+        rawText: effectiveRawText,
+        subjectHint: reqSubject || aiMeta.subject,
+        levelHint: resolvedAiLevel,
+        gradeHint: resolvedAiGrade,
+        phaseHint: resolvedAiPhase,
+        totalHoursHint: Number(aiMeta.totalHoursPerYear) || totalHours,
+        jpPerWeekHint: Number(aiMeta.jpPerWeek) || jpPerWeek,
+        getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+      });
+
+      const normalizedAiSubjects = Array.isArray(analysisResult.analyzedSubjects)
+        ? analysisResult.analyzedSubjects.map((entry: any) => {
+            const eLvl = normalizeSchoolLevel(entry?.level || resolvedAiLevel, entry?.subject);
+            const eGrd = Number(entry?.grade) || resolvedAiGrade;
+            const ePhs = entry?.phase || resolvePhaseByLevelAndGrade(eLvl, eGrd);
+            return {
+              ...entry,
+              level: eLvl,
+              grade: eGrd,
+              phase: ePhs,
+              subLevelLabel: entry?.subLevelLabel || getSchoolLevelDisplay(eLvl, eGrd).subLabel,
+              jpPerWeek: Number(entry?.jpPerWeek) || jpPerWeek,
+              totalHoursPerYear: Number(entry?.totalHoursPerYear) || totalHours,
+            };
+          })
+        : [];
+
+      analysisResult.analyzedSubjects = mergeAnalyzedSubjects(
+        normalizedAiSubjects,
+        heuristicSupp.analyzedSubjects
+      );
     }
 
     const markdownOutput = analysisResult.fullMarkdownReport || summaryMarkdown || analysisResult.executiveSummary;
@@ -1690,7 +1796,8 @@ app.post('/api/ai/analyze-cp-distribution', async (req, res) => {
     PASTIKAN:
     1. Jumlah item materialsSem1 sama dengan ${sem1TPCount} dan materialsSem2 sama dengan ${sem2TPCount}.
     2. Total alokasi jam materialsSem1 harus berjumlah tepat ${sem1Hours} JP dan materialsSem2 tepat ${sem2Hours} JP.
-    3. Rumusan TP dan materi sangat kontekstual, berkualitas tinggi, dan relevan dengan jenjang ${level} kelas ${grade}.
+    3. SETIAP essentialMaterial wajib berupa judul Bab & Ruang Lingkup Materi SPESIFIK ("Bab X: <Judul Materi Ajar Nyata dari CP>") yang diturunkan langsung dari acuan CP di atas — DILARANG keras menggunakan judul generik seperti "Unit 1" atau "Materi Esensial 1".
+    4. Rumusan TP dan materi sangat kontekstual dan relevan dengan jenjang ${level} kelas ${grade} (${phase || 'Fase E'}).
     `;
 
     let rawText = '';
@@ -1702,14 +1809,13 @@ app.post('/api/ai/analyze-cp-distribution', async (req, res) => {
           ai,
           promptText,
           {
-            systemInstruction: 'Anda adalah generator JSON Analisis CP dan Pembagian Materi Kurikulum Merdeka yang selalu menghasilkan format JSON valid dan presisi.',
-            temperature: 0.4,
+            systemInstruction: 'Anda adalah generator JSON Analisis CP dan Pembagian Materi Kurikulum Merdeka yang selalu mengekstrak Bab/lingkup materi ajar spesifik langsung dari teks CP.',
+            temperature: 0.25,
           },
           'gemini-3.8-flash'
         );
         rawText = responseText || '';
         if (rawText) {
-          // Extract JSON block or direct JSON object
           let jsonCandidate = rawText;
           const jsonMatch = rawText.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
@@ -1718,7 +1824,7 @@ app.post('/api/ai/analyze-cp-distribution', async (req, res) => {
           parsedData = JSON.parse(jsonCandidate);
         }
       } catch (parseOrGenErr) {
-        console.warn('Gemini generateContent or JSON parse issue, falling back to structured generator:', (parseOrGenErr as Error)?.message || parseOrGenErr);
+        console.warn('Gemini generateContent or JSON parse issue, falling back to CP heuristic analyzer:', (parseOrGenErr as Error)?.message || parseOrGenErr);
       }
     }
 
@@ -1729,37 +1835,25 @@ app.post('/api/ai/analyze-cp-distribution', async (req, res) => {
         rawText,
       });
     } else {
-      // Fallback generator if AI text was not clean JSON
-      const fallbackSem1 = Array.from({ length: sem1TPCount }).map((_, i) => ({
-        orderNumber: i + 1,
-        tpCode: `TP.${grade || 10}.${i + 1}`,
-        tpName: `Menganalisis dan mengaplikasikan konsep pokok ${subject} bagian ke-${i + 1} dalam pemecahan masalah kontekstual.`,
-        essentialMaterial: `Materi Esensial ${subject} Semester 1 - Unit ${i + 1}`,
-        elementName: 'Pemahaman & Keterampilan Proses',
-        allocatedHours: Math.round(sem1Hours / sem1TPCount),
-        assessmentStrategy: 'Asesmen Formatif Kinerja & Tes Sumatif Unit',
-        deepLearningMethod: 'Mindful & Meaningful Learning',
-      }));
-
-      const fallbackSem2 = Array.from({ length: sem2TPCount }).map((_, i) => ({
-        orderNumber: sem1TPCount + i + 1,
-        tpCode: `TP.${grade || 10}.${sem1TPCount + i + 1}`,
-        tpName: `Mengevaluasi dan mengkreasikan solusi inovatif berbasis ${subject} bagian ke-${sem1TPCount + i + 1}.`,
-        essentialMaterial: `Materi Esensial ${subject} Semester 2 - Unit ${i + 1}`,
-        elementName: 'Aplikasi & Refleksi Kritis',
-        allocatedHours: Math.round(sem2Hours / sem2TPCount),
-        assessmentStrategy: 'Asesmen Proyek Kreatif & Sumatif Akhir Tahun',
-        deepLearningMethod: 'Joyful & Meaningful Collaborative Project',
-      }));
+      const heuristicDist = analyzeCPTextHeuristic({
+        rawText: cpText,
+        subjectHint: subject,
+        levelHint: level as any,
+        gradeHint: grade,
+        phaseHint: phase,
+        totalHoursHint: totalHours,
+        jpPerWeekHint: jpPerWeek,
+        getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+      });
 
       res.json({
         success: true,
         data: {
-          summary: rawText.substring(0, 500) || 'Analisis pembagian materi semester 1 dan semester 2 berhasil disusun.',
-          totalHoursSem1: sem1Hours,
-          totalHoursSem2: sem2Hours,
-          materialsSem1: fallbackSem1,
-          materialsSem2: fallbackSem2,
+          summary: heuristicDist.executiveSummary || rawText.substring(0, 500),
+          totalHoursSem1: heuristicDist.materialsSem1.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0) || sem1Hours,
+          totalHoursSem2: heuristicDist.materialsSem2.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0) || sem2Hours,
+          materialsSem1: heuristicDist.materialsSem1,
+          materialsSem2: heuristicDist.materialsSem2,
         },
         rawText,
       });

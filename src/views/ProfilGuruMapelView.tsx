@@ -64,31 +64,11 @@ import {
   isAgamaIslamSubject,
 } from '../components/AgamaIslamCPUploadModal';
 
-const POPULAR_SUBJECTS = [
-  'Fisika',
-  'Matematika',
-  'Kimia',
-  'Biologi',
-  'Informatika',
-  'Bahasa Indonesia',
-  'Bahasa Inggris',
-  'Bahasa Jerman',
-  'Bahasa Arab',
-  'Bahasa Jepang',
-  'Bahasa Mandarin',
-  'Bahasa Perancis',
-  'Pendidikan Pancasila',
-  'Sejarah',
-  'Geografi',
-  'Ekonomi',
-  'Sosiologi',
-  'Pendidikan Jasmani & Kesehatan (PJOK)',
-  'Seni Budaya',
-  'Prakarya & Kewirausahaan',
-  'Pendidikan Agama & Budi Pekerti',
-  'IPAS (SD/SMP)',
-];
-
+import {
+  getDefaultSubjectsByLevel,
+  getSchoolLevelDisplay,
+  isSubjectAllowedForLevel,
+} from '../lib/curriculumLevels';
 import { getDefaultTPText, countTPsInText, parseTPList, generateAutoTPForMaterial } from '../lib/curriculumData';
 export { getDefaultTPText, countTPsInText, parseTPList, generateAutoTPForMaterial };
 
@@ -399,7 +379,49 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     setGrade(defaultGrade);
     setTimeAllocationPerWeek(defaultTime);
 
-    const preset = getSubjectPresetByGrade(subject || 'Fisika', newLvl, defaultGrade);
+    const masterForLvl = StorageService.getSubjectsFromMasterCPByLevel(newLvl);
+    const levelDefaults = getDefaultSubjectsByLevel(newLvl);
+    const isCurrentValid =
+      isSubjectAllowedForLevel(subject, newLvl) &&
+      (masterForLvl.some((m) => m.subject.toLowerCase() === subject.trim().toLowerCase()) ||
+        levelDefaults.some((s) => s.toLowerCase() === subject.trim().toLowerCase()));
+
+    const nextSubject = isCurrentValid
+      ? subject
+      : masterForLvl[0]?.subject || levelDefaults[0] || 'Pendidikan Pancasila';
+
+    setSubject(nextSubject);
+
+    const matchedMaster = masterForLvl.find(
+      (m) => m.subject.toLowerCase() === nextSubject.toLowerCase()
+    );
+
+    if (
+      matchedMaster &&
+      ((matchedMaster.materialsSem1?.length || 0) > 0 || (matchedMaster.materialsSem2?.length || 0) > 0)
+    ) {
+      const mPhase = matchedMaster.phase || (newLvl === 'SD' ? 'Fase B' : newLvl === 'SMP' ? 'Fase D' : 'Fase E');
+      const mJp = matchedMaster.jpPerWeek || (newLvl === 'SD' ? 4 : 3);
+      setPhase(mPhase);
+      setCpText(matchedMaster.cpText || cpText);
+      setTotalHoursPerYear(matchedMaster.totalHoursPerYear || mJp * 36);
+      setJpPerWeek(mJp);
+      const sem1WithIds = (matchedMaster.materialsSem1 || []).map((m, idx) => ({
+        ...m,
+        id: m.id || `mat-1-${Date.now()}-${idx}`,
+      }));
+      const sem2WithIds = (matchedMaster.materialsSem2 || []).map((m, idx) => ({
+        ...m,
+        id: m.id || `mat-2-${Date.now()}-${idx}`,
+      }));
+      setMaterialsSem1(sem1WithIds);
+      setMaterialsSem2(sem2WithIds);
+      setTotalTPCount(sem1WithIds.length + sem2WithIds.length);
+      showNotif(`Jenjang ${getSchoolLevelDisplay(newLvl, defaultGrade).shortLabel} dipilih. Mata pelajaran disinkronkan ke "${nextSubject}" (${mPhase}).`);
+      return;
+    }
+
+    const preset = getSubjectPresetByGrade(nextSubject, newLvl, defaultGrade);
     setPhase(preset.phase);
     setCpText(preset.cpSummary);
     setTotalHoursPerYear(preset.totalHoursPerYear);
@@ -418,7 +440,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     setMaterialsSem2(sem2WithIds);
     setTotalTPCount(sem1WithIds.length + sem2WithIds.length);
 
-    showNotif(`Jenjang ${newLvl} dipilih. Materi Bab & CP otomatis disesuaikan untuk Kelas ${defaultGrade} (${preset.phase})!`);
+    showNotif(`Jenjang ${getSchoolLevelDisplay(newLvl, defaultGrade).shortLabel} dipilih. Daftar mapel & materi Bab otomatis disesuaikan ke "${nextSubject}" (Kelas ${defaultGrade}, ${preset.phase})!`);
   };
 
   // Automatically update grade & materials when Phase changes
@@ -1327,9 +1349,24 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
   const availableGrades = useMemo(() => {
     if (level === 'SD') return [1, 2, 3, 4, 5, 6];
     if (level === 'SMP') return [7, 8, 9];
-    if (level === 'SMA' || level === 'SMK') return [10, 11, 12];
+    if (level === 'SMK') return [10, 11, 12, 13];
+    if (level === 'SMA') return [10, 11, 12];
     return [10, 11, 12];
   }, [level]);
+
+  const levelSubjectOptions = useMemo(() => {
+    const masterList = StorageService.getSubjectsFromMasterCPByLevel(level).map((m) => m.subject);
+    const defaults = getDefaultSubjectsByLevel(level);
+    const merged: string[] = [];
+    [...masterList, ...defaults].forEach((s) => {
+      if (s && !merged.some((existing) => existing.toLowerCase() === s.toLowerCase())) {
+        merged.push(s);
+      }
+    });
+    return merged;
+  }, [level, activeMasterCP]);
+
+  const currentLevelLabel = useMemo(() => getSchoolLevelDisplay(level, grade).shortLabel, [level, grade]);
 
   return (
     <div className="space-y-5">
@@ -1672,19 +1709,67 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                 </div>
 
                 <div className="space-y-4 text-xs">
-                  {/* Mata Pelajaran */}
+                  {/* Jenjang, Kelas & Fase (Dipilih lebih dahulu agar daftar Mata Pelajaran mengikuti jenjang) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">1. Tingkat Sekolah / Jenjang *</label>
+                      <select
+                        value={level}
+                        onChange={(e) => handleLevelChange(e.target.value as SchoolLevel)}
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-blue-600 font-semibold"
+                      >
+                        <option value="SD">SD / MI / Paket A</option>
+                        <option value="SMP">SMP / MTs / Paket B</option>
+                        <option value="SMA">SMA / MA / Paket C</option>
+                        <option value="SMK">SMK / MAK (3 &amp; 4 Tahun)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Tingkat / Kelas</label>
+                      <select
+                        value={grade}
+                        onChange={(e) => handleGradeChange(Number(e.target.value))}
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-blue-600 font-semibold"
+                      >
+                        {availableGrades.map((g) => (
+                          <option key={g} value={g}>
+                            Kelas {g}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-bold mb-1">Fase Pembelajaran</label>
+                      <select
+                        value={phase}
+                        onChange={(e) => handlePhaseChange(e.target.value)}
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-blue-700 focus:outline-none focus:border-blue-600 font-bold"
+                      >
+                        <option value="Fase A">Fase A (Kelas 1-2 SD/MI/Paket A)</option>
+                        <option value="Fase B">Fase B (Kelas 3-4 SD/MI/Paket A)</option>
+                        <option value="Fase C">Fase C (Kelas 5-6 SD/MI/Paket A)</option>
+                        <option value="Fase D">Fase D (Kelas 7-9 SMP/MTs/Paket B)</option>
+                        <option value="Fase E">Fase E (Kelas 10 {level === 'SMK' ? 'SMK/MAK' : 'SMA/MA/Paket C'})</option>
+                        <option value="Fase F">Fase F ({level === 'SMK' ? 'Kelas 11-13 SMK/MAK' : 'Kelas 11-12 SMA/MA/Paket C'})</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Mata Pelajaran (Dipisahkan strictly sesuai Tingkat Sekolah) */}
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-slate-700 font-bold">
-                        Mata Pelajaran / Bidang Studi *
+                        2. Mata Pelajaran ({currentLevelLabel}) *
                       </label>
                       <span className="text-[11px] text-blue-600 font-semibold">
-                        ✓ Otomatis mengisi Bab & CP No. 020 Tahun 2026
+                        ✓ Menampilkan khusus mapel {currentLevelLabel}
                       </span>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <select
-                        value={POPULAR_SUBJECTS.includes(subject) ? subject : 'Lainnya'}
+                        value={levelSubjectOptions.includes(subject) ? subject : 'Lainnya'}
                         onChange={(e) => {
                           if (e.target.value !== 'Lainnya') {
                             handleSubjectChange(e.target.value);
@@ -1692,7 +1777,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                         }}
                         className="p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-blue-600 font-semibold"
                       >
-                        {POPULAR_SUBJECTS.map((s) => (
+                        {levelSubjectOptions.map((s) => (
                           <option key={s} value={s}>
                             {s}
                           </option>
@@ -1728,54 +1813,6 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                         onOpenModal={() => setShowAgamaIslamCPModal(true)}
                         activeFileName={activeMasterCP?.fileName}
                       />
-                    </div>
-                  </div>
-
-                  {/* Jenjang, Kelas & Fase */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-slate-700 font-bold mb-1">Jenjang Pendidikan</label>
-                      <select
-                        value={level}
-                        onChange={(e) => handleLevelChange(e.target.value as SchoolLevel)}
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-blue-600 font-semibold"
-                      >
-                        <option value="SD">SD (Sekolah Dasar)</option>
-                        <option value="SMP">SMP (Sekolah Menengah Pertama)</option>
-                        <option value="SMA">SMA (Sekolah Menengah Atas)</option>
-                        <option value="SMK">SMK (Sekolah Menengah Kejuruan)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-bold mb-1">Tingkat / Kelas</label>
-                      <select
-                        value={grade}
-                        onChange={(e) => handleGradeChange(Number(e.target.value))}
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-blue-600 font-semibold"
-                      >
-                        {availableGrades.map((g) => (
-                          <option key={g} value={g}>
-                            Kelas {g}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-bold mb-1">Fase Pembelajaran</label>
-                      <select
-                        value={phase}
-                        onChange={(e) => handlePhaseChange(e.target.value)}
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-blue-700 focus:outline-none focus:border-blue-600 font-bold"
-                      >
-                        <option value="Fase A">Fase A (Kelas 1-2)</option>
-                        <option value="Fase B">Fase B (Kelas 3-4)</option>
-                        <option value="Fase C">Fase C (Kelas 5-6)</option>
-                        <option value="Fase D">Fase D (Kelas 7-9)</option>
-                        <option value="Fase E">Fase E (Kelas 10)</option>
-                        <option value="Fase F">Fase F (Kelas 11-12)</option>
-                      </select>
                     </div>
                   </div>
 

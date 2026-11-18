@@ -30,12 +30,22 @@ import {
   KalenderSemesterPlan,
   KalenderMonthAnalysis,
   ActiveMasterCPData,
+  CPSubjectEntry,
   AdminSystemSettings,
+  AdminUploadedCPItem,
   CurriculumResetStats,
   SchoolLevel,
 } from '../types';
 import { INITIAL_CLASSES, INITIAL_STUDENTS, INITIAL_CP_REFERENCES } from './curriculumData';
 import { getSubjectPresetByGrade } from './subjectMaterialPresets';
+import {
+  analyzeCPTextHeuristic,
+  extractSubjectsFromCPText,
+  resolvePhaseByLevelAndGrade,
+  isSameSchoolLevelGroup,
+  isSubjectAllowedForLevel,
+  getSchoolLevelDisplay,
+} from './curriculumLevels';
 import { normalizeThemeConfig, DEFAULT_THEME_CONFIG } from './theme';
 
 export type { SchoolProfile, TokenVoucher, TokenQuotaStatus, AdminSystemSettings, CurriculumResetStats };
@@ -1731,6 +1741,39 @@ export class StorageService {
       }
     }
 
+    // Record globally if uploaded/synced by Admin (so all users see it on Welcome screen)
+    try {
+      const currentUser = this.getCurrentUser();
+      if (!skipReverseSync && (currentUser?.role === 'admin' || normalizedMasterData.uploadedByRole === 'admin')) {
+        this.recordAdminUploadedCP(normalizedMasterData, currentUser);
+      }
+    } catch {}
+
+    // Also index analyzed subjects into Master CP Catalog for cross-level Parameter Kurikulum lookup
+    try {
+      if (normalizedMasterData.analyzedSubjects && normalizedMasterData.analyzedSubjects.length > 0) {
+        normalizedMasterData.analyzedSubjects.forEach((entry, idx) => {
+          this.saveMasterCPItem({
+            ...normalizedMasterData,
+            id: entry.id || `${normalizedMasterData.id}-sub-${idx + 1}`,
+            subject: entry.subject,
+            level: entry.level,
+            subLevelLabel: entry.subLevelLabel || normalizedMasterData.subLevelLabel,
+            grade: entry.grade,
+            phase: entry.phase,
+            jpPerWeek: entry.jpPerWeek || normalizedMasterData.jpPerWeek,
+            totalHoursPerYear: entry.totalHoursPerYear || normalizedMasterData.totalHoursPerYear,
+            cpText: entry.cpText || normalizedMasterData.cpText,
+            elements: entry.elements || normalizedMasterData.elements,
+            materialsSem1: entry.materialsSem1?.length ? entry.materialsSem1 : normalizedMasterData.materialsSem1,
+            materialsSem2: entry.materialsSem2?.length ? entry.materialsSem2 : normalizedMasterData.materialsSem2,
+          });
+        });
+      } else if (normalizedMasterData.subject) {
+        this.saveMasterCPItem(normalizedMasterData);
+      }
+    } catch {}
+
     // Broadcast update events
     try {
       if (typeof window !== 'undefined') {
@@ -1788,6 +1831,161 @@ export class StorageService {
   static deleteMasterCPItem(id: string): void {
     const catalog = this.getMasterCPCatalog().filter((c) => c.id !== id);
     this.saveMasterCPCatalog(catalog);
+  }
+
+  /**
+   * Mengambil daftar Mata Pelajaran & Bab/Lingkup Materi Sem 1 & 2 dari CP Master
+   * yang sesuai dengan Tingkat Sekolah yang dipilih (SD/MI/Paket A, SMP/MTs/Paket B, SMA/SMK/MA/MAK/Paket C)
+   */
+  static getSubjectsFromMasterCPByLevel(level: SchoolLevel | string, userId?: string): CPSubjectEntry[] {
+    const result: CPSubjectEntry[] = [];
+    const seen = new Map<string, number>();
+
+    const addEntry = (entry: CPSubjectEntry) => {
+      const cleanSub = (entry.subject || '').trim();
+      if (
+        !cleanSub ||
+        cleanSub.toLowerCase() === 'mata pelajaran teridentifikasi' ||
+        !isSameSchoolLevelGroup(entry.level, level) ||
+        !isSubjectAllowedForLevel(cleanSub, level)
+      ) {
+        return;
+      }
+      const key = cleanSub.toLowerCase();
+      const existingIdx = seen.get(key);
+      if (existingIdx !== undefined) {
+        // Prefer exact level match or entry with materials
+        const existing = result[existingIdx];
+        const existingHasMat = (existing.materialsSem1?.length || 0) + (existing.materialsSem2?.length || 0) > 0;
+        const incomingHasMat = (entry.materialsSem1?.length || 0) + (entry.materialsSem2?.length || 0) > 0;
+        const incomingExactLvl = entry.level === level;
+        const existingExactLvl = existing.level === level;
+        if ((!existingHasMat && incomingHasMat) || (!existingExactLvl && incomingExactLvl)) {
+          result[existingIdx] = entry;
+        }
+        return;
+      }
+      seen.set(key, result.length);
+      result.push(entry);
+    };
+
+    const harvestFromRawCPText = (sourceDoc: ActiveMasterCPData) => {
+      if (!sourceDoc.cpText || sourceDoc.cpText.trim().length < 40) return;
+      if (!isSameSchoolLevelGroup(sourceDoc.level, level)) return;
+      const detectedNames = extractSubjectsFromCPText(sourceDoc.cpText, level);
+      const hasMissing = detectedNames.some((name) => !seen.has(name.trim().toLowerCase()));
+      if (!hasMissing) return;
+
+      const heuristic = analyzeCPTextHeuristic({
+        fileName: sourceDoc.fileName,
+        rawText: sourceDoc.cpText,
+        levelHint: sourceDoc.level,
+        gradeHint: sourceDoc.grade,
+        phaseHint: sourceDoc.phase,
+        totalHoursHint: sourceDoc.totalHoursPerYear,
+        jpPerWeekHint: sourceDoc.jpPerWeek,
+        getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+      });
+      heuristic.analyzedSubjects.forEach((hEntry) => addEntry(hEntry));
+    };
+
+    // 1. From current Active Master CP (primary & analyzedSubjects)
+    const active = this.getActiveMasterCP(userId);
+    if (active) {
+      if (Array.isArray(active.analyzedSubjects)) {
+        active.analyzedSubjects.forEach((subEntry) => addEntry(subEntry));
+      }
+      if (active.subject) {
+        addEntry({
+          id: active.id,
+          subject: active.subject,
+          level: active.level,
+          subLevelLabel: active.subLevelLabel || getSchoolLevelDisplay(active.level, active.grade).subLabel,
+          grade: active.grade,
+          phase: active.phase,
+          jpPerWeek: active.jpPerWeek,
+          totalHoursPerYear: active.totalHoursPerYear,
+          cpText: active.cpText,
+          elements: active.elements,
+          materialsSem1: active.materialsSem1 || [],
+          materialsSem2: active.materialsSem2 || [],
+        });
+      }
+      harvestFromRawCPText(active);
+    }
+
+    // 2. From Global Master CP Catalog (Admin & Guru uploads across levels)
+    const catalog = this.getMasterCPCatalog();
+    catalog.forEach((item) => {
+      if (Array.isArray(item.analyzedSubjects)) {
+        item.analyzedSubjects.forEach((subEntry) => addEntry(subEntry));
+      }
+      if (item.subject) {
+        addEntry({
+          id: item.id,
+          subject: item.subject,
+          level: item.level,
+          subLevelLabel: item.subLevelLabel || getSchoolLevelDisplay(item.level, item.grade).subLabel,
+          grade: item.grade,
+          phase: item.phase,
+          jpPerWeek: item.jpPerWeek,
+          totalHoursPerYear: item.totalHoursPerYear,
+          cpText: item.cpText,
+          elements: item.elements,
+          materialsSem1: item.materialsSem1 || [],
+          materialsSem2: item.materialsSem2 || [],
+        });
+      }
+      harvestFromRawCPText(item);
+    });
+
+    // 3. From Admin Uploaded CP metadata list (if uploaded prior to full analysis)
+    const adminCPs = this.getAdminUploadedCPs();
+    adminCPs.forEach((item) => {
+      if (item.subject && item.level && isSameSchoolLevelGroup(item.level, level) && isSubjectAllowedForLevel(item.subject, level)) {
+        addEntry({
+          id: item.id,
+          subject: item.subject,
+          level: item.level,
+          grade: item.grade || (item.level === 'SD' ? 4 : item.level === 'SMP' ? 7 : 10),
+          phase: item.phase || resolvePhaseByLevelAndGrade(item.level, item.grade),
+          materialsSem1: [],
+          materialsSem2: [],
+        });
+      }
+    });
+
+    return result;
+  }
+
+  static findMasterCPEntry(
+    subject: string,
+    level: SchoolLevel | string,
+    grade?: number | string,
+    userId?: string
+  ): CPSubjectEntry | null {
+    const entries = this.getSubjectsFromMasterCPByLevel(level, userId);
+    const normSub = (subject || '').trim().toLowerCase();
+    if (!normSub) return null;
+
+    if (grade !== undefined) {
+      const exactWithGrade = entries.find(
+        (e) =>
+          e.subject.trim().toLowerCase() === normSub &&
+          Number(e.grade) === Number(grade) &&
+          ((e.materialsSem1?.length || 0) > 0 || (e.materialsSem2?.length || 0) > 0)
+      );
+      if (exactWithGrade) return exactWithGrade;
+    }
+
+    const withMaterials = entries.find(
+      (e) =>
+        e.subject.trim().toLowerCase() === normSub &&
+        ((e.materialsSem1?.length || 0) > 0 || (e.materialsSem2?.length || 0) > 0)
+    );
+    if (withMaterials) return withMaterials;
+
+    return entries.find((e) => e.subject.trim().toLowerCase() === normSub) || null;
   }
 
   static addClass(cls: Omit<ClassRoom, 'id'>, userId?: string): ClassRoom {
@@ -1957,7 +2155,7 @@ export class StorageService {
       const targetSub = profile.subject || masterCP?.subject || 'Fisika';
       const targetLvl = (profile.level || masterCP?.level || 'SMA') as SchoolLevel;
       const targetGrade = Number(profile.grade || masterCP?.grade || 10);
-      const targetPhase = profile.phase || masterCP?.phase || (targetGrade === 10 ? 'Fase E' : targetGrade > 10 ? 'Fase F' : targetGrade >= 7 ? 'Fase D' : 'Fase A/B/C');
+      const targetPhase = profile.phase || masterCP?.phase || resolvePhaseByLevelAndGrade(targetLvl, targetGrade);
 
       const isSubjectOrGradeChanged = masterCP && (
         masterCP.subject.toLowerCase() !== targetSub.toLowerCase() ||
@@ -2089,6 +2287,249 @@ export class StorageService {
     return updated;
   }
 
+  static getAdminUploadedCPs(): AdminUploadedCPItem[] {
+    const settings = this.getAdminSettings();
+    if (Array.isArray(settings.adminUploadedCPs) && settings.adminUploadedCPs.length > 0) {
+      return [...settings.adminUploadedCPs].sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0));
+    }
+    // If never explicitly cleared (undefined), fallback to any Admin user's scoped Active Master CP
+    if (settings.adminUploadedCPs === undefined) {
+      const adminIds = Array.from(
+        new Set([
+          DEFAULT_ADMIN.id,
+          ...this.getUsers()
+            .filter((u) => u.role === 'admin')
+            .map((u) => u.id),
+        ])
+      );
+      for (const adminId of adminIds) {
+        const adminMaster = this.getActiveMasterCP(adminId);
+        if (adminMaster && adminMaster.fileName) {
+          return [
+            {
+              id: adminMaster.id || `admin-cp-${adminId}`,
+              no: 1,
+              docNumber: adminMaster.docNumber,
+              fileName: adminMaster.fileName,
+              folderName: adminMaster.folderName,
+              subject: adminMaster.subject,
+              level: adminMaster.level,
+              grade: adminMaster.grade,
+              phase: adminMaster.phase,
+              uploadedAt: adminMaster.uploadedAt || new Date().toISOString(),
+              uploadedBy: adminMaster.uploadedByName || DEFAULT_ADMIN.name,
+            },
+          ];
+        }
+      }
+    }
+    return [];
+  }
+
+  static recordAdminUploadedCP(
+    masterData: ActiveMasterCPData,
+    uploadedByUser?: UserAccount | null
+  ): AdminUploadedCPItem[] {
+    const currentSettings = this.getAdminSettings();
+    const existingList = [...(currentSettings.adminUploadedCPs || [])];
+    const cleanFileName =
+      (masterData.fileName || '').trim() ||
+      `Dokumen_CP_${masterData.subject || 'Umum'}_${masterData.phase || 'Fase'}.pdf`;
+
+    const existingIdx = existingList.findIndex(
+      (item) =>
+        item.id === masterData.id ||
+        item.fileName.toLowerCase() === cleanFileName.toLowerCase()
+    );
+
+    if (existingIdx >= 0) {
+      const prev = existingList[existingIdx];
+      existingList[existingIdx] = {
+        ...prev,
+        docNumber: masterData.docNumber?.trim() || prev.docNumber,
+        fileName: cleanFileName,
+        folderName: masterData.folderName?.trim() || prev.folderName,
+        subject: masterData.subject || prev.subject,
+        level: masterData.level || prev.level,
+        grade: masterData.grade ?? prev.grade,
+        phase: masterData.phase || prev.phase,
+        uploadedAt: masterData.uploadedAt || new Date().toISOString(),
+        uploadedBy: uploadedByUser?.name || masterData.uploadedByName || prev.uploadedBy || DEFAULT_ADMIN.name,
+      };
+    } else {
+      const nextNo =
+        existingList.reduce((max, item) => Math.max(max, Number(item.no) || 0), 0) + 1;
+      existingList.push({
+        id: masterData.id || `admin-cp-${Date.now()}`,
+        no: nextNo,
+        docNumber: masterData.docNumber?.trim() || undefined,
+        fileName: cleanFileName,
+        folderName: masterData.folderName?.trim() || undefined,
+        subject: masterData.subject,
+        level: masterData.level,
+        grade: masterData.grade,
+        phase: masterData.phase,
+        uploadedAt: masterData.uploadedAt || new Date().toISOString(),
+        uploadedBy: uploadedByUser?.name || masterData.uploadedByName || DEFAULT_ADMIN.name,
+      });
+    }
+
+    const sorted = existingList.sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0));
+    this.saveAdminSettings({
+      adminUploadedCPs: sorted,
+      updatedBy: uploadedByUser?.name || masterData.uploadedByName || DEFAULT_ADMIN.name,
+    });
+
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('admin-cp-updated', { detail: sorted }));
+      }
+    } catch {}
+
+    return sorted;
+  }
+
+  static recordAdminUploadedFolderCPs(
+    items: Array<{
+      id?: string;
+      fileName: string;
+      docNumber?: string;
+      folderName?: string;
+      subject?: string;
+      level?: SchoolLevel;
+      grade?: number | string;
+      phase?: string;
+    }>,
+    uploadedByUser?: UserAccount | null
+  ): AdminUploadedCPItem[] {
+    const currentSettings = this.getAdminSettings();
+    const existingList = [...(currentSettings.adminUploadedCPs || [])];
+    let nextNo =
+      existingList.reduce((max, item) => Math.max(max, Number(item.no) || 0), 0) + 1;
+    const now = new Date().toISOString();
+
+    items.forEach((entry, idx) => {
+      const cleanFileName = (entry.fileName || '').trim();
+      if (!cleanFileName) return;
+      const existingIdx = existingList.findIndex(
+        (it) => it.fileName.toLowerCase() === cleanFileName.toLowerCase()
+      );
+      if (existingIdx >= 0) {
+        const prev = existingList[existingIdx];
+        existingList[existingIdx] = {
+          ...prev,
+          docNumber: entry.docNumber?.trim() || prev.docNumber,
+          fileName: cleanFileName,
+          folderName: entry.folderName?.trim() || prev.folderName,
+          subject: entry.subject || prev.subject,
+          level: entry.level || prev.level,
+          grade: entry.grade ?? prev.grade,
+          phase: entry.phase || prev.phase,
+          uploadedAt: now,
+          uploadedBy: uploadedByUser?.name || prev.uploadedBy || DEFAULT_ADMIN.name,
+        };
+      } else {
+        existingList.push({
+          id: entry.id || `admin-cp-${Date.now()}-${idx + 1}`,
+          no: nextNo++,
+          docNumber: entry.docNumber?.trim() || undefined,
+          fileName: cleanFileName,
+          folderName: entry.folderName?.trim() || undefined,
+          subject: entry.subject,
+          level: entry.level,
+          grade: entry.grade,
+          phase: entry.phase,
+          uploadedAt: now,
+          uploadedBy: uploadedByUser?.name || DEFAULT_ADMIN.name,
+        });
+      }
+    });
+
+    const sorted = existingList.sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0));
+    this.saveAdminSettings({
+      adminUploadedCPs: sorted,
+      updatedBy: uploadedByUser?.name || DEFAULT_ADMIN.name,
+    });
+
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('admin-cp-updated', { detail: sorted }));
+      }
+    } catch {}
+
+    return sorted;
+  }
+
+  static removeAdminUploadedCP(id: string): AdminUploadedCPItem[] {
+    const currentSettings = this.getAdminSettings();
+    const filtered = (currentSettings.adminUploadedCPs || [])
+      .filter((item) => item.id !== id)
+      .sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0))
+      .map((item, idx) => ({
+        ...item,
+        no: idx + 1,
+      }));
+
+    this.saveAdminSettings({
+      adminUploadedCPs: filtered,
+      updatedBy: this.getCurrentUser()?.name || DEFAULT_ADMIN.name,
+    });
+
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('admin-cp-updated', { detail: filtered }));
+      }
+    } catch {}
+
+    return filtered;
+  }
+
+  static async fetchAdminSettingsFromServer(): Promise<AdminSystemSettings | null> {
+    try {
+      if (typeof window === 'undefined' || !window.fetch) return null;
+      const res = await fetch('/api/admin/settings');
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data?.success && data?.settings) {
+        const local = this.getAdminSettings();
+        const serverCPs: AdminUploadedCPItem[] | undefined = data.settings.adminUploadedCPs;
+        const localCPs: AdminUploadedCPItem[] | undefined = local.adminUploadedCPs;
+        const serverTs = Date.parse(data.settings.lastUpdated || '') || 0;
+        const localTs = Date.parse(local.lastUpdated || '') || 0;
+
+        let finalCPs: AdminUploadedCPItem[] = localCPs || [];
+        if (Array.isArray(serverCPs) && serverCPs.length > 0) {
+          if (Array.isArray(localCPs) && localCPs.length === 0 && localTs > serverTs) {
+            finalCPs = localCPs;
+          } else if (serverTs > localTs) {
+            finalCPs = serverCPs;
+          } else {
+            const mergedMap = new Map<string, AdminUploadedCPItem>();
+            [...(localCPs || []), ...serverCPs].forEach((item) => {
+              if (item?.fileName) {
+                mergedMap.set(item.fileName.toLowerCase(), item);
+              }
+            });
+            finalCPs = Array.from(mergedMap.values()).sort(
+              (a, b) => (Number(a.no) || 0) - (Number(b.no) || 0)
+            );
+          }
+        }
+        const merged: AdminSystemSettings = {
+          ...local,
+          ...data.settings,
+          adminUploadedCPs: finalCPs,
+        };
+        saveToStorage(KEYS.ADMIN_SETTINGS, merged);
+        window.dispatchEvent(new CustomEvent('admin-cp-updated', { detail: merged.adminUploadedCPs || [] }));
+        return merged;
+      }
+    } catch {
+      // Ignore network errors gracefully
+    }
+    return null;
+  }
+
   /**
    * Helper terpadu untuk mengambil seluruh ekosistem data kurikulum yang saling tersinkronisasi
    * secara otomatis menyesuaikan Jenjang dan Kelas yang dipilih berdasarkan analisis CP
@@ -2141,7 +2582,7 @@ export class StorageService {
     const totalHoursPerYear = effectiveMaster?.totalHoursPerYear || schoolProfile?.totalHoursPerYear || (totalHoursSem1 + totalHoursSem2) || 108;
     const jpPerWeek = effectiveMaster?.jpPerWeek || schoolProfile?.jpPerWeek || kaldik.semester1?.jpPerWeek || 3;
 
-    const resolvedPhase = schoolProfile?.phase || (targetGrade === 10 ? 'Fase E' : targetGrade > 10 ? 'Fase F' : targetGrade >= 7 ? 'Fase D' : targetGrade >= 4 ? 'Fase B/C' : 'Fase A');
+    const resolvedPhase = schoolProfile?.phase || resolvePhaseByLevelAndGrade(targetLvl, targetGrade);
 
     return {
       schoolProfile,

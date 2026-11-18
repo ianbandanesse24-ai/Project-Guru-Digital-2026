@@ -44,6 +44,8 @@ import {
   SchoolLevel,
   CPMaterialItem,
   ActiveMasterCPData,
+  CPSubjectEntry,
+  AdminUploadedCPItem,
   AIDocument,
   CPDistributionPlan,
 } from '../types';
@@ -52,6 +54,16 @@ import { ExportService } from '../lib/exportUtils';
 import { CustomFormatSelector, CustomFormatConfig } from './CustomFormatSelector';
 import { generateExpertCurriculumDocument } from '../lib/curriculumEngine';
 import { generateAutoTPForMaterial } from '../lib/curriculumData';
+import {
+  analyzeCPTextHeuristic,
+  detectLevelPhaseGradeFromText,
+  getSchoolLevelDisplay,
+  KNOWN_SUBJECT_PATTERNS,
+  mergeAnalyzedSubjects,
+  normalizeSchoolLevel,
+  resolvePhaseByLevelAndGrade,
+} from '../lib/curriculumLevels';
+import { getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
 
 interface CPUploaderAndAnalyzerProps {
   onAnalysisComplete?: (masterData: ActiveMasterCPData) => void;
@@ -108,6 +120,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
   const [totalHoursPerYear, setTotalHoursPerYear] = useState<number>(108);
   const [jpPerWeek, setJpPerWeek] = useState<number>(3);
   const [totalTPCount, setTotalTPCount] = useState<number>(6);
+  const [docNumber, setDocNumber] = useState<string>('');
   const [customPrompt, setCustomPrompt] = useState<string>('');
 
   // Execution & Progress states (0 - 100%)
@@ -133,15 +146,30 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
     materialsSem2: CPMaterialItem[];
   } | null>(null);
 
+  // Folder CP Upload & Admin Uploaded CP list states
+  const [folderName, setFolderName] = useState<string>('');
+  const [folderFiles, setFolderFiles] = useState<File[]>([]);
+  const [adminUploadedCPs, setAdminUploadedCPs] = useState<AdminUploadedCPItem[]>(() =>
+    StorageService.getAdminUploadedCPs()
+  );
+
   // Result state
   const [masterData, setMasterData] = useState<ActiveMasterCPData | null>(() => StorageService.getActiveMasterCP());
   const [syncedNotification, setSyncedNotification] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const progressIntervalRef = useRef<any>(null);
 
   useEffect(() => {
+    const refreshAdminCPs = () => {
+      setAdminUploadedCPs(StorageService.getAdminUploadedCPs());
+    };
+    window.addEventListener('admin-cp-updated', refreshAdminCPs);
+    window.addEventListener('storage', refreshAdminCPs);
     return () => {
+      window.removeEventListener('admin-cp-updated', refreshAdminCPs);
+      window.removeEventListener('storage', refreshAdminCPs);
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
       }
@@ -151,16 +179,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
   // Update phase when grade / level changes
   const handleGradeChange = (g: number) => {
     setGrade(g);
-    if (level === 'SD') {
-      if (g <= 2) setPhase('Fase A');
-      else if (g <= 4) setPhase('Fase B');
-      else setPhase('Fase C');
-    } else if (level === 'SMP') {
-      setPhase('Fase D');
-    } else {
-      if (g === 10) setPhase('Fase E');
-      else setPhase('Fase F');
-    }
+    setPhase(resolvePhaseByLevelAndGrade(level, g));
   };
 
   const handleLevelChange = (lvl: SchoolLevel) => {
@@ -175,6 +194,11 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
       setPhase('Fase D');
       setJpPerWeek(3);
       setTotalHoursPerYear(108);
+    } else if (lvl === 'SMK') {
+      setGrade(10);
+      setPhase('Fase E');
+      setJpPerWeek(4);
+      setTotalHoursPerYear(144);
     } else {
       setGrade(10);
       setPhase('Fase E');
@@ -193,42 +217,88 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processSelectedFile(e.dataTransfer.files[0]);
+    const droppedFiles = Array.from(e.dataTransfer.files || []).filter(
+      (f) => f.name && !f.name.startsWith('.') && f.name !== 'Thumbs.db'
+    );
+    if (droppedFiles.length > 1) {
+      setFolderName('Folder_CP_Upload');
+      setFolderFiles(droppedFiles);
+      processSelectedFile(droppedFiles[0], 'Folder_CP_Upload');
+      if (isAdmin) {
+        const folderItems = droppedFiles.map((f, idx) => {
+          const meta = detectCPMetadataFromName(f.name);
+          return {
+            id: `admin-folder-cp-${Date.now()}-${idx + 1}`,
+            fileName: f.name,
+            docNumber: docNumber.trim() || meta.docNumber || undefined,
+            folderName: 'Folder_CP_Upload',
+            subject: meta.subject,
+            level: meta.level,
+            grade: meta.grade,
+            phase: meta.phase,
+          };
+        });
+        const updatedList = StorageService.recordAdminUploadedFolderCPs(folderItems, currentUser);
+        setAdminUploadedCPs(updatedList);
+      }
+    } else if (droppedFiles.length === 1) {
+      processSelectedFile(droppedFiles[0]);
     }
   };
 
-  const processSelectedFile = (selected: File) => {
+  const processSelectedFile = (selected: File, activeFolderName?: string) => {
     setFile(selected);
     setFileName(selected.name);
     setFileType(selected.type || 'application/octet-stream');
     setFileSize(selected.size);
+    if (activeFolderName !== undefined) {
+      setFolderName(activeFolderName);
+    }
     setErrorMsg('');
 
-    // Auto-detect subject / level from file name
-    const lowerName = (selected.name || '').toLowerCase();
-    if (lowerName.includes('fisika')) setSubject('Fisika');
-    else if (lowerName.includes('matematika')) setSubject('Matematika');
-    else if (lowerName.includes('biologi')) setSubject('Biologi');
-    else if (lowerName.includes('kimia')) setSubject('Kimia');
-    else if (lowerName.includes('informatika')) setSubject('Informatika');
-    else if (lowerName.includes('bahasa indonesia') || lowerName.includes('indo')) setSubject('Bahasa Indonesia');
-    else if (lowerName.includes('bahasa inggris') || lowerName.includes('inggris')) setSubject('Bahasa Inggris');
-    else if (lowerName.includes('pancasila') || lowerName.includes('ppkn')) setSubject('Pendidikan Pancasila');
-    else if (lowerName.includes('sejarah')) setSubject('Sejarah');
-    else if (lowerName.includes('geografi')) setSubject('Geografi');
-    else if (lowerName.includes('ekonomi')) setSubject('Ekonomi');
-    else if (lowerName.includes('sosiologi')) setSubject('Sosiologi');
-    else if (lowerName.includes('pjok') || lowerName.includes('penjas')) setSubject('PJOK');
-    else if (lowerName.includes('agama')) setSubject('Pendidikan Agama & Budi Pekerti');
-    else if (lowerName.includes('ipas')) setSubject('IPAS');
+    // Auto-detect subject / level / phase / grade from file name
+    const detectedFromName = detectCPMetadataFromName(selected.name);
+    if (detectedFromName.subject) setSubject(detectedFromName.subject);
+    setLevel(detectedFromName.level);
+    setPhase(detectedFromName.phase);
+    setGrade(detectedFromName.grade);
 
-    if (lowerName.includes('fase a')) { setLevel('SD'); setPhase('Fase A'); setGrade(1); }
-    else if (lowerName.includes('fase b')) { setLevel('SD'); setPhase('Fase B'); setGrade(4); }
-    else if (lowerName.includes('fase c')) { setLevel('SD'); setPhase('Fase C'); setGrade(5); }
-    else if (lowerName.includes('fase d')) { setLevel('SMP'); setPhase('Fase D'); setGrade(7); }
-    else if (lowerName.includes('fase e')) { setLevel('SMA'); setPhase('Fase E'); setGrade(10); }
-    else if (lowerName.includes('fase f')) { setLevel('SMA'); setPhase('Fase F'); setGrade(11); }
+    // Auto-detect No. Dokumen / SK from filename if present (e.g., No_020_..., Nomor 12...)
+    const detectedNo = detectedFromName.docNumber;
+    if (detectedNo && !docNumber.trim()) {
+      setDocNumber(detectedNo);
+    }
+
+    // Record immediately for Admin single-file selection so Welcome screen shows it right away
+    if (isAdmin && activeFolderName === undefined) {
+      const updatedList = StorageService.recordAdminUploadedCP(
+        {
+          ...(masterData || {
+            id: `admin-cp-${Date.now()}`,
+            totalHoursPerYear,
+            jpPerWeek,
+            cpText: rawTextContent || `Capaian Pembelajaran ${detectedFromName.subject} (${detectedFromName.phase})`,
+            elements: [],
+            materialsSem1: [],
+            materialsSem2: [],
+          }),
+          id: `admin-cp-${Date.now()}`,
+          fileName: selected.name,
+          fileType: selected.type || 'application/octet-stream',
+          fileSize: selected.size,
+          docNumber: docNumber.trim() || detectedNo || undefined,
+          uploadedByRole: currentUser.role,
+          uploadedByName: currentUser.name,
+          uploadedAt: new Date().toISOString(),
+          subject: detectedFromName.subject,
+          level: detectedFromName.level,
+          grade: detectedFromName.grade,
+          phase: detectedFromName.phase,
+        } as ActiveMasterCPData,
+        currentUser
+      );
+      setAdminUploadedCPs(updatedList);
+    }
 
     // Universal parsing for all file formats (PDF, Word, Excel, PowerPoint, Text, Images)
     UniversalFileParser.parseFile(selected)
@@ -238,6 +308,20 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
         }
         if (parsed.extractedText) {
           setRawTextContent(parsed.extractedText);
+          const textLevelMeta = detectLevelPhaseGradeFromText(
+            `${selected.name}\n${parsed.extractedText.substring(0, 4000)}`,
+            detectedFromName.level,
+            detectedFromName.grade,
+            detectedFromName.phase
+          );
+          setLevel(textLevelMeta.level);
+          setPhase(textLevelMeta.phase);
+          setGrade(textLevelMeta.grade);
+
+          const textNoMatch = parsed.extractedText.match(/(?:Nomor|No\.?)\s*[:.]?\s*([0-9]{1,4}(?:\/[A-Za-z0-9.-]+){1,4}(?:\s*Tahun\s*\d{4})?)/i);
+          if (textNoMatch && textNoMatch[1]) {
+            setDocNumber((prev) => prev.trim() || textNoMatch[1].trim());
+          }
         }
       })
       .catch((parseErr) => {
@@ -251,20 +335,128 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
       });
   };
 
+  const detectCPMetadataFromName = (name: string) => {
+    const cleanName = name || '';
+    const lvlMeta = detectLevelPhaseGradeFromText(cleanName, level, grade, phase);
+    let detectedSub = subject;
+    let detectedNo = '';
+
+    for (const entry of KNOWN_SUBJECT_PATTERNS) {
+      if (entry.pattern.test(cleanName)) {
+        detectedSub = entry.canonical;
+        break;
+      }
+    }
+
+    const fileNoMatch = cleanName.match(/(?:no|nomor)[\s._-]*([a-z0-9./-]+)/i);
+    if (fileNoMatch && fileNoMatch[1]) {
+      detectedNo = fileNoMatch[1].replace(/\.[^.]+$/, '');
+    }
+
+    return {
+      subject: detectedSub,
+      level: lvlMeta.level,
+      subLevelLabel: lvlMeta.subLevelLabel,
+      phase: lvlMeta.phase,
+      grade: lvlMeta.grade,
+      docNumber: detectedNo,
+    };
+  };
+
+  const handleFolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFiles = Array.from(e.target.files || []);
+    const validFiles = rawFiles.filter(
+      (f) => f.name && !f.name.startsWith('.') && f.name !== 'Thumbs.db'
+    );
+    if (validFiles.length === 0) return;
+
+    const relPath = (validFiles[0] as any).webkitRelativePath || '';
+    const detectedFolder = relPath.includes('/') ? relPath.split('/')[0] : 'Folder_CP_Master';
+
+    setFolderName(detectedFolder);
+    setFolderFiles(validFiles);
+    processSelectedFile(validFiles[0], detectedFolder);
+
+    if (isAdmin) {
+      const folderItems = validFiles.map((f, idx) => {
+        const meta = detectCPMetadataFromName(f.name);
+        return {
+          id: `admin-folder-cp-${Date.now()}-${idx + 1}`,
+          fileName: f.name,
+          docNumber: docNumber.trim() || meta.docNumber || undefined,
+          folderName: detectedFolder,
+          subject: meta.subject,
+          level: meta.level,
+          grade: meta.grade,
+          phase: meta.phase,
+        };
+      });
+      const updatedList = StorageService.recordAdminUploadedFolderCPs(folderItems, currentUser);
+      setAdminUploadedCPs(updatedList);
+      setSyncedNotification(
+        `Folder CP "${detectedFolder}" (${validFiles.length} file) berhasil diunggah & dicatat ke daftar Ucapan Selamat!`
+      );
+    }
+  };
+
+  const handleSaveManualFileNameAndNo = () => {
+    const trimmedName = fileName.trim();
+    if (!trimmedName) {
+      setErrorMsg('Silakan isi Nama File CP terlebih dahulu.');
+      return;
+    }
+    setErrorMsg('');
+    const meta = detectCPMetadataFromName(trimmedName);
+    const updatedList = StorageService.recordAdminUploadedCP(
+      {
+        ...(masterData || {
+          id: `admin-cp-${Date.now()}`,
+          fileType: 'application/octet-stream',
+          totalHoursPerYear,
+          jpPerWeek,
+          cpText: rawTextContent || `Capaian Pembelajaran ${meta.subject} (${meta.phase})`,
+          elements: [],
+          materialsSem1: [],
+          materialsSem2: [],
+        }),
+        id: `admin-cp-${Date.now()}`,
+        fileName: trimmedName,
+        folderName: folderName.trim() || undefined,
+        docNumber: docNumber.trim() || meta.docNumber || undefined,
+        uploadedByRole: currentUser.role,
+        uploadedByName: currentUser.name,
+        uploadedAt: new Date().toISOString(),
+        subject: meta.subject,
+        level: meta.level,
+        grade: meta.grade,
+        phase: meta.phase,
+      } as ActiveMasterCPData,
+      currentUser
+    );
+    setAdminUploadedCPs(updatedList);
+    setSyncedNotification(
+      `Nama File CP "${trimmedName}"${docNumber.trim() ? ` (No. ${docNumber.trim()})` : ''} berhasil disimpan & ditampilkan pada Ucapan Selamat!`
+    );
+  };
+
   const handleClearFile = () => {
     setFile(null);
     setFileBase64('');
     setFileName('');
     setFileType('');
     setFileSize(0);
+    setFolderName('');
+    setFolderFiles([]);
     setRawTextContent('');
+    setDocNumber('');
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (folderInputRef.current) folderInputRef.current.value = '';
   };
 
   // Run Deep Meticulous Analysis with 0 - 100% animated progression
   const handleStartAnalysis = async () => {
-    if (!fileBase64 && !rawTextContent.trim() && !subject.trim()) {
-      setErrorMsg('Pilih file dokumen CP resmi (PDF/Word/Excel/JSON/Teks) atau masukkan nama mata pelajaran.');
+    if (!fileBase64 && !rawTextContent.trim() && !fileName.trim() && !subject.trim()) {
+      setErrorMsg('Pilih file/folder dokumen CP resmi, isi Nama File CP, atau masukkan nama mata pelajaran.');
       return;
     }
 
@@ -336,7 +528,11 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
 
           const jsonMaster: ActiveMasterCPData = {
             id: `cp-master-${Date.now()}`,
-            fileName: fileName || `Dokumen CP ${resolvedSub} ${resolvedPhs}.json`,
+            fileName: fileName.trim() || `Dokumen CP ${resolvedSub} ${resolvedPhs}.json`,
+            folderName: folderName.trim() || undefined,
+            docNumber: docNumber.trim() || jsonCP.docNumber || undefined,
+            uploadedByRole: currentUser.role,
+            uploadedByName: currentUser.name,
             fileType: 'application/json',
             fileSize,
             uploadedAt: new Date().toISOString(),
@@ -422,43 +618,19 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
         console.warn('Network API tidak tersedia, menggunakan parser kurikulum cerdas internal:', networkErr);
       }
 
-      // CLIENT-SIDE EXPERT FALLBACK ENGINE (Jika server offline / GitHub Pages)
+      // CLIENT-SIDE EXPERT FALLBACK ENGINE (Jika server offline / tidak ada kunci AI)
       if (!resData) {
-        const fallbackSubject = subject || 'Mata Pelajaran Umum';
-        const fallbackLevel = level || 'SMA';
-        const fallbackGrade = grade || 10;
-        const fallbackPhase = phase || 'E';
-        const fallbackTotalHours = totalHoursPerYear || 108;
-        const fallbackJp = jpPerWeek || 3;
-
-        resData = {
-          identifiedMetadata: {
-            subject: fallbackSubject,
-            level: fallbackLevel,
-            grade: fallbackGrade,
-            phase: fallbackPhase,
-            totalHoursPerYear: fallbackTotalHours,
-            jpPerWeek: fallbackJp,
-          },
-          elements: [
-            {
-              name: 'Pemahaman Konsep',
-              description: `Menguasai konsep esensial dan prinsip inti ${fallbackSubject}.`,
-              competencies: ['Menganalisis konsep esensial', 'Mengevaluasi fenomena kontekstual'],
-              essentialMaterials: [`Materi Pokok Inti ${fallbackSubject}`],
-            },
-            {
-              name: 'Keterampilan Proses',
-              description: `Menerapkan metode penyelidikan ilmiah dan penyelesaian masalah ${fallbackSubject}.`,
-              competencies: ['Merancang eksperimen/karya inovatif', 'Mengomunikasikan hasil investigasi'],
-              essentialMaterials: [`Proyek Pembelajaran Inovatif ${fallbackSubject}`],
-            },
-          ],
-          materialsSem1: [`Bab 1: Dasar & Konsep Esensial ${fallbackSubject}`, `Bab 2: Pendalaman Materi ${fallbackSubject}`],
-          materialsSem2: [`Bab 3: Penerapan & Analisis ${fallbackSubject}`, `Bab 4: Evaluasi & Proyek Akhir ${fallbackSubject}`],
-          executiveSummary: rawTextContent ? rawTextContent.substring(0, 350) : `Capaian Pembelajaran resmi mata pelajaran ${fallbackSubject} Fase ${fallbackPhase}.`,
-          kktpSummary: 'Interval Ketuntasan: 0-40% (Perlu Bimbingan Khusus), 41-65% (Cukup/Remedial), 66-85% (Baik/Tuntas), 86-100% (Sangat Baik/Pengayaan).',
-        };
+        resData = analyzeCPTextHeuristic({
+          fileName: fileName.trim() || `Capaian Pembelajaran ${subject}`,
+          rawText: rawTextContent,
+          subjectHint: subject,
+          levelHint: level,
+          gradeHint: grade,
+          phaseHint: phase,
+          totalHoursHint: totalHoursPerYear,
+          jpPerWeekHint: jpPerWeek,
+          getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+        });
       }
 
       clearInterval(progressIntervalRef.current);
@@ -475,8 +647,9 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
         ? detectedMeta.subject
         : subject;
       const resolvedLevel = (detectedMeta.level as SchoolLevel) || level;
-      const resolvedPhase = detectedMeta.phase || phase;
-      const resolvedGrade = Number(detectedMeta.grade) || grade;
+      const resolvedGrade = Number(detectedMeta.grade) || Number(grade) || 10;
+      const resolvedPhase = detectedMeta.phase || resolvePhaseByLevelAndGrade(resolvedLevel, resolvedGrade);
+      const resolvedSubLevelLabel = detectedMeta.subLevelLabel || getSchoolLevelDisplay(resolvedLevel, resolvedGrade).subLabel;
       const resolvedHours = Number(detectedMeta.totalHoursPerYear) || totalHoursPerYear;
       const resolvedJp = Number(detectedMeta.jpPerWeek) || jpPerWeek;
 
@@ -488,41 +661,131 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
       setTotalHoursPerYear(resolvedHours);
       setJpPerWeek(resolvedJp);
 
-      const sem1Items: CPMaterialItem[] = (resData.materialsSem1 || []).map((m: any, idx: number) => ({
-        id: `sem1-${Date.now()}-${idx + 1}`,
-        semester: 1,
-        orderNumber: m.orderNumber || idx + 1,
-        tpCode: m.tpCode || `TP.${resolvedGrade}.1.${idx + 1}`,
-        tpName: m.tpName || '',
-        essentialMaterial: m.essentialMaterial || '',
-        elementName: m.elementName || 'Pemahaman Konsep',
-        allocatedHours: Number(m.allocatedHours) || Math.round(resolvedHours / 2 / (resData.materialsSem1?.length || 3)),
-        assessmentStrategy: m.assessmentStrategy || 'Tes Formatif & Kinerja 6C',
-        deepLearningMethod: m.deepLearningMethod || 'Mindful & Meaningful Learning',
-      }));
+      const normalizeMaterials = (arr: any[], sem: 1 | 2, targetGrade: number | string, startOrder: number): CPMaterialItem[] =>
+        (arr || []).map((m: any, idx: number) => ({
+          id: m.id || `sem${sem}-${Date.now()}-${idx + 1}`,
+          semester: sem,
+          orderNumber: m.orderNumber || startOrder + idx,
+          tpCode: m.tpCode || `TP.${targetGrade}.${sem}.${idx + 1}`,
+          tpName: m.tpName || '',
+          essentialMaterial: m.essentialMaterial || '',
+          elementName: m.elementName || (sem === 1 ? 'Pemahaman Konsep' : 'Keterampilan Proses'),
+          allocatedHours: Number(m.allocatedHours) || Math.round(resolvedHours / 2 / Math.max(1, arr?.length || 3)),
+          assessmentStrategy: m.assessmentStrategy || (sem === 1 ? 'Tes Formatif & Kinerja 6C' : 'Penilaian Proyek Sumatif'),
+          deepLearningMethod: m.deepLearningMethod || (sem === 1 ? 'Mindful & Meaningful Learning' : 'Meaningful & Joyful Learning'),
+        }));
 
-      const sem2Items: CPMaterialItem[] = (resData.materialsSem2 || []).map((m: any, idx: number) => ({
-        id: `sem2-${Date.now()}-${idx + 1}`,
-        semester: 2,
-        orderNumber: m.orderNumber || sem1Items.length + idx + 1,
-        tpCode: m.tpCode || `TP.${resolvedGrade}.2.${idx + 1}`,
-        tpName: m.tpName || '',
-        essentialMaterial: m.essentialMaterial || '',
-        elementName: m.elementName || 'Keterampilan Proses',
-        allocatedHours: Number(m.allocatedHours) || Math.round(resolvedHours / 2 / (resData.materialsSem2?.length || 3)),
-        assessmentStrategy: m.assessmentStrategy || 'Penilaian Proyek Sumatif',
-        deepLearningMethod: m.deepLearningMethod || 'Meaningful & Joyful Learning',
-      }));
+      const sem1Items = normalizeMaterials(resData.materialsSem1 || [], 1, resolvedGrade, 1);
+      const sem2Items = normalizeMaterials(resData.materialsSem2 || [], 2, resolvedGrade, sem1Items.length + 1);
 
       setTotalTPCount(sem1Items.length + sem2Items.length);
 
+      let analyzedSubjects: CPSubjectEntry[] = Array.isArray(resData.analyzedSubjects) && resData.analyzedSubjects.length > 0
+        ? resData.analyzedSubjects.map((entry: any, idx: number) => {
+            const entryLvl = normalizeSchoolLevel(entry.level || resolvedLevel, entry.subject);
+            const entryGrd = Number(entry.grade) || resolvedGrade;
+            const entryPhs = entry.phase || resolvePhaseByLevelAndGrade(entryLvl, entryGrd);
+            const eSem1 = normalizeMaterials(entry.materialsSem1?.length ? entry.materialsSem1 : sem1Items, 1, entryGrd, 1);
+            const eSem2 = normalizeMaterials(entry.materialsSem2?.length ? entry.materialsSem2 : sem2Items, 2, entryGrd, eSem1.length + 1);
+            return {
+              id: entry.id || `cp-sub-${Date.now()}-${idx + 1}`,
+              subject: entry.subject || resolvedSubject,
+              level: entryLvl,
+              subLevelLabel: entry.subLevelLabel || getSchoolLevelDisplay(entryLvl, entryGrd).subLabel,
+              grade: entryGrd,
+              phase: entryPhs,
+              jpPerWeek: Number(entry.jpPerWeek) || resolvedJp,
+              totalHoursPerYear: Number(entry.totalHoursPerYear) || resolvedHours,
+              cpText: entry.cpText || `Capaian Pembelajaran ${entry.subject || resolvedSubject} ${entryLvl} (${entryPhs})`,
+              elements: entry.elements || resData.elements,
+              materialsSem1: eSem1,
+              materialsSem2: eSem2,
+            };
+          })
+        : [
+            {
+              id: `cp-sub-${Date.now()}-1`,
+              subject: resolvedSubject,
+              level: resolvedLevel,
+              subLevelLabel: resolvedSubLevelLabel,
+              grade: resolvedGrade,
+              phase: resolvedPhase,
+              jpPerWeek: resolvedJp,
+              totalHoursPerYear: resolvedHours,
+              materialsSem1: sem1Items,
+              materialsSem2: sem2Items,
+            },
+          ];
+
+      const resolvedCpText =
+        rawTextContent.trim() ||
+        resData.extractedCpText ||
+        result?.rawText ||
+        resData.executiveSummary ||
+        `Capaian Pembelajaran Mata Pelajaran ${resolvedSubject} ${resolvedLevel} (${resolvedPhase})`;
+      if (!rawTextContent.trim() && (resData.extractedCpText || result?.rawText)) {
+        setRawTextContent(resData.extractedCpText || result?.rawText);
+      }
+
+      // Ensure ALL subjects present in raw CP text are extracted and merged into analyzedSubjects
+      if (resolvedCpText) {
+        const textHeuristic = analyzeCPTextHeuristic({
+          fileName: fileName.trim() || `Capaian Pembelajaran ${resolvedSubject}`,
+          rawText: resolvedCpText,
+          subjectHint: resolvedSubject,
+          levelHint: resolvedLevel,
+          gradeHint: resolvedGrade,
+          phaseHint: resolvedPhase,
+          totalHoursHint: resolvedHours,
+          jpPerWeekHint: resolvedJp,
+          getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+        });
+        analyzedSubjects = mergeAnalyzedSubjects(analyzedSubjects, textHeuristic.analyzedSubjects);
+      }
+
+      // Batch-analyze any additional files inside an uploaded Folder CP so every subject file enters analyzedSubjects & Catalog
+      if (folderFiles.length > 1) {
+        for (let fIdx = 1; fIdx < folderFiles.length; fIdx++) {
+          const extraFile = folderFiles[fIdx];
+          try {
+            const extraMeta = detectCPMetadataFromName(extraFile.name);
+            let extraText = '';
+            try {
+              const parsedExtra = await UniversalFileParser.parseFile(extraFile);
+              extraText = parsedExtra.extractedText || '';
+            } catch {
+              extraText = '';
+            }
+            const extraHeuristic = analyzeCPTextHeuristic({
+              fileName: extraFile.name,
+              rawText: extraText,
+              subjectHint: extraMeta.subject,
+              levelHint: extraMeta.level,
+              gradeHint: extraMeta.grade,
+              phaseHint: extraMeta.phase,
+              totalHoursHint: extraMeta.level === 'SD' ? 144 : 108,
+              jpPerWeekHint: extraMeta.level === 'SD' ? 4 : 3,
+              getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+            });
+            analyzedSubjects = mergeAnalyzedSubjects(analyzedSubjects, extraHeuristic.analyzedSubjects);
+          } catch (extraErr) {
+            console.warn('Gagal menganalisis file tambahan dalam Folder CP:', extraFile.name, extraErr);
+          }
+        }
+      }
+
       const finalMaster: ActiveMasterCPData = {
         id: `cp-master-${Date.now()}`,
-        fileName: fileName || `Dokumen CP ${resolvedSubject} ${resolvedPhase}`,
+        fileName: fileName.trim() || `Dokumen CP ${resolvedSubject} ${resolvedPhase}`,
+        folderName: folderName.trim() || undefined,
+        docNumber: docNumber.trim() || undefined,
+        uploadedByRole: currentUser.role,
+        uploadedByName: currentUser.name,
         fileType,
         fileSize,
         uploadedAt: new Date().toISOString(),
         level: resolvedLevel,
+        subLevelLabel: resolvedSubLevelLabel,
         grade: resolvedGrade,
         phase: resolvedPhase,
         subject: resolvedSubject,
@@ -531,7 +794,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
         academicYear: '2025/2026',
         totalHoursPerYear: resolvedHours,
         jpPerWeek: resolvedJp,
-        cpText: rawTextContent || resData.executiveSummary || `Capaian Pembelajaran Mata Pelajaran ${resolvedSubject} ${resolvedLevel} (${resolvedPhase})`,
+        cpText: resolvedCpText,
         elements: resData.elements || [
           {
             name: 'Pemahaman Konsep',
@@ -548,7 +811,8 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
         ],
         materialsSem1: sem1Items,
         materialsSem2: sem2Items,
-        executiveSummary: resData.executiveSummary || `Analisis Capaian Pembelajaran ${resolvedSubject} jenjang ${resolvedLevel} ${resolvedPhase}.`,
+        analyzedSubjects,
+        executiveSummary: resData.executiveSummary || `Analisis Capaian Pembelajaran ${resolvedSubject} jenjang ${resolvedSubLevelLabel} (${resolvedPhase}).`,
         fullMarkdownReport: resData.fullMarkdownReport || '',
         kktpSummary: resData.kktpSummary,
         deepLearningNotes: 'Integrasi Mindful, Meaningful, & Joyful Learning dengan penguatan 6 Dimensi Karakter (6C).',
@@ -556,7 +820,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
         lastSyncedAt: new Date().toISOString(),
       };
 
-      // Save to Active Master CP Storage
+      // Save to Active Master CP Storage (also updates MASTER_CP_CATALOG for analyzedSubjects)
       StorageService.setActiveMasterCP(finalMaster);
 
       // Sinkronkan ke Profil Guru Mapel
@@ -607,6 +871,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
       try {
         window.dispatchEvent(new Event('storage'));
         window.dispatchEvent(new CustomEvent('master-cp-updated', { detail: finalMaster }));
+        window.dispatchEvent(new Event('master-cp-catalog-updated'));
       } catch (e) {
         // ignore
       }
@@ -1533,13 +1798,22 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
               <span className="text-[10px] text-emerald-400 font-mono font-bold">Semua Format (Word, Excel, PDF, Gambar, Teks)</span>
             </div>
 
-            {/* Hidden Input */}
+            {/* Hidden Inputs: Single File & Folder CP */}
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
               disabled={!canUpload}
               accept=".pdf,.docx,.doc,.dotx,.xlsx,.xls,.csv,.tsv,.ods,.pptx,.ppt,.txt,.md,.rtf,.html,.xml,.json,.jpg,.jpeg,.png,.webp,.bmp"
+              className="hidden"
+            />
+            <input
+              type="file"
+              ref={folderInputRef}
+              onChange={handleFolderChange}
+              disabled={!canUpload}
+              {...({ webkitdirectory: '', directory: '' } as any)}
+              multiple
               className="hidden"
             />
 
@@ -1561,15 +1835,36 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-white">
-                    {canUpload ? 'Klik atau seret file CP ke sini' : 'Pengunggahan Dibatasi untuk Administrator'}
+                    {canUpload ? 'Klik atau seret file / folder CP ke sini' : 'Pengunggahan Dibatasi untuk Administrator'}
                   </p>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    Mendukung semua format: <span className="text-indigo-300">Word (.docx/.doc), Excel (.xlsx/.xls/.csv), PDF, PowerPoint, Gambar / Scan, dan Teks</span>
+                    Mendukung file tunggal maupun <span className="text-amber-300 font-semibold">Folder CP</span>: <span className="text-indigo-300">Word (.docx/.doc), Excel (.xlsx/.xls/.csv), PDF, PowerPoint, Gambar / Scan, dan Teks</span>
                   </p>
                 </div>
                 {canUpload && (
-                  <div className="inline-block px-3 py-1 bg-slate-800 group-hover:bg-indigo-600/30 rounded-xl text-[10px] text-slate-300 font-semibold border border-slate-700 transition">
-                    Pilih File dari Komputer
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-indigo-600/40 rounded-xl text-[11px] text-slate-200 font-semibold border border-slate-700 hover:border-indigo-500/50 transition cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Pilih File CP</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        folderInputRef.current?.click();
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/30 rounded-xl text-[11px] text-amber-300 font-bold border border-amber-500/40 transition cursor-pointer"
+                    >
+                      <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Upload Folder CP</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -1578,29 +1873,139 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
-                      <FileText className="w-5 h-5" />
+                      {folderFiles.length > 0 ? <FolderOpen className="w-5 h-5 text-amber-400" /> : <FileText className="w-5 h-5" />}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-white truncate max-w-[200px]">{fileName}</p>
+                      <p className="text-xs font-bold text-white truncate max-w-[200px]">{fileName || file.name}</p>
                       <p className="text-[10px] text-slate-400 font-mono">
-                        {(fileSize / 1024).toFixed(1)} KB • {fileName.split('.').pop()?.toUpperCase()}
+                        {(fileSize / 1024).toFixed(1)} KB • {(fileName || file.name).split('.').pop()?.toUpperCase()}
+                        {folderName ? ` • Folder: ${folderName}` : ''}
                       </p>
                     </div>
                   </div>
                   {canUpload && (
-                    <button
-                      onClick={handleClearFile}
-                      className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition"
-                      title="Hapus / Ganti File"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => folderInputRef.current?.click()}
+                        className="px-2 py-1 text-[10px] font-bold text-amber-300 bg-amber-500/10 hover:bg-amber-500/25 border border-amber-500/30 rounded-lg transition"
+                        title="Pilih Folder CP Lain"
+                      >
+                        Ganti Folder
+                      </button>
+                      <button
+                        onClick={handleClearFile}
+                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition"
+                        title="Hapus / Ganti File"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
+
+                {/* Daftar File di dalam Folder CP yang Diupload */}
+                {folderFiles.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-slate-900/90 border border-amber-500/30 space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-amber-300">
+                      <span className="flex items-center gap-1">
+                        <FolderOpen className="w-3.5 h-3.5" />
+                        <span>Isi Folder &ldquo;{folderName}&rdquo; ({folderFiles.length} file)</span>
+                      </span>
+                      <span className="text-emerald-400">Klik file untuk dianalisis</span>
+                    </div>
+                    <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
+                      {folderFiles.map((f, idx) => {
+                        const isSelected = file?.name === f.name && file?.size === f.size;
+                        return (
+                          <button
+                            key={`${f.name}-${idx}`}
+                            type="button"
+                            onClick={() => processSelectedFile(f, folderName)}
+                            className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[11px] transition text-left ${
+                              isSelected
+                                ? 'bg-indigo-600/30 border border-indigo-400/50 text-white font-bold'
+                                : 'bg-slate-950/70 hover:bg-slate-800 border border-slate-800 text-slate-300'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-600/20 text-emerald-300 font-mono text-[10px] shrink-0">
+                                No. {idx + 1}
+                              </span>
+                              <span className="truncate">{f.name}</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                              {(f.size / 1024).toFixed(0)} KB
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center space-x-2 text-[11px] text-emerald-400 bg-emerald-950/40 p-2 rounded-xl border border-emerald-800/40">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  <span>File siap diekstrak & dianalisis mendalam progres 0 - 100%</span>
+                  <span>File siap diekstrak &amp; dianalisis mendalam progres 0 - 100%</span>
                 </div>
+              </div>
+            )}
+
+            {/* Mengisi Nama File CP & Nomor Dokumen */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 pt-1">
+              <div className="sm:col-span-7 space-y-1">
+                <label className="block text-slate-300 text-[11px] font-bold">
+                  Nama File CP <span className="text-emerald-400 font-normal">(Bisa diisi / diedit manual)</span>
+                </label>
+                <input
+                  type="text"
+                  disabled={!canUpload}
+                  placeholder="Contoh: Dokumen_CP_Pendidikan_Digital_Fase_E.docx"
+                  value={fileName}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFileName(val);
+                    const meta = detectCPMetadataFromName(val);
+                    if (meta.subject !== subject) setSubject(meta.subject);
+                  }}
+                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-xs disabled:opacity-60"
+                />
+              </div>
+
+              <div className="sm:col-span-5 space-y-1">
+                <label className="block text-slate-300 text-[11px] font-bold">
+                  No. / Nomor CP <span className="text-slate-500 font-normal">(Opsional)</span>
+                </label>
+                <input
+                  type="text"
+                  disabled={!canUpload}
+                  placeholder="Contoh: 020/H/KR/2026 atau 01"
+                  value={docNumber}
+                  onChange={(e) => setDocNumber(e.target.value)}
+                  className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 text-xs disabled:opacity-60"
+                />
+              </div>
+            </div>
+
+            {isAdmin && (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={handleSaveManualFileNameAndNo}
+                  disabled={!fileName.trim()}
+                  className="px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/35 disabled:opacity-40 text-emerald-300 border border-emerald-500/40 rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Simpan Nama File &amp; No. ke Ucapan Selamat</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => folderInputRef.current?.click()}
+                  className="px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>Upload Folder CP</span>
+                </button>
               </div>
             )}
 
@@ -1649,7 +2054,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
               <button
                 type="button"
                 onClick={handleStartAnalysis}
-                disabled={!canUpload || isAnalyzing || (!file && !rawTextContent.trim() && !subject.trim())}
+                disabled={!canUpload || isAnalyzing || (!file && !rawTextContent.trim() && !fileName.trim() && !subject.trim())}
                 className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-bold flex items-center justify-center space-x-2 transition shadow-lg shadow-blue-600/30 disabled:opacity-50 text-xs sm:text-sm"
               >
                 {isAnalyzing ? (
@@ -1674,6 +2079,56 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
               </p>
             </div>
           </div>
+
+          {/* DAFTAR FILE CP ADMIN YANG TAMPIL DI UCAPAN SELAMAT */}
+          {isAdmin && adminUploadedCPs.length > 0 && (
+            <div className="bg-slate-900 p-4 rounded-3xl border border-emerald-500/30 space-y-3 shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-extrabold text-white">
+                    Daftar File CP Admin ({adminUploadedCPs.length})
+                  </span>
+                </div>
+                <span className="text-[10px] text-emerald-400 font-semibold">
+                  Tampil di Ucapan Selamat
+                </span>
+              </div>
+              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                {adminUploadedCPs.map((item) => (
+                  <div
+                    key={item.id || `${item.no}-${item.fileName}`}
+                    className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-950 border border-slate-800 text-xs"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 font-mono font-bold text-[10px] shrink-0">
+                        No. {item.no}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-200 truncate text-[11px]" title={item.fileName}>
+                          {item.fileName}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400">
+                          {item.docNumber && <span>No. Dok: {item.docNumber}</span>}
+                          {item.folderName && (
+                            <span className="text-amber-300">• Folder: {item.folderName}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAdminUploadedCPs(StorageService.removeAdminUploadedCP(item.id))}
+                      className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition shrink-0"
+                      title="Hapus dari daftar Ucapan Selamat"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ========================================================================= */}
@@ -1700,9 +2155,26 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                   <h3 className="text-base sm:text-lg font-black text-white">
                     {masterData.subject} ({masterData.level} - {masterData.phase}, Kelas {masterData.grade})
                   </h3>
+                  {masterData.subLevelLabel && (
+                    <p className="text-[11px] text-cyan-300 font-semibold mt-0.5">
+                      Jenjang: {masterData.subLevelLabel}
+                    </p>
+                  )}
                   <p className="text-xs text-slate-300 mt-1">
                     Dokumen: <span className="text-indigo-300 font-semibold">{masterData.fileName}</span> • Total Alokasi: <span className="text-emerald-400 font-bold">{masterData.totalHoursPerYear} JP/Tahun ({masterData.jpPerWeek} JP/Minggu)</span>
                   </p>
+                  {masterData.analyzedSubjects && masterData.analyzedSubjects.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {masterData.analyzedSubjects.map((subItem, idx) => (
+                        <span
+                          key={`${subItem.subject}-${idx}`}
+                          className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-200 font-semibold"
+                        >
+                          {subItem.subject} • Sem 1: {subItem.materialsSem1?.length || 0} Bab • Sem 2: {subItem.materialsSem2?.length || 0} Bab
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* SINKRONISASI KE SELURUH PERANGKAT AJAR BUTTONS */}
@@ -2012,6 +2484,20 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                             ))}
                           </div>
                         )}
+                        {el.essentialMaterials && el.essentialMaterials.length > 0 && (
+                          <div className="pt-1.5 border-t border-slate-800/70">
+                            <span className="text-[9px] uppercase tracking-wider font-bold text-emerald-400 block mb-1">
+                              Lingkup Materi Ajar Sesuai CP:
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {el.essentialMaterials.map((em, ei) => (
+                                <span key={ei} className="px-2 py-0.5 bg-emerald-950/60 border border-emerald-700/40 text-emerald-300 rounded text-[10px] font-semibold">
+                                  {em}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2026,16 +2512,21 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-indigo-300 text-xs flex items-center space-x-1.5">
                         <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                        <span>Semester 1 (Ganjil) — {masterData.materialsSem1.length} TP ({masterData.materialsSem1.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0)} JP)</span>
+                        <span>Semester 1 (Ganjil) — {masterData.materialsSem1.length} Bab/TP ({masterData.materialsSem1.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0)} JP)</span>
                       </span>
                     </div>
                     <div className="space-y-2">
                       {masterData.materialsSem1.map((m, idx) => (
                         <div key={idx} className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-1">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-2">
                             <span className="font-bold text-white text-xs">{m.tpCode}: {m.essentialMaterial}</span>
-                            <span className="text-[10px] font-mono text-emerald-400 font-bold">{m.allocatedHours} JP</span>
+                            <span className="text-[10px] font-mono text-emerald-400 font-bold shrink-0">{m.allocatedHours} JP</span>
                           </div>
+                          {m.elementName && (
+                            <span className="inline-block px-2 py-0.5 rounded bg-indigo-950/70 border border-indigo-700/40 text-indigo-300 text-[10px] font-semibold">
+                              Elemen: {m.elementName}
+                            </span>
+                          )}
                           <p className="text-[11px] text-slate-300 leading-relaxed">{m.tpName}</p>
                           <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 pt-1">
                             <span>Asesmen: <span className="text-slate-300">{m.assessmentStrategy}</span></span>
@@ -2050,16 +2541,21 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-violet-300 text-xs flex items-center space-x-1.5">
                         <span className="w-2 h-2 rounded-full bg-violet-400" />
-                        <span>Semester 2 (Genap) — {masterData.materialsSem2.length} TP ({masterData.materialsSem2.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0)} JP)</span>
+                        <span>Semester 2 (Genap) — {masterData.materialsSem2.length} Bab/TP ({masterData.materialsSem2.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0)} JP)</span>
                       </span>
                     </div>
                     <div className="space-y-2">
                       {masterData.materialsSem2.map((m, idx) => (
                         <div key={idx} className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-1">
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-2">
                             <span className="font-bold text-white text-xs">{m.tpCode}: {m.essentialMaterial}</span>
-                            <span className="text-[10px] font-mono text-emerald-400 font-bold">{m.allocatedHours} JP</span>
+                            <span className="text-[10px] font-mono text-emerald-400 font-bold shrink-0">{m.allocatedHours} JP</span>
                           </div>
+                          {m.elementName && (
+                            <span className="inline-block px-2 py-0.5 rounded bg-violet-950/70 border border-violet-700/40 text-violet-300 text-[10px] font-semibold">
+                              Elemen: {m.elementName}
+                            </span>
+                          )}
                           <p className="text-[11px] text-slate-300 leading-relaxed">{m.tpName}</p>
                           <div className="flex flex-wrap gap-2 text-[10px] text-slate-400 pt-1">
                             <span>Asesmen: <span className="text-slate-300">{m.assessmentStrategy}</span></span>

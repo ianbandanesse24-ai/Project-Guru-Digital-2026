@@ -34,7 +34,18 @@ import {
 } from '../types';
 import { StorageService, addStorageListener } from '../lib/storage';
 import { parseTPList, generateAutoTPForMaterial, getDefaultTPText } from '../lib/curriculumData';
-import { getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
+import {
+  getSubjectPresetByGrade,
+} from '../lib/subjectMaterialPresets';
+import {
+  SCHOOL_LEVEL_OPTIONS,
+  TIERED_SCHOOL_LEVEL_CARDS,
+  getSchoolLevelGroup,
+  resolvePhaseByLevelAndGrade,
+  getGradeOptionsByLevel,
+  getSchoolLevelDisplay,
+  getDefaultSubjectsByLevel,
+} from '../lib/curriculumLevels';
 import { handleNumberInputFocus, parseNumberInput } from '../lib/inputUtils';
 import { KalenderPendidikanView } from './KalenderPendidikanView';
 import { CurriculumResetModal } from '../components/CurriculumResetModal';
@@ -43,31 +54,6 @@ import {
   AgamaIslamCPBanner,
   isAgamaIslamSubject,
 } from '../components/AgamaIslamCPUploadModal';
-
-const POPULAR_SUBJECTS = [
-  'Fisika',
-  'Matematika',
-  'Kimia',
-  'Biologi',
-  'Informatika',
-  'Bahasa Indonesia',
-  'Bahasa Inggris',
-  'Bahasa Jerman',
-  'Bahasa Arab',
-  'Bahasa Jepang',
-  'Bahasa Mandarin',
-  'Bahasa Perancis',
-  'Pendidikan Pancasila',
-  'Sejarah',
-  'Geografi',
-  'Ekonomi',
-  'Sosiologi',
-  'Pendidikan Jasmani & Kesehatan (PJOK)',
-  'Seni Budaya',
-  'Prakarya & Kewirausahaan',
-  'Pendidikan Agama & Budi Pekerti',
-  'IPAS (SD/SMP)',
-];
 
 export type ParameterKurikulumTab =
   | 'parameter_materi'
@@ -168,6 +154,8 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
   const [showAgamaIslamCPModal, setShowAgamaIslamCPModal] = useState(false);
   const [showSubjectSelector, setShowSubjectSelector] = useState(false);
   const [customSubjectInput, setCustomSubjectInput] = useState('');
+  const [catalogVersion, setCatalogVersion] = useState(0);
+  const isSyncingFromSelfRef = React.useRef(false);
 
   // Modal for adding chapter with automatic TP generation according to taught material
   const [addChapterModalSem, setAddChapterModalSem] = useState<1 | 2 | null>(null);
@@ -175,18 +163,36 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
   const [modalTPCount, setModalTPCount] = useState(2);
   const [modalAllocatedHours, setModalAllocatedHours] = useState(12);
 
-  // Available grades based on education level
+  // Daftar kelas & fase sesuai Tingkat Sekolah (SD 1-6, SMP 7-9, SMA 10-12, SMK 10-13)
   const availableGrades = useMemo(() => {
-    if (level === 'SD') return [1, 2, 3, 4, 5, 6];
-    if (level === 'SMP') return [7, 8, 9];
-    if (level === 'SMA') return [10, 11, 12];
-    if (level === 'SMK') return [10, 11, 12];
-    return [10, 11, 12];
+    return getGradeOptionsByLevel(level);
   }, [level]);
+
+  // Daftar Mata Pelajaran pada CP Master yang sesuai dengan Tingkat Sekolah terpilih
+  const cpMasterSubjects = useMemo(() => {
+    return StorageService.getSubjectsFromMasterCPByLevel(level);
+  }, [level, catalogVersion]);
+
+  // Daftar Mata Pelajaran referensi standar untuk Tingkat Sekolah terpilih (di luar yang sudah ada di CP Master)
+  const defaultLevelSubjects = useMemo(() => {
+    const base = getDefaultSubjectsByLevel(level);
+    const cpSet = new Set(cpMasterSubjects.map((s) => s.subject.trim().toLowerCase()));
+    return base.filter((s) => !cpSet.has(s.trim().toLowerCase()));
+  }, [level, cpMasterSubjects]);
+
+  const activeCPSubjectMatch = useMemo(() => {
+    const clean = subject.trim().toLowerCase();
+    return cpMasterSubjects.find((s) => s.subject.trim().toLowerCase() === clean) || null;
+  }, [cpMasterSubjects, subject]);
+
+  const levelDisplay = useMemo(() => getSchoolLevelDisplay(level, grade), [level, grade]);
+  const currentLevelGroup = getSchoolLevelGroup(level);
 
   // Sync with storage and synchronization broadcast changes
   useEffect(() => {
     const handleRefresh = (customDetail?: any) => {
+      setCatalogVersion((v) => v + 1);
+      if (isSyncingFromSelfRef.current) return;
       const updated = customDetail?.detail || StorageService.getActiveMasterCP();
       if (updated) {
         if (updated.subject) setSubject(updated.subject);
@@ -200,6 +206,8 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
       }
     };
 
+    const bumpCatalog = () => setCatalogVersion((v) => v + 1);
+
     const unsub = addStorageListener(() => handleRefresh());
     const onSync = (e: any) => handleRefresh(e);
     const onMaster = (e: any) => handleRefresh(e);
@@ -207,73 +215,187 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
 
     window.addEventListener('curriculum-parameters-synced', onSync);
     window.addEventListener('master-cp-updated', onMaster);
+    window.addEventListener('master-cp-catalog-updated', bumpCatalog);
+    window.addEventListener('admin-cp-updated', bumpCatalog);
     window.addEventListener('school-profile-updated', onProf);
 
     return () => {
       unsub();
       window.removeEventListener('curriculum-parameters-synced', onSync);
       window.removeEventListener('master-cp-updated', onMaster);
+      window.removeEventListener('master-cp-catalog-updated', bumpCatalog);
+      window.removeEventListener('admin-cp-updated', bumpCatalog);
       window.removeEventListener('school-profile-updated', onProf);
     };
   }, []);
 
-  // Level change handler
+  // Level change handler: dahulukan Tingkat Sekolah -> otomatis filter & muat Mata Pelajaran dari CP Master
   const handleLevelChange = (newLevel: SchoolLevel) => {
-    setLevel(newLevel);
-    let newGrade = 10;
-    let newPhase = 'Fase E';
-    if (newLevel === 'SD') {
-      newGrade = 1;
-      newPhase = 'Fase A';
-    } else if (newLevel === 'SMP') {
-      newGrade = 7;
-      newPhase = 'Fase D';
-    } else if (newLevel === 'SMA' || newLevel === 'SMK') {
-      newGrade = 10;
-      newPhase = 'Fase E';
-    }
-    setGrade(newGrade);
-    setPhase(newPhase);
+    const levelOpt = SCHOOL_LEVEL_OPTIONS.find((o) => o.level === newLevel) || SCHOOL_LEVEL_OPTIONS[2];
+    const masterEntries = StorageService.getSubjectsFromMasterCPByLevel(newLevel);
+    const currentInMaster = masterEntries.find(
+      (entry) => entry.subject.trim().toLowerCase() === subject.trim().toLowerCase()
+    );
+    const pickedMaster = currentInMaster || masterEntries[0] || null;
 
-    // Apply preset
-    const preset = getSubjectPresetByGrade(subject, newLevel as EducationLevel, newGrade);
-    setMaterialsSem1((preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` })));
-    setMaterialsSem2((preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` })));
+    const validGrades = getGradeOptionsByLevel(newLevel).map((g) => g.grade);
+    let nextGrade = levelOpt.defaultGrade;
+    if (pickedMaster && validGrades.includes(Number(pickedMaster.grade))) {
+      nextGrade = Number(pickedMaster.grade);
+    }
+    const nextPhase = resolvePhaseByLevelAndGrade(newLevel, nextGrade);
+
+    let nextSubject = subject;
+    if (pickedMaster) {
+      nextSubject = pickedMaster.subject;
+    } else {
+      const levelDefaults = getDefaultSubjectsByLevel(newLevel);
+      const stillValid = levelDefaults.some(
+        (s) => s.toLowerCase() === subject.trim().toLowerCase()
+      );
+      if (!stillValid) {
+        nextSubject = levelDefaults[0] || 'Pendidikan Pancasila';
+      }
+    }
+
+    const nextJp = pickedMaster?.jpPerWeek || levelOpt.defaultJpPerWeek || jpPerWeek || 3;
+    const nextTimeAlloc = `2 x ${levelOpt.defaultMinutesPerJp}`;
+
+    let sem1: CPMaterialItem[] = [];
+    let sem2: CPMaterialItem[] = [];
+
+    if (
+      pickedMaster &&
+      ((pickedMaster.materialsSem1?.length || 0) > 0 || (pickedMaster.materialsSem2?.length || 0) > 0)
+    ) {
+      sem1 = (pickedMaster.materialsSem1 || []).map((m, idx) => ({
+        ...m,
+        id: m.id || `mat-1-${idx + 1}`,
+      }));
+      sem2 = (pickedMaster.materialsSem2 || []).map((m, idx) => ({
+        ...m,
+        id: m.id || `mat-2-${idx + 1}`,
+      }));
+    } else {
+      const preset = getSubjectPresetByGrade(nextSubject, newLevel as EducationLevel, nextGrade);
+      sem1 = (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
+      sem2 = (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
+    }
+
+    setLevel(newLevel);
+    setSubject(nextSubject);
+    setGrade(nextGrade);
+    setPhase(nextPhase);
+    setJpPerWeek(nextJp);
+    setTimeAllocationPerWeek(nextTimeAlloc);
+    setMaterialsSem1(sem1);
+    setMaterialsSem2(sem2);
+    setShowSubjectSelector(false);
+
+    const lvlLabel = getSchoolLevelDisplay(newLevel, nextGrade).shortLabel;
+    persistAndSyncParameters(
+      sem1,
+      sem2,
+      nextJp,
+      pickedMaster
+        ? `Tingkat Sekolah "${lvlLabel}" dipilih. Mata pelajaran mengikuti CP Master: "${nextSubject}" (${nextPhase}, Kelas ${nextGrade}) dengan ${sem1.length} Bab Sem 1 & ${sem2.length} Bab Sem 2.`
+        : `Tingkat Sekolah "${lvlLabel}" dipilih (${nextPhase}, Kelas ${nextGrade}). Daftar mata pelajaran & materi preset telah disesuaikan.`,
+      {
+        subject: nextSubject,
+        level: newLevel,
+        grade: nextGrade,
+        phase: nextPhase,
+        jpPerWeek: nextJp,
+        timeAllocationPerWeek: nextTimeAlloc,
+      }
+    );
   };
 
   // Grade change handler
   const handleGradeChange = (newGrade: number) => {
+    const newPhase = resolvePhaseByLevelAndGrade(level, newGrade);
     setGrade(newGrade);
-    let newPhase = phase;
-    if (level === 'SD') {
-      if (newGrade <= 2) newPhase = 'Fase A';
-      else if (newGrade <= 4) newPhase = 'Fase B';
-      else newPhase = 'Fase C';
-    } else if (level === 'SMP') {
-      newPhase = 'Fase D';
-    } else if (level === 'SMA' || level === 'SMK') {
-      if (newGrade === 10) newPhase = 'Fase E';
-      else newPhase = 'Fase F';
-    }
     setPhase(newPhase);
 
-    const preset = getSubjectPresetByGrade(subject, level as EducationLevel, newGrade);
-    setMaterialsSem1((preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` })));
-    setMaterialsSem2((preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` })));
+    const masterEntry = StorageService.findMasterCPEntry(subject, level, newGrade);
+    let sem1: CPMaterialItem[] = [];
+    let sem2: CPMaterialItem[] = [];
+    if (
+      masterEntry &&
+      Number(masterEntry.grade) === Number(newGrade) &&
+      ((masterEntry.materialsSem1?.length || 0) > 0 || (masterEntry.materialsSem2?.length || 0) > 0)
+    ) {
+      sem1 = (masterEntry.materialsSem1 || []).map((m, idx) => ({
+        ...m,
+        id: m.id || `mat-1-${idx + 1}`,
+      }));
+      sem2 = (masterEntry.materialsSem2 || []).map((m, idx) => ({
+        ...m,
+        id: m.id || `mat-2-${idx + 1}`,
+      }));
+    } else {
+      const preset = getSubjectPresetByGrade(subject, level as EducationLevel, newGrade);
+      sem1 = (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
+      sem2 = (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
+    }
+
+    setMaterialsSem1(sem1);
+    setMaterialsSem2(sem2);
+    persistAndSyncParameters(
+      sem1,
+      sem2,
+      jpPerWeek,
+      `Kelas ${newGrade} (${newPhase}) diterapkan dan materi Semester 1 & 2 disinkronkan.`,
+      {
+        grade: newGrade,
+        phase: newPhase,
+      }
+    );
   };
 
-  // Subject change handler
+  // Subject change handler (mengambil Bab/lingkup materi dari CP Master jika tersedia untuk Tingkat Sekolah aktif)
   const handleSubjectChange = (newSubject: string) => {
     const cleanSub = newSubject.trim();
     if (!cleanSub) return;
-    setSubject(cleanSub);
-    const preset = getSubjectPresetByGrade(cleanSub, level as EducationLevel, grade);
-    const sem1 = (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
-    const sem2 = (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
-    const targetJp = preset.jpPerWeek || jpPerWeek || 3;
-    if (preset.jpPerWeek && preset.jpPerWeek !== jpPerWeek) {
-      setJpPerWeek(preset.jpPerWeek);
+
+    const masterEntry = StorageService.findMasterCPEntry(cleanSub, level, grade);
+    const validGrades = getGradeOptionsByLevel(level).map((g) => g.grade);
+    const nextGrade =
+      masterEntry && validGrades.includes(Number(masterEntry.grade))
+        ? Number(masterEntry.grade)
+        : grade;
+    const nextPhase = resolvePhaseByLevelAndGrade(level, nextGrade);
+
+    let sem1: CPMaterialItem[] = [];
+    let sem2: CPMaterialItem[] = [];
+    let targetJp = jpPerWeek || 3;
+    let sourceLabel = 'preset standar';
+
+    if (
+      masterEntry &&
+      ((masterEntry.materialsSem1?.length || 0) > 0 || (masterEntry.materialsSem2?.length || 0) > 0)
+    ) {
+      sem1 = (masterEntry.materialsSem1 || []).map((m, idx) => ({
+        ...m,
+        id: m.id || `mat-1-${idx + 1}`,
+      }));
+      sem2 = (masterEntry.materialsSem2 || []).map((m, idx) => ({
+        ...m,
+        id: m.id || `mat-2-${idx + 1}`,
+      }));
+      targetJp = masterEntry.jpPerWeek || targetJp;
+      sourceLabel = 'CP Master';
+    } else {
+      const preset = getSubjectPresetByGrade(cleanSub, level as EducationLevel, nextGrade);
+      sem1 = (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
+      sem2 = (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
+      targetJp = preset.jpPerWeek || targetJp;
     }
+
+    setSubject(cleanSub);
+    setGrade(nextGrade);
+    setPhase(nextPhase);
+    setJpPerWeek(targetJp);
     setMaterialsSem1(sem1);
     setMaterialsSem2(sem2);
     setShowSubjectSelector(false);
@@ -282,7 +404,14 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
       sem1,
       sem2,
       targetJp,
-      `Mata Pelajaran "${cleanSub}" berhasil dipilih & materi Bab/TP otomatis disinkronkan ke Distribusi Alokasi Waktu, PROSEM, PROTA, & seluruh perangkat ajar!`
+      `Mata Pelajaran "${cleanSub}" (${levelDisplay.shortLabel} • Kelas ${nextGrade} / ${nextPhase}) berhasil dipilih & materi Bab Semester 1 & 2 dari ${sourceLabel} otomatis disinkronkan!`,
+      {
+        subject: cleanSub,
+        level,
+        grade: nextGrade,
+        phase: nextPhase,
+        jpPerWeek: targetJp,
+      }
     );
     if (isAgamaIslamSubject(cleanSub)) {
       setShowAgamaIslamCPModal(true);
@@ -312,16 +441,31 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     nextSem1: CPMaterialItem[],
     nextSem2: CPMaterialItem[],
     nextJpPerWeek: number = jpPerWeek,
-    customToastMessage?: string
+    customToastMessage?: string,
+    overrides?: {
+      subject?: string;
+      level?: SchoolLevel;
+      grade?: number;
+      phase?: string;
+      jpPerWeek?: number;
+      timeAllocationPerWeek?: string;
+    }
   ) => {
+    const targetSubject = overrides?.subject ?? subject;
+    const targetLevel = overrides?.level ?? level;
+    const targetGrade = overrides?.grade ?? grade;
+    const targetPhase = overrides?.phase ?? phase;
+    const targetJp = overrides?.jpPerWeek ?? nextJpPerWeek;
+    const targetTimeAlloc = overrides?.timeAllocationPerWeek ?? timeAllocationPerWeek;
+
     const currentMaster = StorageService.getActiveMasterCP();
     const syncMaterialsSem1 = nextSem1.map((m) => ({
       ...m,
-      meetingCount: Math.max(1, Math.round((Number(m.allocatedHours) || 0) / (nextJpPerWeek || 1))),
+      meetingCount: Math.max(1, Math.round((Number(m.allocatedHours) || 0) / (targetJp || 1))),
     }));
     const syncMaterialsSem2 = nextSem2.map((m) => ({
       ...m,
-      meetingCount: Math.max(1, Math.round((Number(m.allocatedHours) || 0) / (nextJpPerWeek || 1))),
+      meetingCount: Math.max(1, Math.round((Number(m.allocatedHours) || 0) / (targetJp || 1))),
     }));
 
     const totSem1 = syncMaterialsSem1.reduce((sum, m) => sum + (m.allocatedHours || 0), 0);
@@ -329,7 +473,7 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
 
     const updatedMaster: ActiveMasterCPData = {
       id: currentMaster?.id || `master-cp-${Date.now()}`,
-      fileName: currentMaster?.fileName || `${subject}_Kelas_${grade}_${level}.pdf`,
+      fileName: currentMaster?.fileName || `${targetSubject}_Kelas_${targetGrade}_${targetLevel}.pdf`,
       uploadedAt: currentMaster?.uploadedAt || new Date().toISOString(),
       teacherName: currentMaster?.teacherName || schoolProfile.teacherName || 'Guru Pengampu',
       teacherNip: currentMaster?.teacherNip || schoolProfile.teacherNip || '-',
@@ -338,20 +482,30 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
       schoolName: currentMaster?.schoolName || schoolProfile.schoolName || 'SMA NEGERI 30 MALUKU TENGAH',
       academicYear: currentMaster?.academicYear || schoolProfile.academicYear || '2025/2026',
       city: currentMaster?.city || schoolProfile.city || 'Maluku Tengah',
-      subject,
-      level,
-      grade,
-      phase,
-      jpPerWeek: nextJpPerWeek,
-      timeAllocationPerWeek,
+      subject: targetSubject,
+      level: targetLevel,
+      subLevelLabel: getSchoolLevelDisplay(targetLevel, targetGrade).subLabel,
+      grade: targetGrade,
+      phase: targetPhase,
+      jpPerWeek: targetJp,
+      timeAllocationPerWeek: targetTimeAlloc,
       materialsSem1: syncMaterialsSem1,
       materialsSem2: syncMaterialsSem2,
       totalHoursPerYear: totSem1 + totSem2,
       cpText: currentMaster?.cpText || '',
       elements: currentMaster?.elements || [],
+      analyzedSubjects: currentMaster?.analyzedSubjects,
     };
 
-    StorageService.setActiveMasterCP(updatedMaster);
+    isSyncingFromSelfRef.current = true;
+    try {
+      StorageService.setActiveMasterCP(updatedMaster);
+    } finally {
+      setTimeout(() => {
+        isSyncingFromSelfRef.current = false;
+      }, 60);
+    }
+
     if (customToastMessage) {
       setSaveToast(customToastMessage);
       setTimeout(() => setSaveToast(null), 4500);
@@ -862,108 +1016,244 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
               )}
             </div>
 
-            {/* Parameter Badges Display */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs relative">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500 font-medium">Mata Pelajaran</span>
+            {/* Langkah 1: Pilih Tingkat Sekolah TERLEBIH DAHULU sebelum memilih Mata Pelajaran */}
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-800 flex items-center space-x-1.5">
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-black">1</span>
+                  <span>Pilih Tingkat Sekolah (Wajib dipilih sebelum Mata Pelajaran)</span>
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  Mata pelajaran otomatis menyesuaikan isi CP Master pada jenjang terpilih
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
+                {TIERED_SCHOOL_LEVEL_CARDS.map((card) => {
+                  const isActiveTier = currentLevelGroup === card.group;
+                  const masterCount = StorageService.getSubjectsFromMasterCPByLevel(card.primaryLevel).length;
+                  return (
+                    <button
+                      key={card.group}
+                      type="button"
+                      onClick={() => handleLevelChange(card.primaryLevel)}
+                      className={`p-3 rounded-xl border transition text-left w-full cursor-pointer flex flex-col justify-between ${
+                        isActiveTier
+                          ? 'bg-blue-600/10 border-blue-600 ring-1 ring-blue-500/40 shadow-xs'
+                          : 'bg-white border-slate-200 hover:border-blue-300'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className={`text-xs font-extrabold ${isActiveTier ? 'text-blue-800' : 'text-slate-900'}`}>
+                            {card.aliases}
+                          </span>
+                          {masterCount > 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold shrink-0">
+                              {masterCount} CP
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-600 font-semibold mt-0.5">{card.title}</div>
+                        <ul className="mt-1.5 space-y-0.5 text-[10px] text-slate-500 leading-snug">
+                          {card.phaseDetails.map((detail, dIdx) => (
+                            <li key={dIdx} className="flex items-start space-x-1">
+                              <span className="text-blue-500 font-bold">&bull;</span>
+                              <span>{detail}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Langkah 2: Mata Pelajaran (mengikuti Tingkat Sekolah & CP Master), Kelas/Fase, & Beban JP */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs pt-1">
+              {/* Mata Pelajaran (placed AFTER Tingkat Sekolah) */}
+              <div className="sm:col-span-5 bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1.5 relative">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-slate-600 font-bold flex items-center space-x-1.5">
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-black">2</span>
+                    <span>Mata Pelajaran ({levelDisplay.shortLabel})</span>
+                  </span>
                   <button
                     type="button"
                     onClick={() => setShowSubjectSelector(!showSubjectSelector)}
-                    className="text-[10px] text-blue-600 hover:text-blue-800 font-bold hover:underline"
-                    title="Ganti atau tulis mata pelajaran manual (misal: Bahasa Jerman)"
+                    className="text-[10px] text-blue-600 hover:text-blue-800 font-bold hover:underline cursor-pointer"
                   >
-                    {showSubjectSelector ? 'Tutup' : 'Ganti/Tulis'}
+                    {showSubjectSelector ? 'Tutup Manual' : 'Tulis Manual'}
                   </button>
                 </div>
-                <span className="font-bold text-blue-700 text-sm truncate block mt-0.5" title={subject}>
-                  {subject}
-                </span>
+
+                <select
+                  value={(() => {
+                    const lowerSub = subject.trim().toLowerCase();
+                    const cpMatch = cpMasterSubjects.find((s) => s.subject.trim().toLowerCase() === lowerSub);
+                    if (cpMatch) return cpMatch.subject;
+                    const defMatch = defaultLevelSubjects.find((s) => s.trim().toLowerCase() === lowerSub);
+                    if (defMatch) return defMatch;
+                    return '__CUSTOM_CURRENT__';
+                  })()}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '__MANUAL__') {
+                      setShowSubjectSelector(true);
+                    } else if (val !== '__CUSTOM_CURRENT__') {
+                      handleSubjectChange(val);
+                    }
+                  }}
+                  className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-blue-800 font-bold focus:outline-none focus:border-blue-600 text-xs"
+                >
+                  {cpMasterSubjects.length > 0 && (
+                    <optgroup label={`Semua Mapel dari CP yang Dianalisis — ${levelDisplay.shortLabel} (${cpMasterSubjects.length} Mapel)`}>
+                      {cpMasterSubjects.map((s) => (
+                        <option key={`cp-${s.subject}`} value={s.subject}>
+                          {s.subject}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label={`Referensi Mapel — ${levelDisplay.shortLabel}`}>
+                    {defaultLevelSubjects.map((s) => (
+                      <option key={`ref-${s}`} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {!cpMasterSubjects.some((s) => s.subject.trim().toLowerCase() === subject.trim().toLowerCase()) &&
+                    !defaultLevelSubjects.some((s) => s.trim().toLowerCase() === subject.trim().toLowerCase()) && (
+                      <option value="__CUSTOM_CURRENT__">{subject} (Kustom)</option>
+                    )}
+                  <option value="__MANUAL__">+ Tulis Mapel Manual Lainnya...</option>
+                </select>
+
+                <div className="flex flex-wrap items-center justify-between gap-1 text-[10px]">
+                  {activeCPSubjectMatch ? (
+                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                      Sesuai CP yang Dianalisis ({levelDisplay.shortLabel} • {cpMasterSubjects.length} Mapel Tersedia)
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-medium">
+                      {cpMasterSubjects.length > 0
+                        ? `Memuat ${cpMasterSubjects.length} mapel dari CP yang dianalisis (${levelDisplay.shortLabel})`
+                        : `Khusus jenjang ${levelDisplay.shortLabel}`}
+                    </span>
+                  )}
+                </div>
+
+                {cpMasterSubjects.length > 0 && (
+                  <div className="pt-1.5 border-t border-slate-100 space-y-1">
+                    <div className="text-[10px] font-bold text-slate-500 flex items-center justify-between">
+                      <span>Mapel dalam CP ({levelDisplay.shortLabel}):</span>
+                      <span className="text-emerald-700">{cpMasterSubjects.length} Mapel</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-0.5">
+                      {cpMasterSubjects.map((s) => {
+                        const isSelected = s.subject.trim().toLowerCase() === subject.trim().toLowerCase();
+                        return (
+                          <button
+                            key={`quick-${s.subject}`}
+                            type="button"
+                            onClick={() => handleSubjectChange(s.subject)}
+                            className={`px-2 py-0.5 rounded-md border text-[10px] font-semibold transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-400 hover:text-blue-700'
+                            }`}
+                          >
+                            {s.subject}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {showSubjectSelector && (
-                  <div className="absolute left-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-blue-200 p-3 z-30 space-y-2 text-xs animate-in fade-in zoom-in-95">
-                    <div className="flex items-center justify-between font-bold text-slate-800 border-b border-slate-100 pb-1.5">
-                      <span>Pilih / Tulis Mapel:</span>
-                      <button
-                        type="button"
-                        onClick={() => setShowSubjectSelector(false)}
-                        className="text-slate-400 hover:text-slate-600"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">Daftar Mapel Populer:</label>
-                      <select
-                        value={POPULAR_SUBJECTS.includes(subject) ? subject : 'Lainnya'}
-                        onChange={(e) => {
-                          if (e.target.value !== 'Lainnya') {
-                            handleSubjectChange(e.target.value);
+                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={customSubjectInput}
+                        onChange={(e) => setCustomSubjectInput(e.target.value)}
+                        placeholder={
+                          level === 'SMK'
+                            ? 'Misal: Teknik Komputer & Jaringan / Akuntansi'
+                            : level === 'SD'
+                            ? 'Misal: Bahasa Daerah / Muatan Lokal'
+                            : 'Misal: Antropologi / Bahasa Jerman'
+                        }
+                        className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && customSubjectInput.trim()) {
+                            handleSubjectChange(customSubjectInput.trim());
                           }
                         }}
-                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-semibold focus:outline-none focus:border-blue-600 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (customSubjectInput.trim()) {
+                            handleSubjectChange(customSubjectInput.trim());
+                          }
+                        }}
+                        className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shrink-0 cursor-pointer"
                       >
-                        {POPULAR_SUBJECTS.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                        <option value="Lainnya">-- Tulis Mapel Manual Lainnya --</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1 pt-1 border-t border-slate-100">
-                      <label className="block text-[10px] font-semibold text-slate-500">Tulis Manual (Contoh: Bahasa Jerman):</label>
-                      <div className="flex gap-1.5">
-                        <input
-                          type="text"
-                          value={customSubjectInput}
-                          onChange={(e) => setCustomSubjectInput(e.target.value)}
-                          placeholder="Misal: Bahasa Jerman"
-                          className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && customSubjectInput.trim()) {
-                              handleSubjectChange(customSubjectInput.trim());
-                            }
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (customSubjectInput.trim()) {
-                              handleSubjectChange(customSubjectInput.trim());
-                            }
-                          }}
-                          className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs shrink-0 cursor-pointer"
-                        >
-                          Terapkan
-                        </button>
-                      </div>
+                        Terapkan
+                      </button>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                <span className="text-[10px] text-slate-500 block font-medium">Jenjang & Kelas</span>
-                <span className="font-bold text-slate-800 text-sm block mt-0.5">
-                  {level} • Kelas {grade}
-                </span>
+              {/* Kelas & Fase Pembelajaran */}
+              <div className="sm:col-span-4 bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-600 font-bold">Kelas &amp; Fase ({levelDisplay.shortLabel})</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold">
+                    {phase}
+                  </span>
+                </div>
+                <select
+                  value={grade}
+                  onChange={(e) => handleGradeChange(Number(e.target.value))}
+                  className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-bold focus:outline-none focus:border-blue-600 text-xs"
+                >
+                  {availableGrades.map((gOpt) => (
+                    <option key={gOpt.grade} value={gOpt.grade}>
+                      {gOpt.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="text-[10px] text-slate-500 font-medium truncate" title={levelDisplay.subLabel}>
+                  {levelDisplay.subLabel}
+                </div>
               </div>
 
-              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                <span className="text-[10px] text-slate-500 block font-medium">Fase Pembelajaran</span>
-                <span className="font-bold text-indigo-700 text-sm block mt-0.5">
-                  {phase}
-                </span>
-              </div>
-
-              <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
-                <span className="text-[10px] text-slate-500 block font-medium">Beban JP & Pertemuan</span>
-                <span className="font-bold text-emerald-700 text-sm block mt-0.5">
-                  {jpPerWeek} JP/Mg ({timeAllocationPerWeek})
-                </span>
+              {/* Beban JP & Pertemuan */}
+              <div className="sm:col-span-3 bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
+                <span className="text-[10px] text-slate-600 block font-bold">Beban JP &amp; Alokasi</span>
+                <div className="flex items-center space-x-1.5">
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={jpPerWeek}
+                    onFocus={handleNumberInputFocus}
+                    onChange={(e) => {
+                      const val = parseNumberInput(e.target.value, 1, 1, 30);
+                      setJpPerWeek(val);
+                    }}
+                    className="w-16 px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-emerald-700 font-extrabold text-xs text-center focus:outline-none focus:border-blue-600"
+                  />
+                  <span className="text-xs font-bold text-slate-700">JP/Minggu</span>
+                </div>
+                <div className="text-[10px] font-semibold text-emerald-700">
+                  {timeAllocationPerWeek} &bull; ~{jpPerWeek * 36} JP/Thn
+                </div>
               </div>
             </div>
 

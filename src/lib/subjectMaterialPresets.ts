@@ -1,5 +1,6 @@
 import { CPMaterialItem, ActiveMasterCPData, CPDistributionPlan, CPReference, SchoolLevel } from '../types';
 import { StorageService } from './storage';
+import { resolvePhaseByLevelAndGrade } from './curriculumLevels';
 
 export interface SubjectPreset {
   subject: string;
@@ -2450,13 +2451,14 @@ export function getSubjectPresetByGrade(
   );
   if (exact) return exact;
 
-  // 2. Fuzzy match subject + grade (e.g. "Fisika SMA", "IPA SMP")
-  const subjectMatchWithGrade = SUBJECT_MATERIAL_PRESETS.find(
+  // 2. Fuzzy match subject + SAME level + grade
+  const sameLevelGrade = SUBJECT_MATERIAL_PRESETS.find(
     (p) =>
+      p.level === normLvl &&
       (normSub.includes(p.subject.toLowerCase()) || p.subject.toLowerCase().includes(normSub)) &&
       Number(p.grade) === numGrade
   );
-  if (subjectMatchWithGrade) return subjectMatchWithGrade;
+  if (sameLevelGrade) return sameLevelGrade;
 
   // 3. Match subject in same level (different grade) -> adapt TP codes to target grade
   const subjectMatchSameLevel = SUBJECT_MATERIAL_PRESETS.find(
@@ -2465,7 +2467,7 @@ export function getSubjectPresetByGrade(
       p.level === normLvl
   );
   if (subjectMatchSameLevel) {
-    const resolvedPhase = phase || (numGrade === 10 ? 'Fase E' : numGrade > 10 ? 'Fase F' : numGrade >= 7 ? 'Fase D' : numGrade >= 4 ? 'Fase B/C' : 'Fase A');
+    const resolvedPhase = phase || resolvePhaseByLevelAndGrade(normLvl, numGrade);
     return {
       ...subjectMatchSameLevel,
       grade: numGrade,
@@ -2481,7 +2483,38 @@ export function getSubjectPresetByGrade(
     };
   }
 
-  // 4. Dynamic Generation for any custom subject tailored to the selected grade!
+  // 4. Shared general subjects across SMA <-> SMK (e.g. Matematika, Bahasa Indonesia, Bahasa Inggris, Informatika, PJOK, Pendidikan Pancasila, Sejarah, Pendidikan Agama)
+  const isSmkOrSmaGeneral =
+    (normLvl === 'SMK' || normLvl === 'SMA') &&
+    /matematika|bahasa\s+indonesia|bahasa\s+inggris|informatika|sejarah|pjok|pendidikan\s+pancasila|pendidikan\s+agama/i.test(
+      normSub
+    );
+  if (isSmkOrSmaGeneral) {
+    const sharedMatch = SUBJECT_MATERIAL_PRESETS.find(
+      (p) =>
+        (p.level === 'SMA' || p.level === 'SMK') &&
+        (normSub.includes(p.subject.toLowerCase()) || p.subject.toLowerCase().includes(normSub))
+    );
+    if (sharedMatch) {
+      const resolvedPhase = phase || resolvePhaseByLevelAndGrade(normLvl, numGrade);
+      return {
+        ...sharedMatch,
+        level: normLvl,
+        grade: numGrade,
+        phase: resolvedPhase,
+        materialsSem1: sharedMatch.materialsSem1.map((m, idx) => ({
+          ...m,
+          tpCode: `TP.${numGrade}.1.${idx + 1}`,
+        })),
+        materialsSem2: sharedMatch.materialsSem2.map((m, idx) => ({
+          ...m,
+          tpCode: `TP.${numGrade}.2.${idx + 1}`,
+        })),
+      };
+    }
+  }
+
+  // 5. Dynamic Generation for any custom subject tailored to the selected level & grade!
   return generateDynamicGradePreset(subject || 'Mata Pelajaran', normLvl, numGrade, phase);
 }
 
@@ -2495,7 +2528,7 @@ export function generateDynamicGradePreset(
   customPhase?: string
 ): SubjectPreset {
   const numGrade = Number(grade) || (level === 'SD' ? 4 : level === 'SMP' ? 7 : 10);
-  const phase = customPhase || (numGrade === 10 ? 'Fase E' : numGrade > 10 ? 'Fase F' : numGrade >= 7 ? 'Fase D' : numGrade >= 4 ? 'Fase B/C' : 'Fase A');
+  const phase = customPhase || resolvePhaseByLevelAndGrade(level, numGrade);
   const cleanSubject = subject.trim() || 'Mata Pelajaran';
   const subLower = cleanSubject.toLowerCase();
 
@@ -2505,6 +2538,11 @@ export function generateDynamicGradePreset(
   const isMandarin = subLower.includes('mandarin') || subLower.includes('tionghoa') || subLower.includes('chinese');
   const isFrench = subLower.includes('perancis') || subLower.includes('prancis') || subLower.includes('french');
   const isLanguage = isGerman || isArabic || isJapanese || isMandarin || isFrench || subLower.includes('bahasa') || subLower.includes('sastra');
+  const isProjekIpasSmk = subLower.includes('projek ipas');
+  const isDasarKeahlianSmk = subLower.includes('dasar-dasar program keahlian') || subLower.includes('dasar keahlian');
+  const isKonsentrasiSmk = subLower.includes('konsentrasi keahlian');
+  const isPkkSmk = subLower.includes('projek kreatif') || subLower.includes('pkk smk');
+  const isPklSmk = subLower.includes('praktik kerja lapangan') || subLower.includes('pkl smk');
 
   let sem1Topics = [
     {
@@ -2553,6 +2591,201 @@ export function generateDynamicGradePreset(
       dl: `Meaningful: Internalisasi nilai luhur dan komitmen implementasi ${cleanSubject} berkelanjutan.`,
     },
   ];
+
+  if (isProjekIpasSmk) {
+    sem1Topics = [
+      {
+        title: 'Bab 1: Makhluk Hidup dan Lingkungannya serta Mitigasi Kebencanaan',
+        element: 'Menjelaskan Fenomena secara Ilmiah',
+        hours: 36,
+        assessment: 'Observasi Ekosistem & Uji Kinerja Proyek Lingkungan',
+        dl: 'Mindful: Kesadaran ekologis terhadap keseimbangan makhluk hidup di lingkungan kejuruan.',
+      },
+      {
+        title: 'Bab 2: Zat dan Perubahannya serta Energi Terapan di Industri',
+        element: 'Mendesain dan Mengevaluasi Penyelidikan Ilmiah',
+        hours: 36,
+        assessment: 'Praktikum Perubahan Zat & Analisis Efisiensi Energi',
+        dl: 'Meaningful: Keterkaitan perubahan materi & energi pada proses produksi kejuruan.',
+      },
+      {
+        title: 'Bab 3: Bumi dan Antariksa serta Sistem Peringatan Dini',
+        element: 'Menerjemahkan Data dan Bukti Ilmiah',
+        hours: 36,
+        assessment: 'Penilaian Proyek Data Klimatologi & Presentasi Kelompok',
+        dl: 'Joyful: Simulasi pemetaan mitigasi bencana berbasis data spasial.',
+      },
+    ];
+    sem2Topics = [
+      {
+        title: 'Bab 4: Keruangan, Konektivitas Antarruang, dan Potensi Ekonomi Lokal',
+        element: 'Menjelaskan Fenomena secara Ilmiah',
+        hours: 36,
+        assessment: 'Studi Kasus Konektivitas Rantai Pasok Lokal & Tes Formatif',
+        dl: 'Meaningful: Mengaitkan potensi geografis daerah dengan peluang usaha SMK.',
+      },
+      {
+        title: 'Bab 5: Interaksi Sosial, Komunikasi, Sosialisasi, dan Dinamika Sosial',
+        element: 'Mendesain dan Mengevaluasi Penyelidikan Ilmiah',
+        hours: 36,
+        assessment: 'Observasi Lapangan & Wawancara Komunitas Kerja',
+        dl: 'Mindful: Empati sosial dan etika komunikasi profesional di dunia kerja.',
+      },
+      {
+        title: 'Bab 6: Perilaku Ekonomi, Kesejahteraan, dan Projek IPAS Terintegrasi',
+        element: 'Menerjemahkan Data dan Bukti Ilmiah',
+        hours: 36,
+        assessment: 'Asesmen Sumatif Proyek Karya Terapan IPAS SMK',
+        dl: 'Joyful: Gelar karya inovasi produk terapan lintas bidang kejuruan.',
+      },
+    ];
+  } else if (isDasarKeahlianSmk) {
+    sem1Topics = [
+      {
+        title: 'Bab 1: Proses Bisnis, Budaya Kerja Industri, dan Etika Profesi Kejuruan',
+        element: 'Proses Bisnis & Wawasan Dunia Kerja',
+        hours: 54,
+        assessment: 'Studi Kasus Industri & Presentasi Alur Proses Bisnis',
+        dl: 'Mindful: Membangun kesadaran sikap kerja 5R/K3LH dan budaya mutu industri.',
+      },
+      {
+        title: 'Bab 2: Perkembangan Teknologi, Isu Global, dan Keselamatan Kerja (K3LH)',
+        element: 'Perkembangan Teknologi & K3LH',
+        hours: 54,
+        assessment: 'Simulasi Prosedur K3LH & Uji Kompetensi Praktik Dasar',
+        dl: 'Meaningful: Penerapan standar keselamatan kerja dan teknologi mutakhir industri 4.0.',
+      },
+      {
+        title: 'Bab 3: Profesi, Kewirausahaan (Technopreneur), dan Peluang Usaha Bidang Keahlian',
+        element: 'Technopreneurship & Peluang Usaha',
+        hours: 54,
+        assessment: 'Penyusunan Business Model Canvas Sederhana',
+        dl: 'Joyful: Eksplorasi ide rintisan usaha berbasis kompetensi keahlian.',
+      },
+    ];
+    sem2Topics = [
+      {
+        title: 'Bab 4: Teknik Dasar Proses Produksi, Pengoperasian Alat, dan Perawatan',
+        element: 'Teknik Dasar Bidang Keahlian',
+        hours: 54,
+        assessment: 'Praktik Bengkel / Laboratorium & Rubrik Unjuk Kerja',
+        dl: 'Meaningful: Penguasaan keterampilan prosedural alat dan mesin sesuai SOP industri.',
+      },
+      {
+        title: 'Bab 5: Standar Mutu, Pengukuran Teknis, dan Dokumentasi Pekerjaan',
+        element: 'Standar Mutu & Kontrol Kualitas',
+        hours: 54,
+        assessment: 'Tes Praktik Kalibrasi / Quality Control & Portofolio',
+        dl: 'Mindful: Ketelitian presisi dalam pengendalian mutu produk keahlian.',
+      },
+      {
+        title: 'Bab 6: Proyek Kolaboratif Dasar Kejuruan Berbasis Teaching Factory (TEFA)',
+        element: 'Praktik Terpadu TEFA',
+        hours: 54,
+        assessment: 'Asesmen Sumatif Proyek Produk/Jasa Standar Industri',
+        dl: 'Joyful: Produksi kolaboratif layanan/produk nyata bersama tim bengkel.',
+      },
+    ];
+  } else if (isKonsentrasiSmk) {
+    sem1Topics = [
+      {
+        title: 'Bab 1: Perancangan Teknis & SOP Produksi Konsentrasi Keahlian',
+        element: 'Perencanaan & Desain Teknis',
+        hours: 72,
+        assessment: 'Uji Rancangan Kerja & Validasi SOP Industri',
+        dl: 'Mindful: Perencanaan presisi sesuai spesifikasi teknis mitra industri (IDUKA).',
+      },
+      {
+        title: 'Bab 2: Implementasi Sistem, Eksekusi Produksi, dan Integrasi Teknologi Terapan',
+        element: 'Pelaksanaan Pekerjaan Keahlian',
+        hours: 72,
+        assessment: 'Uji Kompetensi Praktik Berbasis Job Sheet',
+        dl: 'Meaningful: Pemecahan masalah nyata pada lini produksi atau layanan keahlian.',
+      },
+    ];
+    sem2Topics = [
+      {
+        title: 'Bab 3: Pengujian, Pemeliharaan, Troubleshooting, dan Optimalisasi Kinerja',
+        element: 'Pengujian & Pemecahan Masalah Teknis',
+        hours: 72,
+        assessment: 'Praktik Troubleshooting & Laporan Audit Teknis',
+        dl: 'Mindful: Analisis akar masalah dan ketangguhan kerja profesional.',
+      },
+      {
+        title: 'Bab 4: Penjaminan Mutu, Uji Sertifikasi Kompetensi (UKK), dan Portofolio Karya',
+        element: 'Sertifikasi & Penjaminan Mutu',
+        hours: 72,
+        assessment: 'Simulasi Uji Kompetensi Keahlian (UKK) & Portofolio',
+        dl: 'Joyful: Showcase produk unggulan keahlian di hadapan praktisi industri.',
+      },
+    ];
+  } else if (isPkkSmk) {
+    sem1Topics = [
+      {
+        title: 'Bab 1: Peluang Usaha, Riset Pasar, dan Desain Purwarupa Produk/Jasa Kreatif',
+        element: 'Kegiatan Produksi & Riset Peluang',
+        hours: 45,
+        assessment: 'Presentasi Riset Pasar & Desain Purwarupa',
+        dl: 'Meaningful: Mengidentifikasi masalah konsumen nyata untuk solusi produk keahlian.',
+      },
+      {
+        title: 'Bab 2: Perencanaan Produksi Massal, HPP, Kemasan, dan Hak Kekayaan Intelektual (HaKI)',
+        element: 'Manajemen Produksi & HKI',
+        hours: 45,
+        assessment: 'Dokumen Rencana Usaha, Perhitungan HPP & Mockup Kemasan',
+        dl: 'Mindful: Ketelitian kalkulasi biaya produksi, titik impas (BEP), dan legalitas merek.',
+      },
+    ];
+    sem2Topics = [
+      {
+        title: 'Bab 3: Proses Produksi, Pengendalian Mutu, dan Pemasaran Digital (Digital Marketing)',
+        element: 'Produksi & Strategi Pemasaran',
+        hours: 45,
+        assessment: 'Uji Produk, Konten Kampanye Pemasaran & Penjualan',
+        dl: 'Joyful: Launching produk kreatif melalui kanal marketplace dan media sosial.',
+      },
+      {
+        title: 'Bab 4: Laporan Keuangan Usaha, Evaluasi Laba/Rugi, dan Pengembangan Bisnis Berkelanjutan',
+        element: 'Evaluasi Usaha & Pelaporan',
+        hours: 45,
+        assessment: 'Asesmen Sumatif Laporan Keuangan & Pameran Kewirausahaan SMK',
+        dl: 'Meaningful: Refleksi jiwa wirausaha tangguh dan berkelanjutan.',
+      },
+    ];
+  } else if (isPklSmk) {
+    sem1Topics = [
+      {
+        title: 'Bab 1: Pembekalan Budaya Kerja Industri, Etika Profesi, dan Keselamatan Kerja (K3LH)',
+        element: 'Internalisasi Soft Skills Dunia Kerja',
+        hours: 90,
+        assessment: 'Observasi Kesiapan Kerja & Tes Prosedur K3LH',
+        dl: 'Mindful: Pembiasaan disiplin kerja, komunikasi efektif, dan integritas industri.',
+      },
+      {
+        title: 'Bab 2: Penerapan Hard Skills Teknis Sesuai SOP Dunia Usaha / Dunia Industri (DUDI)',
+        element: 'Penerapan Hard Skills Keahlian',
+        hours: 90,
+        assessment: 'Penilaian Pembimbing Industri & Jurnal Harian PKL',
+        dl: 'Meaningful: Pengalaman kerja langsung pada lingkungan operasional industri nyata.',
+      },
+    ];
+    sem2Topics = [
+      {
+        title: 'Bab 3: Peningkatan Kemandirian, Kerja Sama Tim, dan Adaptasi Teknologi Tempat Kerja',
+        element: 'Peningkatan Kompetensi & Kemandirian',
+        hours: 90,
+        assessment: 'Evaluasi Berkala DUDI & Proyek Tugas Kerja Nyata',
+        dl: 'Meaningful: Mengambil inisiatif perbaikan proses dan kolaborasi lintas divisi.',
+      },
+      {
+        title: 'Bab 4: Penyusunan Laporan PKL, Refleksi Pengalaman Kerja, dan Persiapan Wirausaha/Bekerja',
+        element: 'Pelaporan & Rencana Karier',
+        hours: 90,
+        assessment: 'Sidang Laporan PKL & Uji Presentasi Portofolio Pengalaman',
+        dl: 'Joyful: Merayakan pencapaian kompetensi siap kerja maupun berwirausaha.',
+      },
+    ];
+  }
 
   if (isGerman) {
     sem1Topics = [

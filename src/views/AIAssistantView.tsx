@@ -66,6 +66,11 @@ import {
   AgamaIslamCPBanner,
   isAgamaIslamSubject,
 } from '../components/AgamaIslamCPUploadModal';
+import {
+  getDefaultSubjectsByLevel,
+  getSchoolLevelDisplay,
+  isSubjectAllowedForLevel,
+} from '../lib/curriculumLevels';
 
 export interface SyncedTPItem {
   id: string;
@@ -80,25 +85,6 @@ interface AIAssistantViewProps {
   initialDocType?: string;
   onNavigate?: (viewId: string) => void;
 }
-
-const POPULAR_SUBJECTS = [
-  'Fisika',
-  'Matematika',
-  'Biologi',
-  'Kimia',
-  'Informatika',
-  'Bahasa Indonesia',
-  'Bahasa Inggris',
-  'Pendidikan Pancasila',
-  'Sejarah',
-  'Geografi',
-  'Ekonomi',
-  'Sosiologi',
-  'Pendidikan Agama & Budi Pekerti',
-  'PJOK',
-  'Seni Budaya',
-  'Prakarya',
-];
 
 export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType = 'tp', onNavigate }) => {
   // 1. State Hooks
@@ -671,7 +657,21 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
   };
 
   // Compute Grade List according to Level
-  const availableGrades = level === 'SD' ? [1, 2, 3, 4, 5, 6] : level === 'SMP' ? [7, 8, 9] : [10, 11, 12];
+  const availableGrades = level === 'SD' ? [1, 2, 3, 4, 5, 6] : level === 'SMP' ? [7, 8, 9] : level === 'SMK' ? [10, 11, 12, 13] : [10, 11, 12];
+
+  const levelSubjectOptions = useMemo(() => {
+    const masterList = StorageService.getSubjectsFromMasterCPByLevel(level).map((m) => m.subject);
+    const defaults = getDefaultSubjectsByLevel(level);
+    const merged: string[] = [];
+    [...masterList, ...defaults].forEach((s) => {
+      if (s && !merged.some((existing) => existing.toLowerCase() === s.toLowerCase())) {
+        merged.push(s);
+      }
+    });
+    return merged;
+  }, [level, activeMasterCP]);
+
+  const currentLevelShortLabel = useMemo(() => getSchoolLevelDisplay(level, grade).shortLabel, [level, grade]);
 
   // Get matching CP from reference if available
   const currentCP = CP_REFERENCES.find(
@@ -1454,84 +1454,42 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
               </div>
             </div>
 
-            {/* Mata Pelajaran & Quick Preset Selector */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-slate-700 font-semibold flex items-center gap-1.5">
-                  <span>Mata Pelajaran / Bidang Studi *</span>
-                  {isFollowingProfile ? (
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                      Sesuai Profil Guru
-                    </span>
-                  ) : (
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                      Kustom Terpisah
-                    </span>
-                  )}
-                </label>
-              </div>
-              <div className="space-y-1.5">
-                <select
-                  value={POPULAR_SUBJECTS.includes(subject) ? subject : 'Lainnya'}
-                  onChange={(e) => {
-                    if (e.target.value !== 'Lainnya') {
-                      handleSubjectChange(e.target.value, true);
-                    }
-                  }}
-                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600 cursor-pointer"
-                >
-                  {POPULAR_SUBJECTS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                  <option value="Lainnya">-- Tulis Manual --</option>
-                </select>
-                <input
-                  type="text"
-                  value={subject}
-                  onChange={(e) => handleSubjectChange(e.target.value)}
-                  placeholder="Contoh: Fisika, Matematika, Pendidikan Agama Islam..."
-                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600"
-                />
-              </div>
-              {isAgamaIslamSubject(subject) && (
-                <div className="mt-2">
-                  <AgamaIslamCPBanner
-                    subject={subject}
-                    onOpenModal={() => setShowAgamaIslamCPModal(true)}
-                    activeFileName={activeMasterCP?.fileName}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Jenjang, Kelas & Fase */}
+            {/* Jenjang, Kelas & Fase (Dipilih lebih dahulu agar daftar Mata Pelajaran sesuai jenjang) */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Jenjang Pendidikan</label>
+                <label className="block text-slate-700 font-semibold mb-1">1. Tingkat Sekolah</label>
                 <select
                   value={level}
                   onChange={(e) => {
                     const newLvl = e.target.value as EducationLevel;
                     setLevel(newLvl);
                     setHasManuallyModified(true);
-                    if (newLvl === 'SD') setGrade(4);
-                    else if (newLvl === 'SMP') setGrade(7);
-                    else setGrade(10);
+                    const nextG = newLvl === 'SD' ? 4 : newLvl === 'SMP' ? 7 : 10;
+                    setGrade(nextG);
+
+                    const masterForLvl = StorageService.getSubjectsFromMasterCPByLevel(newLvl);
+                    const defaultsForLvl = getDefaultSubjectsByLevel(newLvl);
+                    const valid =
+                      isSubjectAllowedForLevel(subject, newLvl) &&
+                      (masterForLvl.some((m) => m.subject.toLowerCase() === subject.trim().toLowerCase()) ||
+                        defaultsForLvl.some((s) => s.toLowerCase() === subject.trim().toLowerCase()));
+                    if (!valid) {
+                      const nextSub = masterForLvl[0]?.subject || defaultsForLvl[0] || 'Pendidikan Pancasila';
+                      handleSubjectChange(nextSub, true);
+                    }
                   }}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600"
                 >
-                  <option value="SD">SD (Sekolah Dasar)</option>
-                  <option value="SMP">SMP (Menengah Pertama)</option>
-                  <option value="SMA">SMA (Menengah Atas)</option>
-                  <option value="SMK">SMK (Kejuruan)</option>
+                  <option value="SD">SD / MI / Paket A</option>
+                  <option value="SMP">SMP / MTs / Paket B</option>
+                  <option value="SMA">SMA / MA / Paket C</option>
+                  <option value="SMK">SMK / MAK</option>
                 </select>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-slate-700 font-semibold">Kelas & Fase</label>
+                  <label className="block text-slate-700 font-semibold">Kelas &amp; Fase</label>
                   <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
                     {currentPhase}
                   </span>
@@ -1548,6 +1506,62 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Mata Pelajaran (Dipisahkan strictly sesuai Tingkat Sekolah) */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-slate-700 font-semibold flex items-center gap-1.5">
+                  <span>2. Mata Pelajaran ({currentLevelShortLabel}) *</span>
+                  {isFollowingProfile ? (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                      Sesuai Profil Guru
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                      Kustom Terpisah
+                    </span>
+                  )}
+                </label>
+              </div>
+              <div className="space-y-1.5">
+                <select
+                  value={levelSubjectOptions.includes(subject) ? subject : 'Lainnya'}
+                  onChange={(e) => {
+                    if (e.target.value !== 'Lainnya') {
+                      handleSubjectChange(e.target.value, true);
+                    }
+                  }}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600 cursor-pointer"
+                >
+                  {levelSubjectOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                  <option value="Lainnya">-- Tulis Manual --</option>
+                </select>
+                <input
+                  type="text"
+                  value={subject}
+                  onChange={(e) => handleSubjectChange(e.target.value)}
+                  placeholder={
+                    level === 'SMK'
+                      ? 'Contoh: Dasar-Dasar Program Keahlian, Projek IPAS (SMK)...'
+                      : 'Contoh: Fisika, Matematika, Pendidikan Agama Islam...'
+                  }
+                  className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600"
+                />
+              </div>
+              {isAgamaIslamSubject(subject) && (
+                <div className="mt-2">
+                  <AgamaIslamCPBanner
+                    subject={subject}
+                    onOpenModal={() => setShowAgamaIslamCPModal(true)}
+                    activeFileName={activeMasterCP?.fileName}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Semester Selection */}

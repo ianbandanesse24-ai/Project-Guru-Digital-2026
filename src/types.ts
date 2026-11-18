@@ -99,8 +99,23 @@ export interface AdminSystemSettings {
   lastCurriculumResetTimestamp?: string;
   nextCurriculumResetTimestamp?: string;
   totalCurriculumResetCount?: number;
+  adminUploadedCPs?: AdminUploadedCPItem[];
   lastUpdated: string;
   updatedBy: string;
+}
+
+export interface AdminUploadedCPItem {
+  id: string;
+  no: number;
+  docNumber?: string;
+  fileName: string;
+  folderName?: string;
+  subject?: string;
+  level?: SchoolLevel;
+  grade?: number | string;
+  phase?: string;
+  uploadedAt: string;
+  uploadedBy?: string;
 }
 
 export interface CurriculumResetStats {
@@ -644,13 +659,38 @@ export interface CPDistributionPlan {
   authorEmail?: string;
 }
 
+export interface CPSubjectEntry {
+  id?: string;
+  subject: string;
+  level: SchoolLevel;
+  subLevelLabel?: string;
+  grade: number | string;
+  phase: string;
+  jpPerWeek?: number;
+  totalHoursPerYear?: number;
+  cpText?: string;
+  elements?: {
+    name: string;
+    description: string;
+    competencies?: string[];
+    essentialMaterials?: string[];
+  }[];
+  materialsSem1: CPMaterialItem[];
+  materialsSem2: CPMaterialItem[];
+}
+
 export interface ActiveMasterCPData {
   id: string;
   fileName: string;
+  folderName?: string;
+  docNumber?: string;
+  uploadedByRole?: UserRole;
+  uploadedByName?: string;
   fileType?: string;
   fileSize?: number;
   uploadedAt: string;
   level: SchoolLevel;
+  subLevelLabel?: string;
   grade: number | string;
   phase: string;
   subject: string;
@@ -676,6 +716,7 @@ export interface ActiveMasterCPData {
   }[];
   materialsSem1: CPMaterialItem[];
   materialsSem2: CPMaterialItem[];
+  analyzedSubjects?: CPSubjectEntry[];
   executiveSummary?: string;
   fullMarkdownReport?: string;
   kktpSummary?: string;

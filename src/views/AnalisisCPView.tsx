@@ -33,6 +33,7 @@ import {
 import {
   ActiveMasterCPData,
   CPMaterialItem,
+  CPSubjectEntry,
   SchoolLevel,
   EducationLevel,
 } from '../types';
@@ -51,6 +52,13 @@ import {
   getSubjectPresetByGrade,
   SubjectPreset,
 } from '../lib/subjectMaterialPresets';
+import {
+  analyzeCPTextHeuristic,
+  getSchoolLevelDisplay,
+  mergeAnalyzedSubjects,
+  normalizeSchoolLevel,
+  resolvePhaseByLevelAndGrade,
+} from '../lib/curriculumLevels';
 import {
   AgamaIslamCPUploadModal,
   AgamaIslamCPBanner,
@@ -154,11 +162,16 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
     return (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `cp-m2-${idx + 1}` }));
   });
 
+  const [analyzedSubjects, setAnalyzedSubjects] = useState<CPSubjectEntry[]>(
+    () => activeMasterCP?.analyzedSubjects || []
+  );
+
   // UI helpers
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
   const [saveToast, setSaveToast] = useState<string | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState<boolean>(false);
+  const [isAnalyzingCP, setIsAnalyzingCP] = useState<boolean>(false);
   const [catalogSearch, setCatalogSearch] = useState<string>('');
   const [catalogFilterLevel, setCatalogFilterLevel] = useState<string>('ALL');
   const [showAgamaIslamCPModal, setShowAgamaIslamCPModal] = useState<boolean>(false);
@@ -182,6 +195,9 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
         if (freshMaster.elements && freshMaster.elements.length > 0) setElements(freshMaster.elements);
         if (freshMaster.materialsSem1 && freshMaster.materialsSem1.length > 0) setMaterialsSem1(freshMaster.materialsSem1);
         if (freshMaster.materialsSem2 && freshMaster.materialsSem2.length > 0) setMaterialsSem2(freshMaster.materialsSem2);
+        if (freshMaster.analyzedSubjects && freshMaster.analyzedSubjects.length > 0) {
+          setAnalyzedSubjects(freshMaster.analyzedSubjects);
+        }
       }
     };
 
@@ -245,15 +261,144 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
     }
   };
 
-  // Direct CP Document Upload
+  // Analyze CP text directly into accurate Elements + Bab / Lingkup Materi (Sem 1 & 2)
+  const handleAnalyzeCPToMaterials = async (overrideText?: string, fileNameHint?: string) => {
+    const sourceText = (overrideText !== undefined ? overrideText : cpText).trim();
+    if (!sourceText) {
+      alert('Silakan ketik, tempel, atau unggah teks Capaian Pembelajaran (CP) terlebih dahulu.');
+      return;
+    }
+
+    setIsAnalyzingCP(true);
+    try {
+      let analyzed: any = null;
+      try {
+        const response = await fetch('/api/ai/analyze-cp-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: fileNameHint || activeMasterCP?.fileName || `Analisis_CP_${subject}.txt`,
+            fileContent: sourceText,
+            subject,
+            level,
+            grade,
+            phase,
+            jpPerWeek,
+            totalHoursPerYear:
+              (materialsSem1.reduce((acc, m) => acc + (Number(m.allocatedHours) || 0), 0) +
+                materialsSem2.reduce((acc, m) => acc + (Number(m.allocatedHours) || 0), 0)) ||
+              (level === 'SD' ? 144 : 108),
+          }),
+        });
+        if (response.ok) {
+          const json = await response.json();
+          if (json?.success && json.data) {
+            analyzed = json.data;
+          }
+        }
+      } catch (networkErr) {
+        console.warn('API analyze-cp-file fallback ke parser heuristik CP:', networkErr);
+      }
+
+      if (!analyzed) {
+        analyzed = analyzeCPTextHeuristic({
+          fileName: fileNameHint || activeMasterCP?.fileName,
+          rawText: sourceText,
+          subjectHint: subject,
+          levelHint: level,
+          gradeHint: grade,
+          phaseHint: phase,
+          jpPerWeekHint: jpPerWeek,
+          getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+        });
+      }
+
+      const meta = analyzed.identifiedMetadata || {};
+      const nextSubject = meta.subject && meta.subject !== 'Mata Pelajaran Teridentifikasi' ? meta.subject : subject;
+      const nextLevel = normalizeSchoolLevel(meta.level || level, sourceText.slice(0, 4000));
+      const nextGrade = Number(meta.grade) || grade;
+      const nextPhase = meta.phase || resolvePhaseByLevelAndGrade(nextLevel, nextGrade);
+
+      const nextElements =
+        Array.isArray(analyzed.elements) && analyzed.elements.length > 0 ? analyzed.elements : elements;
+      const nextSem1: CPMaterialItem[] = (analyzed.materialsSem1 || []).map((m: any, idx: number) => ({
+        ...m,
+        id: m.id || `cp-analyzed-sem1-${Date.now()}-${idx + 1}`,
+        semester: 1,
+        orderNumber: m.orderNumber || idx + 1,
+      }));
+      const nextSem2: CPMaterialItem[] = (analyzed.materialsSem2 || []).map((m: any, idx: number) => ({
+        ...m,
+        id: m.id || `cp-analyzed-sem2-${Date.now()}-${idx + 1}`,
+        semester: 2,
+        orderNumber: m.orderNumber || nextSem1.length + idx + 1,
+      }));
+
+      // Merge AI-detected subjects with full heuristic scan of sourceText so NO subject in CP is omitted
+      const heuristicAll = analyzeCPTextHeuristic({
+        fileName: fileNameHint || activeMasterCP?.fileName,
+        rawText: sourceText,
+        subjectHint: nextSubject,
+        levelHint: nextLevel,
+        gradeHint: nextGrade,
+        phaseHint: nextPhase,
+        jpPerWeekHint: jpPerWeek,
+        getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+      });
+
+      const normalizedAnalyzed = Array.isArray(analyzed.analyzedSubjects)
+        ? analyzed.analyzedSubjects.map((entry: any, idx: number) => {
+            const eLvl = normalizeSchoolLevel(entry.level || nextLevel, entry.subject);
+            const eGrd = Number(entry.grade) || nextGrade;
+            const ePhs = entry.phase || resolvePhaseByLevelAndGrade(eLvl, eGrd);
+            return {
+              ...entry,
+              id: entry.id || `cp-sub-${Date.now()}-${idx + 1}`,
+              level: eLvl,
+              grade: eGrd,
+              phase: ePhs,
+              subLevelLabel: entry.subLevelLabel || getSchoolLevelDisplay(eLvl, eGrd).subLabel,
+              jpPerWeek: Number(entry.jpPerWeek) || jpPerWeek,
+              totalHoursPerYear: Number(entry.totalHoursPerYear) || 108,
+            } as CPSubjectEntry;
+          })
+        : [];
+
+      const mergedAnalyzedSubjects = mergeAnalyzedSubjects(
+        normalizedAnalyzed,
+        heuristicAll.analyzedSubjects
+      );
+
+      setSubject(nextSubject);
+      setLevel(nextLevel);
+      setGrade(nextGrade);
+      setPhase(nextPhase);
+      setElements(nextElements);
+      if (nextSem1.length > 0) setMaterialsSem1(nextSem1);
+      if (nextSem2.length > 0) setMaterialsSem2(nextSem2);
+      setAnalyzedSubjects(mergedAnalyzedSubjects);
+
+      setSaveToast(
+        `Berhasil menganalisis ${mergedAnalyzedSubjects.length} Mata Pelajaran, ${nextElements.length} Elemen CP & ${nextSem1.length + nextSem2.length} Bab/Lingkup Materi Ajar (${nextSem1.length} Bab Sem 1, ${nextSem2.length} Bab Sem 2) sesuai isi CP! Klik "Simpan & Sinkronkan" untuk menerapkan ke semua modul.`
+      );
+      setTimeout(() => setSaveToast(null), 5000);
+    } finally {
+      setIsAnalyzingCP(false);
+    }
+  };
+
+  // Direct CP Document Upload (extract text + immediately analyze materi ajar / Bab / lingkup materi)
   const handleDirectCPDocUpload = async (file: File) => {
     setIsProcessingFile(true);
     try {
       const parsed = await UniversalFileParser.parseFile(file);
       if (parsed.extractedText) {
-        setCpText(parsed.extractedText.slice(0, 3000));
-        setSaveToast(`Teks Capaian Pembelajaran dari berkas "${file.name}" berhasil diekstrak!`);
-        setTimeout(() => setSaveToast(null), 3500);
+        const sliced = parsed.extractedText.slice(0, 65000);
+        setCpText(sliced);
+        await handleAnalyzeCPToMaterials(sliced, file.name);
+      } else {
+        setSaveToast(`Berkas "${file.name}" terbaca sebagai dokumen biner. Klik "Analisis CP" atau tempel teks CP untuk mengekstrak Bab.`);
+        setTimeout(() => setSaveToast(null), 4000);
       }
     } catch (err) {
       console.error('Failed to parse CP file:', err);
@@ -265,6 +410,44 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
 
   // Save Analisis CP to persistent storage and sync with master
   const handleSaveAnalisisCP = () => {
+    const totalHours = (materialsSem1.reduce((acc, m) => acc + (Number(m.allocatedHours) || 0), 0) +
+      materialsSem2.reduce((acc, m) => acc + (Number(m.allocatedHours) || 0), 0)) || 108;
+
+    const heuristicFromCp = cpText.trim()
+      ? analyzeCPTextHeuristic({
+          fileName: activeMasterCP?.fileName,
+          rawText: cpText,
+          subjectHint: subject,
+          levelHint: level,
+          gradeHint: grade,
+          phaseHint: phase,
+          totalHoursHint: totalHours,
+          jpPerWeekHint: jpPerWeek,
+          getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+        }).analyzedSubjects
+      : [];
+
+    const primaryEntry: CPSubjectEntry = {
+      id: `cp-sub-primary-${Date.now()}`,
+      subject,
+      level,
+      subLevelLabel: getSchoolLevelDisplay(level, grade).subLabel,
+      grade,
+      phase,
+      jpPerWeek,
+      totalHoursPerYear: totalHours,
+      cpText,
+      elements,
+      materialsSem1,
+      materialsSem2,
+    };
+
+    const finalAnalyzedSubjects = mergeAnalyzedSubjects(
+      [primaryEntry, ...analyzedSubjects],
+      heuristicFromCp
+    );
+    setAnalyzedSubjects(finalAnalyzedSubjects);
+
     const updatedMaster: ActiveMasterCPData = {
       id: activeMasterCP?.id || `cp-${Date.now()}`,
       fileName: activeMasterCP?.fileName || `Dokumen_Analisis_CP_${subject.replace(/\s+/g, '_')}.pdf`,
@@ -272,6 +455,7 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
       fileSize: activeMasterCP?.fileSize || 1024 * 250,
       uploadedAt: activeMasterCP?.uploadedAt || new Date().toISOString(),
       level,
+      subLevelLabel: getSchoolLevelDisplay(level, grade).subLabel,
       grade,
       phase,
       subject,
@@ -282,13 +466,13 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
       headmasterNip: schoolProfile.headmasterNip || '-',
       city: schoolProfile.city || 'Kota Satuan Pendidikan',
       academicYear,
-      totalHoursPerYear: (materialsSem1.reduce((acc, m) => acc + (Number(m.allocatedHours) || 0), 0) +
-        materialsSem2.reduce((acc, m) => acc + (Number(m.allocatedHours) || 0), 0)) || 108,
+      totalHoursPerYear: totalHours,
       jpPerWeek,
       cpText,
       elements,
       materialsSem1,
       materialsSem2,
+      analyzedSubjects: finalAnalyzedSubjects,
       syncStatus: 'synced',
       lastSyncedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -297,7 +481,7 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
     StorageService.setActiveMasterCP(updatedMaster);
     setActiveMasterCP(updatedMaster);
     setSavedSuccess(true);
-    setSaveToast('Data Analisis Capaian Pembelajaran (CP) berhasil disimpan & disinkronkan ke seluruh modul!');
+    setSaveToast(`Data Analisis CP (${finalAnalyzedSubjects.length} Mata Pelajaran) berhasil disimpan & disinkronkan ke seluruh modul!`);
     setTimeout(() => {
       setSavedSuccess(false);
       setSaveToast(null);
@@ -790,15 +974,35 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
 
           {/* Form: CP Resmi Fase */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                 <FileSearch className="w-4 h-4 text-blue-600" />
-                <span>Capaian Pembelajaran (CP) Resmi Fase {phase} — {subject}</span>
+                <span>Capaian Pembelajaran (CP) Resmi {phase} — {subject}</span>
               </label>
-              <span className="text-[11px] text-slate-400">Dapat diedit langsung</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-400">Dapat diedit langsung</span>
+                <button
+                  type="button"
+                  onClick={() => handleAnalyzeCPToMaterials()}
+                  disabled={isAnalyzingCP || !cpText.trim()}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  {isAnalyzingCP ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menganalisis Bab &amp; Lingkup Materi...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Analisis Materi Ajar, Bab &amp; Lingkup Materi Sesuai CP</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
             <textarea
-              rows={3}
+              rows={4}
               value={cpText}
               onChange={(e) => setCpText(e.target.value)}
               placeholder="Ketik atau tempel rumusan Capaian Pembelajaran (CP) resmi..."
@@ -933,6 +1137,66 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
                   <span className="text-[11px] text-slate-600 mt-0.5 block">
                     Suasana belajar menyenangkan, apresiasi rasa ingin tahu, kolaborasi kreatif, dan perayaan karya belajar.
                   </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Pemetaan Bab / Lingkup Materi Ajar Sesuai CP (Semester 1 & 2) */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-blue-600" />
+                    <span>Pemetaan Bab &amp; Lingkup Materi Ajar Hasil Analisis CP (Semester 1 &amp; 2)</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Ditujukan langsung dari rumusan CP dan elemen pembelajaran untuk {subject} ({level} Kelas {grade} • {phase}).
+                  </p>
+                </div>
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+                  Total: {materialsSem1.length + materialsSem2.length} Bab
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2">
+                  <div className="font-bold text-blue-800 text-[11px] border-b border-slate-100 pb-1.5">
+                    Semester 1 (Ganjil) — {materialsSem1.length} Bab
+                  </div>
+                  <div className="space-y-1.5">
+                    {materialsSem1.map((m, idx) => (
+                      <div key={m.id || idx} className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 space-y-0.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-900 text-[11px]">{m.essentialMaterial}</span>
+                          <span className="text-[10px] font-mono text-emerald-700 font-bold shrink-0">{m.allocatedHours} JP</span>
+                        </div>
+                        {m.elementName && (
+                          <div className="text-[10px] text-indigo-700 font-semibold">Elemen: {m.elementName}</div>
+                        )}
+                        <div className="text-[10px] text-slate-600 leading-snug">{m.tpName}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2">
+                  <div className="font-bold text-indigo-800 text-[11px] border-b border-slate-100 pb-1.5">
+                    Semester 2 (Genap) — {materialsSem2.length} Bab
+                  </div>
+                  <div className="space-y-1.5">
+                    {materialsSem2.map((m, idx) => (
+                      <div key={m.id || idx} className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 space-y-0.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-900 text-[11px]">{m.essentialMaterial}</span>
+                          <span className="text-[10px] font-mono text-emerald-700 font-bold shrink-0">{m.allocatedHours} JP</span>
+                        </div>
+                        {m.elementName && (
+                          <div className="text-[10px] text-indigo-700 font-semibold">Elemen: {m.elementName}</div>
+                        )}
+                        <div className="text-[10px] text-slate-600 leading-snug">{m.tpName}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
