@@ -1509,10 +1509,10 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
     if (ai) {
       try {
         const deepAnalysisPrompt = `
-        Anda adalah Dewan Pakar Pengembang Kurikulum Nasional Kemendikdasmen RI dan Spesialis Analis Capaian Pembelajaran (CP) dengan Pendekatan Deep Learning (Mindful, Meaningful, Joyful Learning).
+        Anda adalah Dewan Pakar Pengembang Kurikulum Nasional Kemendikdasmen RI dan Spesialis Analis Capaian Pembelajaran (CP) berdasarkan Keputusan Kepala BSKAP No. 046/H/KR/2025 dengan Pendekatan Deep Learning (Mindful, Meaningful, Joyful Learning).
 
         TUGAS UTAMA:
-        Lakukan ANALISIS OTOMATIS SECARA MENDALAM, TELITI, DAN SISTEMATIS terhadap dokumen/teks Capaian Pembelajaran (CP) terbaru berikut untuk dijadikan ACUAN UTAMA (MASTER REFERENCE) yang tersinkronisasi otomatis ke seluruh perangkat ajar (RPP/Modul Ajar, TP, ATP, PROTA, PROSEM, KKTP, LKPD, dan Rubrik Penilaian).
+        Lakukan ANALISIS OTOMATIS SECARA MENDALAM, TELITI, DAN SISTEMATIS terhadap dokumen/teks Capaian Pembelajaran (CP) resmi sesuai Keputusan Kepala BSKAP No. 046/H/KR/2025 untuk dijadikan ACUAN UTAMA (MASTER REFERENCE) yang tersinkronisasi otomatis ke seluruh perangkat ajar (Modul Ajar/RPM, TP, ATP, PROTA, PROSEM, KKTP, LKPD, Rubrik). Kompetensi dan lingkup materi WAJIB disusun berdasarkan FASE PERKEMBANGAN (Fase A s.d. F) secara spesifik per kelas, bukan disamaratakan antar kelas atau jenjang!
 
         INFORMASI DOKUMEN & PRE-DETEKSI (Analisis & Koreksi Berdasarkan Isi Teks Dokumen):
         - Nama File: "${fileName || 'Capaian Pembelajaran'}"
@@ -1521,8 +1521,8 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
 
         ${extractedText ? `KONTEN TEKS DOKUMEN CP RESMI:\n---\n${extractedText.substring(0, 100000)}\n---` : '(Dokumen terlampir via format PDF inline)'}
 
-        ATURAN BAKU KLASIFIKASI TINGKAT SEKOLAH, FASE, DAN KELAS (WAJIB DIPATUHI):
-        1. Analisis Tingkat Sekolah: SD, SMP, SMA (SMA/MA/Paket C), dan SMK (SMK/MAK) secara terpisah dan presisi.
+        ATURAN BAKU KEPUTUSAN KEPALA BSKAP NO. 046/H/KR/2025 (STRUKTUR FASE PERKEMBANGAN):
+        1. Kompetensi dan lingkup materi disesuaikan ketat dengan fase perkembangan (bukan disamaratakan):
         2. Jenjang Sekolah Dasar (SD / MI / Paket A):
            • Fase A: Kelas 1 – 2 SD
            • Fase B: Kelas 3 – 4 SD

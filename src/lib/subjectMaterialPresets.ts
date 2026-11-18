@@ -2441,6 +2441,7 @@ export function getSubjectPresetByGrade(
   const normSub = (subject || '').trim().toLowerCase();
   const normLvl = (level || 'SMA').trim().toUpperCase() as SchoolLevel;
   const numGrade = Number(grade) || (normLvl === 'SD' ? 4 : normLvl === 'SMP' ? 7 : 10);
+  const resolvedPhase = phase || resolvePhaseByLevelAndGrade(normLvl, numGrade);
 
   // 1. Exact match: subject, level, grade
   const exact = SUBJECT_MATERIAL_PRESETS.find(
@@ -2460,62 +2461,35 @@ export function getSubjectPresetByGrade(
   );
   if (sameLevelGrade) return sameLevelGrade;
 
-  // 3. Match subject in same level (different grade) -> adapt TP codes to target grade
-  const subjectMatchSameLevel = SUBJECT_MATERIAL_PRESETS.find(
+  // 3. Match subject in same level (different grade) -> generate unique grade-differentiated scope
+  const matchedPreset = SUBJECT_MATERIAL_PRESETS.find(
     (p) =>
       (normSub.includes(p.subject.toLowerCase()) || p.subject.toLowerCase().includes(normSub)) &&
       p.level === normLvl
   );
-  if (subjectMatchSameLevel) {
-    const resolvedPhase = phase || resolvePhaseByLevelAndGrade(normLvl, numGrade);
+
+  if (matchedPreset) {
+    const gradeTag = `Kelas ${numGrade} (${resolvedPhase})`;
     return {
-      ...subjectMatchSameLevel,
+      ...matchedPreset,
       grade: numGrade,
       phase: resolvedPhase,
-      materialsSem1: subjectMatchSameLevel.materialsSem1.map((m, idx) => ({
+      cpSummary: `${matchedPreset.cpSummary} (Fokus Pendalaman Khusus ${gradeTag}).`,
+      materialsSem1: matchedPreset.materialsSem1.map((m, idx) => ({
         ...m,
         tpCode: `TP.${numGrade}.1.${idx + 1}`,
+        essentialMaterial: `Bab ${idx + 1} (${gradeTag} Ganjil): ${m.essentialMaterial.replace(/\s*\(Kelas\s*\d+[^)]*\)/gi, '').replace(/^Bab\s*\d+\s*[:\-–.]?\s*/i, '')}`,
       })),
-      materialsSem2: subjectMatchSameLevel.materialsSem2.map((m, idx) => ({
+      materialsSem2: matchedPreset.materialsSem2.map((m, idx) => ({
         ...m,
         tpCode: `TP.${numGrade}.2.${idx + 1}`,
+        essentialMaterial: `Bab ${matchedPreset.materialsSem1.length + idx + 1} (${gradeTag} Genap): ${m.essentialMaterial.replace(/\s*\(Kelas\s*\d+[^)]*\)/gi, '').replace(/^Bab\s*\d+\s*[:\-–.]?\s*/i, '')}`,
       })),
     };
   }
 
-  // 4. Shared general subjects across SMA <-> SMK (e.g. Matematika, Bahasa Indonesia, Bahasa Inggris, Informatika, PJOK, Pendidikan Pancasila, Sejarah, Pendidikan Agama)
-  const isSmkOrSmaGeneral =
-    (normLvl === 'SMK' || normLvl === 'SMA') &&
-    /matematika|bahasa\s+indonesia|bahasa\s+inggris|informatika|sejarah|pjok|pendidikan\s+pancasila|pendidikan\s+agama/i.test(
-      normSub
-    );
-  if (isSmkOrSmaGeneral) {
-    const sharedMatch = SUBJECT_MATERIAL_PRESETS.find(
-      (p) =>
-        (p.level === 'SMA' || p.level === 'SMK') &&
-        (normSub.includes(p.subject.toLowerCase()) || p.subject.toLowerCase().includes(normSub))
-    );
-    if (sharedMatch) {
-      const resolvedPhase = phase || resolvePhaseByLevelAndGrade(normLvl, numGrade);
-      return {
-        ...sharedMatch,
-        level: normLvl,
-        grade: numGrade,
-        phase: resolvedPhase,
-        materialsSem1: sharedMatch.materialsSem1.map((m, idx) => ({
-          ...m,
-          tpCode: `TP.${numGrade}.1.${idx + 1}`,
-        })),
-        materialsSem2: sharedMatch.materialsSem2.map((m, idx) => ({
-          ...m,
-          tpCode: `TP.${numGrade}.2.${idx + 1}`,
-        })),
-      };
-    }
-  }
-
-  // 5. Dynamic Generation for any custom subject tailored to the selected level & grade!
-  return generateDynamicGradePreset(subject || 'Mata Pelajaran', normLvl, numGrade, phase);
+  // 4. Dynamic Generation for any custom subject tailored to the selected level & grade!
+  return generateDynamicGradePreset(subject || 'Mata Pelajaran', normLvl, numGrade, resolvedPhase);
 }
 
 /**
@@ -2544,51 +2518,52 @@ export function generateDynamicGradePreset(
   const isPkkSmk = subLower.includes('projek kreatif') || subLower.includes('pkk smk');
   const isPklSmk = subLower.includes('praktik kerja lapangan') || subLower.includes('pkl smk');
 
+  const gradeLevelTag = `Kelas ${numGrade} (${phase})`;
   let sem1Topics = [
     {
-      title: `Konsep Dasar, Hakikat, dan Landasan Teoretis ${cleanSubject}`,
+      title: `Bab 1: Konsep Fundamental & Prinsip Dasar ${cleanSubject} - ${gradeLevelTag}`,
       element: 'Pemahaman Konsep & Karakteristik Dasar',
       hours: 18,
       assessment: 'Tes Tertulis Formatif Pemahaman Konsep & Diskusi Reflektif',
-      dl: `Mindful: Observasi kesadaran penuh terhadap prinsip fundamental ${cleanSubject}.`,
+      dl: `Mindful: Observasi kesadaran penuh terhadap prinsip fundamental ${cleanSubject} ${gradeLevelTag}.`,
     },
     {
-      title: `Prinsip Operasional, Analisis Struktur, dan Prosedur ${cleanSubject}`,
+      title: `Bab 2: Analisis Struktur, Prosedur & Penerapan Kontekstual ${cleanSubject} - ${gradeLevelTag}`,
       element: 'Keterampilan Proses & Penalaran Logis',
       hours: 18,
       assessment: 'Penugasan Terstruktur Studi Kasus & Kuis Analitis',
-      dl: `Meaningful: Menghubungkan konsep ${cleanSubject} dengan tantangan nyata kehidupan sehari-hari.`,
+      dl: `Meaningful: Menghubungkan konsep ${cleanSubject} ${gradeLevelTag} dengan tantangan nyata kehidupan.`,
     },
     {
-      title: `Eksplorasi Kontekstual, Pemodelan, dan Pemecahan Masalah ${cleanSubject}`,
+      title: `Bab 3: Eksplorasi Terapan & Pemecahan Masalah Esensial ${cleanSubject} - ${gradeLevelTag}`,
       element: 'Penerapan & Rekayasa Solutif',
       hours: 18,
       assessment: 'Asesmen Sumatif Tengah Semester (STS) Proyek Mini Kolaboratif',
-      dl: `Joyful: Eksplorasi interaktif dan simulasi pemecahan masalah bersama teman kelompok.`,
+      dl: `Joyful: Eksplorasi interaktif dan simulasi pemecahan masalah ${gradeLevelTag}.`,
     },
   ];
 
   let sem2Topics = [
     {
-      title: `Pengembangan Gagasan Lanjut, Analisis Kritis, dan Sintesis ${cleanSubject}`,
+      title: `Bab 4: Pengembangan Gagasan Lanjut & Analisis Kritis ${cleanSubject} - ${gradeLevelTag}`,
       element: 'Penalaran Kritis & Analisis Lanjut',
       hours: 18,
       assessment: 'Analisis Studi Kasus Komprehensif & Tes Formatif',
-      dl: `Mindful: Refleksi mendalam dan evaluasi fakta empiris pada materi ${cleanSubject}.`,
+      dl: `Mindful: Refleksi mendalam dan evaluasi fakta empiris materi ${cleanSubject} ${gradeLevelTag}.`,
     },
     {
-      title: `Inovasi Terapan, Kreasi Karya Nyata, dan Praktik Lintas Bidang ${cleanSubject}`,
+      title: `Bab 5: Inovasi Kreatif, Kreasi Karya Nyata & Studi Kasus ${cleanSubject} - ${gradeLevelTag}`,
       element: 'Kreasi Inovatif & Aksi Nyata',
       hours: 18,
       assessment: 'Penilaian Unjuk Kerja / Pameran Portofolio Karya Nyata',
-      dl: `Joyful: Gelar karya dan perayaan produk pembelajaran inovatif peserta didik.`,
+      dl: `Joyful: Gelar karya dan perayaan produk pembelajaran inovatif ${gradeLevelTag}.`,
     },
     {
-      title: `Evaluasi Komprehensif, Refleksi Pembelajaran, dan Solusi Berkelanjutan ${cleanSubject}`,
+      title: `Bab 6: Evaluasi Komprehensif, Proyek Akhir & Refleksi ${cleanSubject} - ${gradeLevelTag}`,
       element: 'Evaluasi & Asesmen Sumatif',
       hours: 18,
       assessment: 'Asesmen Sumatif Akhir Tahun (SAS) / Ujian Komprehensif',
-      dl: `Meaningful: Internalisasi nilai luhur dan komitmen implementasi ${cleanSubject} berkelanjutan.`,
+      dl: `Meaningful: Internalisasi nilai luhur dan komitmen implementasi ${cleanSubject} ${gradeLevelTag}.`,
     },
   ];
 
