@@ -666,7 +666,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
   };
 
   // Compute Grade List according to Level
-  const availableGrades = level === 'SD' ? [1, 2, 3, 4, 5, 6] : level === 'SMP' ? [7, 8, 9] : level === 'SMK' ? [10, 11, 12, 13] : [10, 11, 12];
+  const availableGrades = level === 'SD' ? [1, 2, 3, 4, 5, 6] : level === 'SMP' ? [7, 8, 9] : [10, 11, 12];
 
   const levelSubjectOptions = useMemo(() => {
     const masterList = StorageService.getSubjectsFromMasterCPByLevel(level).map((m) => m.subject);
@@ -1489,7 +1489,6 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                   <option value="SD">SD / MI / Paket A</option>
                   <option value="SMP">SMP / MTs / Paket B</option>
                   <option value="SMA">SMA / MA / Paket C</option>
-                  <option value="SMK">SMK / MAK</option>
                 </select>
               </div>
 
@@ -1560,11 +1559,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                   type="text"
                   value={subject}
                   onChange={(e) => handleSubjectChange(e.target.value)}
-                  placeholder={
-                    level === 'SMK'
-                      ? 'Contoh: Dasar-Dasar Program Keahlian, Projek IPAS (SMK)...'
-                      : 'Contoh: Fisika, Matematika, Pendidikan Agama Islam...'
-                  }
+                  placeholder="Contoh: Fisika, Matematika, Pendidikan Agama Islam..."
                   className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600"
                 />
               </div>

@@ -216,7 +216,7 @@ export interface NotificationItem {
 
 export type UserNotification = NotificationItem;
 
-export type SchoolLevel = 'SD' | 'SMP' | 'SMA' | 'SMK';
+export type SchoolLevel = 'SD' | 'SMP' | 'SMA';
 export type EducationLevel = SchoolLevel;
 export type SemesterType = 'Ganjil' | 'Genap' | '1 Tahun';
 

@@ -1499,11 +1499,10 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                   }}
                   className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-indigo-500"
                 >
-                  <option value="SD">SD</option>
-                  <option value="SMP">SMP</option>
-                  <option value="SMA">SMA</option>
-                  <option value="SMK">SMK</option>
-                </select>
+                    <option value="SD">SD</option>
+                    <option value="SMP">SMP</option>
+                    <option value="SMA">SMA</option>
+                  </select>
               </div>
 
               <div>

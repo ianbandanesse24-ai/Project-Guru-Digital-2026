@@ -34,6 +34,7 @@ import {
   extractCPDocumentInsights,
   mergeAnalyzedSubjects,
   detectLevelPhaseGradeFromText,
+  extractAllHeadedSubjectsFromText,
   KNOWN_SUBJECT_PATTERNS,
 } from '../lib/curriculumLevels';
 import { getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
@@ -101,7 +102,6 @@ function stripExtension(name: string): string {
 
 function detectMetadataFromFilename(name: string) {
   const cleanName = (name || '').replace(/[_-]+/g, ' ');
-  const lvlMeta = detectLevelPhaseGradeFromText(cleanName);
   let detectedSub = '';
   for (const entry of KNOWN_SUBJECT_PATTERNS) {
     if (entry.pattern.test(cleanName)) {
@@ -109,6 +109,7 @@ function detectMetadataFromFilename(name: string) {
       break;
     }
   }
+  const lvlMeta = detectLevelPhaseGradeFromText(cleanName, undefined, undefined, undefined, detectedSub);
   const noMatch = name.match(/(?:no|nomor)[\s._-]*([a-z0-9./-]+)/i);
   const detectedNo = noMatch && noMatch[1] ? noMatch[1].replace(/\.[^.]+$/, '') : '';
   return {
@@ -263,13 +264,11 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
       SD: [],
       SMP: [],
       SMA: [],
-      SMK: [],
     };
     const seenByLevel: Record<SchoolLevelGroup, Set<string>> = {
       SD: new Set(),
       SMP: new Set(),
       SMA: new Set(),
-      SMK: new Set(),
     };
 
     analyzedSubjects.forEach((entry) => {
@@ -287,7 +286,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
 
   const activeLevelCount = useMemo(
     () =>
-      (['SD', 'SMP', 'SMA', 'SMK'] as SchoolLevelGroup[]).filter(
+      (['SD', 'SMP', 'SMA'] as SchoolLevelGroup[]).filter(
         (g) => subjectsByLevelMap[g].length > 0
       ).length,
     [subjectsByLevelMap]
@@ -295,7 +294,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
 
   const totalUniqueSubjects = useMemo(
     () =>
-      (['SD', 'SMP', 'SMA', 'SMK'] as SchoolLevelGroup[]).reduce(
+      (['SD', 'SMP', 'SMA'] as SchoolLevelGroup[]).reduce(
         (sum, g) => sum + subjectsByLevelMap[g].length,
         0
       ),
@@ -625,6 +624,19 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
       }
 
       const hintMeta = detectMetadataFromFilename(fileName || docName);
+      const headedSubsInRaw = currentRawText.trim()
+        ? extractAllHeadedSubjectsFromText(currentRawText.slice(0, 20000))
+        : [];
+      const effectiveHintSubject = headedSubsInRaw[0] || hintMeta.subject || undefined;
+      const effectiveHintMeta = currentRawText.trim()
+        ? detectLevelPhaseGradeFromText(
+            `${fileName || docName}\n${currentRawText.slice(0, 6000)}`,
+            hintMeta.level,
+            hintMeta.grade,
+            hintMeta.phase,
+            effectiveHintSubject
+          )
+        : hintMeta;
 
       let apiResData: Record<string, unknown> | null = null;
       let apiRawText = '';
@@ -640,12 +652,12 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
             fileBase64: currentBase64,
             fileType,
             fileContent: currentRawText,
-            subject: hintMeta.subject || undefined,
-            level: hintMeta.level,
-            grade: hintMeta.grade,
-            phase: hintMeta.phase,
-            totalHoursPerYear: hintMeta.level === 'SD' ? 144 : 108,
-            jpPerWeek: hintMeta.level === 'SD' ? 4 : 3,
+            subject: effectiveHintSubject,
+            level: effectiveHintMeta.level,
+            grade: effectiveHintMeta.grade,
+            phase: effectiveHintMeta.phase,
+            totalHoursPerYear: effectiveHintMeta.level === 'SD' ? 144 : 108,
+            jpPerWeek: effectiveHintMeta.level === 'SD' ? 4 : 3,
           }),
         });
         if (res.ok) {
@@ -901,7 +913,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
       setAnalysisStepText('Analisis mendalam selesai.');
 
       const firstPresentGroup =
-        (['SD', 'SMP', 'SMA', 'SMK'] as SchoolLevelGroup[]).find((grp) =>
+        (['SD', 'SMP', 'SMA'] as SchoolLevelGroup[]).find((grp) =>
           mergedSubjects.some((s) => isSameSchoolLevelGroup(s.level, grp))
         ) || getSchoolLevelGroup(resolvedPrimaryLvl);
 

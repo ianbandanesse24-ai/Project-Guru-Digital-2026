@@ -1801,6 +1801,9 @@ export class StorageService {
               subLevelLabel: entry.subLevelLabel || normalizedMasterData.subLevelLabel,
               grade: entry.grade,
               phase: entry.phase,
+              categoryTag: entry.categoryTag,
+              locationRef: entry.locationRef,
+              specialNotes: entry.specialNotes,
               jpPerWeek: entry.jpPerWeek || normalizedMasterData.jpPerWeek,
               totalHoursPerYear: entry.totalHoursPerYear || normalizedMasterData.totalHoursPerYear,
               cpText: (entry.cpText || compactCpText).slice(0, 4000),
@@ -2056,10 +2059,12 @@ export class StorageService {
     subject: string,
     level: SchoolLevel | string,
     grade?: number | string,
-    userId?: string
+    userId?: string,
+    phase?: string
   ): CPSubjectEntry | null {
     const normSub = (subject || '').trim().toLowerCase();
     if (!normSub) return null;
+    const targetPhase = (phase || (grade !== undefined ? resolvePhaseByLevelAndGrade(level, Number(grade)) : '')).trim().toLowerCase();
 
     const allCandidates: CPSubjectEntry[] = [];
     const pushFromDoc = (doc: ActiveMasterCPData | null) => {
@@ -2110,14 +2115,32 @@ export class StorageService {
     this.getMasterCPCatalog().forEach((item) => pushFromDoc(item));
 
     if (grade !== undefined && grade !== null && grade !== '') {
+      const gNum = Number(grade);
       const exactWithMaterials = allCandidates.find(
         (e) =>
-          Number(e.grade) === Number(grade) &&
+          Number(e.grade) === gNum &&
           ((e.materialsSem1?.length || 0) > 0 || (e.materialsSem2?.length || 0) > 0)
       );
       if (exactWithMaterials) return exactWithMaterials;
-      const exactNoMaterials = allCandidates.find((e) => Number(e.grade) === Number(grade));
+
+      if (targetPhase) {
+        const phaseWithMaterials = allCandidates.find(
+          (e) =>
+            (e.phase || '').trim().toLowerCase() === targetPhase &&
+            ((e.materialsSem1?.length || 0) > 0 || (e.materialsSem2?.length || 0) > 0)
+        );
+        if (phaseWithMaterials) return phaseWithMaterials;
+      }
+
+      const exactNoMaterials = allCandidates.find((e) => Number(e.grade) === gNum);
       if (exactNoMaterials) return exactNoMaterials;
+
+      if (targetPhase) {
+        const phaseNoMaterials = allCandidates.find(
+          (e) => (e.phase || '').trim().toLowerCase() === targetPhase
+        );
+        if (phaseNoMaterials) return phaseNoMaterials;
+      }
       return null;
     }
 
@@ -2307,12 +2330,22 @@ export class StorageService {
       let sem1 = masterCP?.materialsSem1 || [];
       let sem2 = masterCP?.materialsSem2 || [];
       let cpText = profile.cpText || masterCP?.cpText || '';
+      let masterElements = masterCP?.elements || [];
 
       if (!masterCP || isSubjectOrGradeChanged || (sem1.length === 0 && sem2.length === 0)) {
-        const preset = getSubjectPresetByGrade(targetSub, targetLvl, targetGrade);
-        sem1 = preset.materialsSem1.map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
-        sem2 = preset.materialsSem2.map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
-        if (!cpText) cpText = preset.cpSummary;
+        const foundMaster = StorageService.findMasterCPEntry(targetSub, targetLvl, targetGrade, userId, targetPhase);
+        if (foundMaster && ((foundMaster.materialsSem1?.length || 0) > 0 || (foundMaster.materialsSem2?.length || 0) > 0)) {
+          sem1 = foundMaster.materialsSem1 || [];
+          sem2 = foundMaster.materialsSem2 || [];
+          if (!cpText && foundMaster.cpText) cpText = foundMaster.cpText;
+          if (foundMaster.elements && foundMaster.elements.length > 0) masterElements = foundMaster.elements;
+        } else {
+          const preset = getSubjectPresetByGrade(targetSub, targetLvl, targetGrade);
+          sem1 = preset.materialsSem1.map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
+          sem2 = preset.materialsSem2.map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
+          if (!cpText) cpText = preset.cpSummary;
+          if (preset.elements && preset.elements.length > 0) masterElements = preset.elements;
+        }
       }
 
       const totSem1 = sem1.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0);
@@ -2340,7 +2373,7 @@ export class StorageService {
         jpPerWeek: Number(profile.jpPerWeek) || masterCP?.jpPerWeek || 3,
         timeAllocationPerWeek: profile.timeAllocationPerWeek || masterCP?.timeAllocationPerWeek || '45 Menit',
         cpText: cpText,
-        elements: masterCP?.elements && masterCP.elements.length > 0 ? masterCP.elements : [
+        elements: masterElements.length > 0 ? masterElements : masterCP?.elements && masterCP.elements.length > 0 ? masterCP.elements : [
           {
             name: 'Pemahaman Konsep',
             description: `Peserta didik mampu memahami konsep fundamental ${targetSub} dan mengaitkannya dengan fenomena faktual sehari-hari dengan pendekatan Deep Learning (Mindful, Meaningful, Joyful).`,

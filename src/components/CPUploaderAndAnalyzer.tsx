@@ -57,6 +57,7 @@ import { generateAutoTPForMaterial } from '../lib/curriculumData';
 import {
   analyzeCPTextHeuristic,
   detectLevelPhaseGradeFromText,
+  extractAllHeadedSubjectsFromText,
   getSchoolLevelDisplay,
   getSchoolLevelGroup,
   KNOWN_SUBJECT_PATTERNS,
@@ -315,11 +316,20 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
           extracted.startsWith('[Gambar Format Dokumen');
         if (extracted && !isPlaceholder) {
           setRawTextContent(extracted);
+          const headedInText = extractAllHeadedSubjectsFromText(extracted.substring(0, 15000));
+          const resolvedTextSub =
+            headedInText[0] ||
+            KNOWN_SUBJECT_PATTERNS.find((p) => p.pattern.test(extracted.substring(0, 4000)))?.canonical ||
+            detectedFromName.subject;
+          if (resolvedTextSub) {
+            setSubject(resolvedTextSub);
+          }
           const textLevelMeta = detectLevelPhaseGradeFromText(
             `${selected.name}\n${extracted.substring(0, 6000)}`,
             detectedFromName.level,
             detectedFromName.grade,
-            detectedFromName.phase
+            detectedFromName.phase,
+            resolvedTextSub
           );
           setLevel(textLevelMeta.level);
           setPhase(textLevelMeta.phase);
@@ -346,12 +356,6 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
 
   const detectCPMetadataFromName = (name: string, inheritUiState = true) => {
     const cleanName = (name || '').replace(/[_-]+/g, ' ');
-    const lvlMeta = detectLevelPhaseGradeFromText(
-      cleanName,
-      inheritUiState ? level : undefined,
-      inheritUiState ? grade : undefined,
-      inheritUiState ? phase : undefined
-    );
     let detectedSub = '';
     let detectedNo = '';
 
@@ -361,6 +365,14 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
         break;
       }
     }
+
+    const lvlMeta = detectLevelPhaseGradeFromText(
+      cleanName,
+      inheritUiState ? level : undefined,
+      inheritUiState ? grade : undefined,
+      inheritUiState ? phase : undefined,
+      detectedSub || (inheritUiState ? subject : undefined)
+    );
 
     if (!detectedSub) {
       // Extract clean subject fallback from filename if possible
@@ -617,19 +629,39 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
       let resData: any = null;
       let result: any = null;
 
+      // Check rawTextContent for explicit CP heading (e.g. "CAPAIAN PEMBELAJARAN BIOLOGI") so stale UI state doesn't override document content
+      const explicitHeadedSubs = rawTextContent.trim()
+        ? extractAllHeadedSubjectsFromText(rawTextContent.slice(0, 20000))
+        : [];
+      const effectiveSubjectHint =
+        explicitHeadedSubs.length === 1
+          ? explicitHeadedSubs[0]
+          : explicitHeadedSubs.length > 1
+            ? explicitHeadedSubs.find((s) => s.toLowerCase() === subject.trim().toLowerCase()) || explicitHeadedSubs[0]
+            : subject;
+      const effectiveLevelMeta = rawTextContent.trim()
+        ? detectLevelPhaseGradeFromText(
+            `${fileName}\n${rawTextContent.slice(0, 6000)}`,
+            level,
+            grade,
+            phase,
+            effectiveSubjectHint
+          )
+        : { level, grade: Number(grade), phase };
+
       try {
         const response = await fetch('/api/ai/analyze-cp-file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fileName: fileName || `Capaian Pembelajaran ${subject}`,
+            fileName: fileName || `Capaian Pembelajaran ${effectiveSubjectHint}`,
             fileBase64,
             fileType,
             fileContent: rawTextContent,
-            subject,
-            level,
-            grade,
-            phase,
+            subject: effectiveSubjectHint,
+            level: effectiveLevelMeta.level,
+            grade: effectiveLevelMeta.grade,
+            phase: effectiveLevelMeta.phase,
             totalHoursPerYear,
             jpPerWeek,
             totalTPCount,
@@ -650,12 +682,12 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
       // CLIENT-SIDE EXPERT FALLBACK ENGINE (Jika server offline / tidak ada kunci AI)
       if (!resData) {
         resData = analyzeCPTextHeuristic({
-          fileName: fileName.trim() || `Capaian Pembelajaran ${subject}`,
+          fileName: fileName.trim() || `Capaian Pembelajaran ${effectiveSubjectHint}`,
           rawText: rawTextContent,
-          subjectHint: subject,
-          levelHint: level,
-          gradeHint: grade,
-          phaseHint: phase,
+          subjectHint: effectiveSubjectHint,
+          levelHint: effectiveLevelMeta.level,
+          gradeHint: effectiveLevelMeta.grade,
+          phaseHint: effectiveLevelMeta.phase,
           totalHoursHint: totalHoursPerYear,
           jpPerWeekHint: jpPerWeek,
           getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),

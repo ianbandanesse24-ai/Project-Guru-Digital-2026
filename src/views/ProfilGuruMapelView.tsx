@@ -66,6 +66,7 @@ import {
 
 import {
   getSchoolLevelDisplay,
+  resolvePhaseByLevelAndGrade,
 } from '../lib/curriculumLevels';
 import { getDefaultTPText, countTPsInText, parseTPList, generateAutoTPForMaterial } from '../lib/curriculumData';
 export { getDefaultTPText, countTPsInText, parseTPList, generateAutoTPForMaterial };
@@ -322,14 +323,15 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     setSubject(newSub);
     const targetGrade = Number(grade) || (level === 'SD' ? 4 : level === 'SMP' ? 7 : 10);
     const targetLvl = (level || 'SMA') as 'SMA' | 'SMP' | 'SD' | 'SMK';
-    const masterMatch = StorageService.findMasterCPEntry(newSub, targetLvl, targetGrade);
+    const targetPhase = resolvePhaseByLevelAndGrade(targetLvl, targetGrade);
+    const masterMatch = StorageService.findMasterCPEntry(newSub, targetLvl, targetGrade, undefined, targetPhase);
     const hasMasterMaterials =
       masterMatch &&
-      Number(masterMatch.grade) === targetGrade &&
+      (Number(masterMatch.grade) === targetGrade || (masterMatch.phase || '').toLowerCase() === targetPhase.toLowerCase()) &&
       ((masterMatch.materialsSem1?.length || 0) > 0 || (masterMatch.materialsSem2?.length || 0) > 0);
     const preset = getSubjectPresetByGrade(newSub, targetLvl, targetGrade);
 
-    const resolvedPhase = hasMasterMaterials ? masterMatch!.phase || preset.phase : preset.phase;
+    const resolvedPhase = hasMasterMaterials ? masterMatch!.phase || targetPhase : targetPhase;
     const resolvedCp = hasMasterMaterials ? masterMatch!.cpText || preset.cpSummary : preset.cpSummary;
     const resolvedHours = hasMasterMaterials
       ? masterMatch!.totalHoursPerYear || preset.totalHoursPerYear
@@ -369,14 +371,15 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
   const handleGradeChange = (newGrade: number) => {
     setGrade(newGrade);
     const targetLvl = (level || 'SMA') as 'SMA' | 'SMP' | 'SD' | 'SMK';
-    const masterMatch = StorageService.findMasterCPEntry(subject || 'Fisika', targetLvl, newGrade);
+    const newPhase = resolvePhaseByLevelAndGrade(targetLvl, newGrade);
+    const masterMatch = StorageService.findMasterCPEntry(subject || 'Fisika', targetLvl, newGrade, undefined, newPhase);
     const hasMasterMaterials =
       masterMatch &&
-      Number(masterMatch.grade) === newGrade &&
+      (Number(masterMatch.grade) === newGrade || (masterMatch.phase || '').toLowerCase() === newPhase.toLowerCase()) &&
       ((masterMatch.materialsSem1?.length || 0) > 0 || (masterMatch.materialsSem2?.length || 0) > 0);
     const preset = getSubjectPresetByGrade(subject || 'Fisika', targetLvl, newGrade);
 
-    const resolvedPhase = hasMasterMaterials ? masterMatch!.phase || preset.phase : preset.phase;
+    const resolvedPhase = hasMasterMaterials ? masterMatch!.phase || newPhase : newPhase;
     const resolvedCp = hasMasterMaterials ? masterMatch!.cpText || preset.cpSummary : preset.cpSummary;
     const resolvedHours = hasMasterMaterials
       ? masterMatch!.totalHoursPerYear || preset.totalHoursPerYear
@@ -1776,7 +1779,6 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                         <option value="SD">SD / MI / Paket A</option>
                         <option value="SMP">SMP / MTs / Paket B</option>
                         <option value="SMA">SMA / MA / Paket C</option>
-                        <option value="SMK">SMK / MAK (3 &amp; 4 Tahun)</option>
                       </select>
                     </div>
 
@@ -1806,8 +1808,8 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                         <option value="Fase B">Fase B (Kelas 3-4 SD/MI/Paket A)</option>
                         <option value="Fase C">Fase C (Kelas 5-6 SD/MI/Paket A)</option>
                         <option value="Fase D">Fase D (Kelas 7-9 SMP/MTs/Paket B)</option>
-                        <option value="Fase E">Fase E (Kelas 10 {level === 'SMK' ? 'SMK/MAK' : 'SMA/MA/Paket C'})</option>
-                        <option value="Fase F">Fase F ({level === 'SMK' ? 'Kelas 11-13 SMK/MAK' : 'Kelas 11-12 SMA/MA/Paket C'})</option>
+                        <option value="Fase E">Fase E (Kelas 10 SMA/MA/Paket C)</option>
+                        <option value="Fase F">Fase F (Kelas 11-12 SMA/MA/Paket C)</option>
                       </select>
                     </div>
                   </div>

@@ -10,7 +10,6 @@ import { SMP_OTHER_PRESETS } from './presets/smpOtherPresets';
 import { SD_PRESETS } from './presets/sdPresets';
 import { SD_LANG_MATH_PRESETS } from './presets/sdLanguageMathPresets';
 import { SD_LANG_CIVICS_PRESETS } from './presets/sdLanguageCivicsPresets';
-import { SMK_PRESETS } from './presets/smkPresets';
 import { generateDynamicGradePreset } from './presets/dynamicGradeEngine';
 
 export type { SubjectPreset };
@@ -19,7 +18,7 @@ export { generateDynamicGradePreset };
 /**
  * Master catalog of grade-differentiated subject presets according to
  * Keputusan Kepala BSKAP No. 046/H/KR/2025.
- * Every level (SD, SMP, SMA, SMK) and every grade has completely distinct,
+ * Every level (SD, SMP, SMA) and every grade has completely distinct,
  * authentic learning materials and chapter allocations with zero recycling.
  */
 export const SUBJECT_MATERIAL_PRESETS: SubjectPreset[] = [
@@ -32,7 +31,6 @@ export const SUBJECT_MATERIAL_PRESETS: SubjectPreset[] = [
   ...SD_PRESETS,
   ...SD_LANG_MATH_PRESETS,
   ...SD_LANG_CIVICS_PRESETS,
-  ...SMK_PRESETS,
 ];
 
 /**

@@ -311,12 +311,12 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     setGrade(newGrade);
     setPhase(newPhase);
 
-    const masterEntry = StorageService.findMasterCPEntry(subject, level, newGrade);
+    const masterEntry = StorageService.findMasterCPEntry(subject, level, newGrade, undefined, newPhase);
     let sem1: CPMaterialItem[] = [];
     let sem2: CPMaterialItem[] = [];
     if (
       masterEntry &&
-      Number(masterEntry.grade) === Number(newGrade) &&
+      (Number(masterEntry.grade) === Number(newGrade) || (masterEntry.phase || '').toLowerCase() === newPhase.toLowerCase()) &&
       ((masterEntry.materialsSem1?.length || 0) > 0 || (masterEntry.materialsSem2?.length || 0) > 0)
     ) {
       sem1 = (masterEntry.materialsSem1 || []).map((m, idx) => ({
@@ -352,12 +352,13 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     const cleanSub = newSubject.trim();
     if (!cleanSub) return;
 
-    const masterEntry = StorageService.findMasterCPEntry(cleanSub, level, grade);
+    const nextPhase = resolvePhaseByLevelAndGrade(level, grade);
+    const masterEntry = StorageService.findMasterCPEntry(cleanSub, level, grade, undefined, nextPhase);
     const validGrades = getGradeOptionsByLevel(level).map((g) => g.grade);
     const nextGrade = validGrades.includes(grade)
       ? grade
       : (masterEntry && validGrades.includes(Number(masterEntry.grade)) ? Number(masterEntry.grade) : (validGrades[0] || 10));
-    const nextPhase = resolvePhaseByLevelAndGrade(level, nextGrade);
+    const resolvedPhase = resolvePhaseByLevelAndGrade(level, nextGrade);
 
     let sem1: CPMaterialItem[] = [];
     let sem2: CPMaterialItem[] = [];
@@ -366,7 +367,7 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
 
     if (
       masterEntry &&
-      Number(masterEntry.grade) === Number(nextGrade) &&
+      (Number(masterEntry.grade) === Number(nextGrade) || (masterEntry.phase || '').toLowerCase() === resolvedPhase.toLowerCase()) &&
       ((masterEntry.materialsSem1?.length || 0) > 0 || (masterEntry.materialsSem2?.length || 0) > 0)
     ) {
       sem1 = (masterEntry.materialsSem1 || []).map((m, idx) => ({

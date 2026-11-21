@@ -54,6 +54,8 @@ import {
 } from '../lib/subjectMaterialPresets';
 import {
   analyzeCPTextHeuristic,
+  detectLevelPhaseGradeFromText,
+  extractAllHeadedSubjectsFromText,
   getSchoolLevelDisplay,
   mergeAnalyzedSubjects,
   normalizeSchoolLevel,
@@ -271,23 +273,38 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
 
     setIsAnalyzingCP(true);
     try {
+      const headedSubs = extractAllHeadedSubjectsFromText(sourceText.slice(0, 20000));
+      const effectiveSubHint =
+        headedSubs.length === 1
+          ? headedSubs[0]
+          : headedSubs.length > 1
+            ? headedSubs.find((s) => s.toLowerCase() === subject.trim().toLowerCase()) || headedSubs[0]
+            : subject;
+      const detectedPreMeta = detectLevelPhaseGradeFromText(
+        `${fileNameHint || ''}\n${sourceText.slice(0, 6000)}`,
+        level,
+        grade,
+        phase,
+        effectiveSubHint
+      );
+
       let analyzed: any = null;
       try {
         const response = await fetch('/api/ai/analyze-cp-file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fileName: fileNameHint || activeMasterCP?.fileName || `Analisis_CP_${subject}.txt`,
+            fileName: fileNameHint || activeMasterCP?.fileName || `Analisis_CP_${effectiveSubHint}.txt`,
             fileContent: sourceText,
-            subject,
-            level,
-            grade,
-            phase,
+            subject: effectiveSubHint,
+            level: detectedPreMeta.level,
+            grade: detectedPreMeta.grade,
+            phase: detectedPreMeta.phase,
             jpPerWeek,
             totalHoursPerYear:
               (materialsSem1.reduce((acc, m) => acc + (Number(m.allocatedHours) || 0), 0) +
                 materialsSem2.reduce((acc, m) => acc + (Number(m.allocatedHours) || 0), 0)) ||
-              (level === 'SD' ? 144 : 108),
+              (detectedPreMeta.level === 'SD' ? 144 : 108),
           }),
         });
         if (response.ok) {
@@ -304,19 +321,25 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
         analyzed = analyzeCPTextHeuristic({
           fileName: fileNameHint || activeMasterCP?.fileName,
           rawText: sourceText,
-          subjectHint: subject,
-          levelHint: level,
-          gradeHint: grade,
-          phaseHint: phase,
+          subjectHint: effectiveSubHint,
+          levelHint: detectedPreMeta.level,
+          gradeHint: detectedPreMeta.grade,
+          phaseHint: detectedPreMeta.phase,
           jpPerWeekHint: jpPerWeek,
           getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
         });
       }
 
       const meta = analyzed.identifiedMetadata || {};
-      const nextSubject = meta.subject && meta.subject !== 'Mata Pelajaran Teridentifikasi' ? meta.subject : subject;
-      const nextLevel = normalizeSchoolLevel(meta.level || level, sourceText.slice(0, 4000));
-      const nextGrade = Number(meta.grade) || grade;
+      const nextSubject =
+        meta.subject && meta.subject !== 'Mata Pelajaran Teridentifikasi'
+          ? meta.subject
+          : effectiveSubHint;
+      const nextLevel = normalizeSchoolLevel(
+        meta.level || detectedPreMeta.level,
+        `${nextSubject} ${sourceText.slice(0, 4000)}`
+      );
+      const nextGrade = Number(meta.grade) || detectedPreMeta.grade;
       const nextPhase = meta.phase || resolvePhaseByLevelAndGrade(nextLevel, nextGrade);
 
       const nextElements =
@@ -945,7 +968,6 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
                   <option value="SD">SD</option>
                   <option value="SMP">SMP</option>
                   <option value="SMA">SMA</option>
-                  <option value="SMK">SMK</option>
                 </select>
               </div>
 

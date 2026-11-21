@@ -145,16 +145,12 @@ export function generateDynamicGradePreset(
   const totalHours =
     level === 'SD'
       ? 144
-      : level === 'SMK' && numGrade >= 11
-      ? 288
       : level === 'SMA' && numGrade >= 11
       ? 180
       : 108;
   const jpPerWeek =
     level === 'SD'
       ? 4
-      : level === 'SMK' && numGrade >= 11
-      ? 8
       : level === 'SMA' && numGrade >= 11
       ? 5
       : 3;

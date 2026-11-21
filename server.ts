@@ -13,6 +13,8 @@ import {
   analyzeCPTextHeuristic,
   buildLevelRecapFromSubjects,
   buildPhaseDirectoryByLevel,
+  detectLevelPhaseGradeFromText,
+  extractAllHeadedSubjectsFromText,
   extractCPDocumentInsights,
   getSchoolLevelDisplay,
   mergeAnalyzedSubjects,
@@ -1654,12 +1656,36 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
     let analysisResult: any = null;
     let summaryMarkdown = '';
 
-    const subject = reqSubject || 'Mata Pelajaran Teridentifikasi';
-    const level = reqLevel || 'SMA';
-    const phase = reqPhase || 'Fase E';
-    const grade = reqGrade || (level === 'SD' ? 4 : level === 'SMP' ? 7 : 10);
-    const totalHours = Number(reqHours) || 108;
-    const jpPerWeek = Number(reqJp) || 3;
+    const headedTextSubs = extractedText.trim()
+      ? extractAllHeadedSubjectsFromText(extractedText.slice(0, 25000))
+      : [];
+    const effectiveReqSubject =
+      headedTextSubs.length === 1
+        ? headedTextSubs[0]
+        : headedTextSubs.length > 1
+          ? (reqSubject && headedTextSubs.find((s) => s.toLowerCase() === String(reqSubject).trim().toLowerCase())) || headedTextSubs[0]
+          : reqSubject;
+
+    const detectedServerMeta = extractedText.trim()
+      ? detectLevelPhaseGradeFromText(
+          `${fileName || ''}\n${extractedText.slice(0, 8000)}`,
+          reqLevel as any,
+          reqGrade,
+          reqPhase,
+          effectiveReqSubject
+        )
+      : {
+          level: (reqLevel || 'SMA') as any,
+          grade: Number(reqGrade) || (reqLevel === 'SD' ? 4 : reqLevel === 'SMP' ? 7 : 10),
+          phase: reqPhase || 'Fase E',
+        };
+
+    const subject = effectiveReqSubject || 'Mata Pelajaran Teridentifikasi';
+    const level = detectedServerMeta.level || reqLevel || 'SMA';
+    const phase = detectedServerMeta.phase || reqPhase || 'Fase E';
+    const grade = detectedServerMeta.grade || reqGrade || (level === 'SD' ? 4 : level === 'SMP' ? 7 : 10);
+    const totalHours = Number(reqHours) || (level === 'SD' ? 144 : 108);
+    const jpPerWeek = Number(reqJp) || (level === 'SD' ? 4 : 3);
     const sem1Hours = Math.round(totalHours / 2);
     const sem2Hours = totalHours - sem1Hours;
     const tpCount = Number(reqTPCount) || 6;
@@ -1838,7 +1864,7 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
       const heuristic = analyzeCPTextHeuristic({
         fileName: fileName || `Capaian Pembelajaran ${subject}`,
         rawText: extractedText,
-        subjectHint: reqSubject,
+        subjectHint: effectiveReqSubject,
         levelHint: level as any,
         gradeHint: grade,
         phaseHint: phase,
