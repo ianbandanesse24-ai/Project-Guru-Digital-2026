@@ -666,6 +666,9 @@ export interface CPSubjectEntry {
   subLevelLabel?: string;
   grade: number | string;
   phase: string;
+  categoryTag?: 'Umum/Wajib' | 'Pilihan/Tingkat Lanjut' | 'Kejuruan/Konsentrasi';
+  locationRef?: string;
+  specialNotes?: string;
   jpPerWeek?: number;
   totalHoursPerYear?: number;
   cpText?: string;
@@ -677,6 +680,61 @@ export interface CPSubjectEntry {
   }[];
   materialsSem1: CPMaterialItem[];
   materialsSem2: CPMaterialItem[];
+}
+
+export interface CPCoverageReport {
+  totalCharacters: number;
+  aiAnalyzedCharacters: number;
+  totalPdfPages?: number;
+  chunksProcessed: number;
+  totalChunksNeeded: number;
+  isFullyAnalyzedByAI: boolean;
+  isFullyScannedStructurally: boolean;
+  readSectionsSummary: string[];
+  unreadOrTruncatedNotice?: string;
+}
+
+export interface CPGapFinding {
+  id: string;
+  targetName: string;
+  targetType: 'profile_parameter' | 'distribution_plan' | 'perangkat_ajar';
+  status: 'selaras' | 'perlu_penyesuaian' | 'tidak_sesuai';
+  matchedSubject?: string;
+  matchedLevel?: SchoolLevel;
+  matchedPhase?: string;
+  matchedGrade?: number | string;
+  mismatches: string[];
+  missingElements: string[];
+  recommendations: string[];
+}
+
+export interface CPGapAnalysisReport {
+  evaluatedAt: string;
+  totalEvaluatedArtifacts: number;
+  alignedCount: number;
+  gapCount: number;
+  findings: CPGapFinding[];
+}
+
+export interface CPDocumentInsights {
+  diktumSummary?: string;
+  legalBasis?: string[];
+  revokedRegulations?: string[];
+  lampiranMap?: Array<{
+    lampiran: string;
+    title: string;
+    pageRange?: string;
+  }>;
+  deepLearningAndDimensions?: string;
+  phaseContinuityNotes?: string;
+  countingMethodology?: {
+    religionRule: string;
+    advancedPhaseFRule: string;
+    scienceSocialSplitRule: string;
+    informatikaSDRule: string;
+    smkLampiranIIIRule: string;
+    ambiguitiesOrLimitations: string[];
+  };
 }
 
 export interface ActiveMasterCPData {
@@ -717,6 +775,9 @@ export interface ActiveMasterCPData {
   materialsSem1: CPMaterialItem[];
   materialsSem2: CPMaterialItem[];
   analyzedSubjects?: CPSubjectEntry[];
+  coverageReport?: CPCoverageReport;
+  documentInsights?: CPDocumentInsights;
+  gapAnalysisReport?: CPGapAnalysisReport;
   executiveSummary?: string;
   fullMarkdownReport?: string;
   kktpSummary?: string;

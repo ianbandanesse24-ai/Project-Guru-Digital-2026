@@ -44,7 +44,6 @@ import {
   resolvePhaseByLevelAndGrade,
   getGradeOptionsByLevel,
   getSchoolLevelDisplay,
-  getDefaultSubjectsByLevel,
 } from '../lib/curriculumLevels';
 import { handleNumberInputFocus, parseNumberInput } from '../lib/inputUtils';
 import { KalenderPendidikanView } from './KalenderPendidikanView';
@@ -109,13 +108,16 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
   }, [initialTab]);
 
   // Core state
-  const [subject, setSubject] = useState<string>(masterCP?.subject || 'Fisika');
-  const [level, setLevel] = useState<SchoolLevel>((masterCP?.level as SchoolLevel) || 'SMA');
-  const [grade, setGrade] = useState<number>(Number(masterCP?.grade) || 10);
-  const [phase, setPhase] = useState<string>(masterCP?.phase || 'Fase E');
-  const [jpPerWeek, setJpPerWeek] = useState<number>(masterCP?.jpPerWeek || 3);
+  const initialLevel: SchoolLevel = (masterCP?.level as SchoolLevel) || (schoolProfile?.level as SchoolLevel) || 'SMA';
+  const initialCatalogSubject = StorageService.getSubjectsFromMasterCPByLevel(initialLevel)[0]?.subject || '';
+  const initialSubject = masterCP?.subject || initialCatalogSubject || schoolProfile?.subject || '';
+  const [subject, setSubject] = useState<string>(initialSubject);
+  const [level, setLevel] = useState<SchoolLevel>(initialLevel);
+  const [grade, setGrade] = useState<number>(Number(masterCP?.grade) || Number(schoolProfile?.grade) || 10);
+  const [phase, setPhase] = useState<string>(masterCP?.phase || schoolProfile?.phase || 'Fase E');
+  const [jpPerWeek, setJpPerWeek] = useState<number>(masterCP?.jpPerWeek || schoolProfile?.jpPerWeek || 3);
   const [timeAllocationPerWeek, setTimeAllocationPerWeek] = useState<string>(
-    masterCP?.timeAllocationPerWeek || '2 x 45 Menit'
+    masterCP?.timeAllocationPerWeek || schoolProfile?.timeAllocationPerWeek || '2 x 45 Menit'
   );
   const [curriculumApproach] = useState<string>(
     'Deep Learning (Mindful, Meaningful, Joyful)'
@@ -126,10 +128,11 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     if (masterCP?.materialsSem1 && masterCP.materialsSem1.length > 0) {
       return masterCP.materialsSem1;
     }
+    if (!initialSubject) return [];
     const preset = getSubjectPresetByGrade(
-      masterCP?.subject || 'Fisika',
-      (masterCP?.level as EducationLevel) || 'SMA',
-      Number(masterCP?.grade) || 10
+      initialSubject,
+      initialLevel as EducationLevel,
+      Number(masterCP?.grade) || Number(schoolProfile?.grade) || 10
     );
     return (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
   });
@@ -138,10 +141,11 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     if (masterCP?.materialsSem2 && masterCP.materialsSem2.length > 0) {
       return masterCP.materialsSem2;
     }
+    if (!initialSubject) return [];
     const preset = getSubjectPresetByGrade(
-      masterCP?.subject || 'Fisika',
-      (masterCP?.level as EducationLevel) || 'SMA',
-      Number(masterCP?.grade) || 10
+      initialSubject,
+      initialLevel as EducationLevel,
+      Number(masterCP?.grade) || Number(schoolProfile?.grade) || 10
     );
     return (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
   });
@@ -168,17 +172,10 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     return getGradeOptionsByLevel(level);
   }, [level]);
 
-  // Daftar Mata Pelajaran pada CP Master yang sesuai dengan Tingkat Sekolah terpilih
+  // Daftar Mata Pelajaran pada CP Master BSKAP 046 yang diupload Admin sesuai Tingkat Sekolah terpilih
   const cpMasterSubjects = useMemo(() => {
     return StorageService.getSubjectsFromMasterCPByLevel(level);
   }, [level, catalogVersion]);
-
-  // Daftar Mata Pelajaran referensi standar untuk Tingkat Sekolah terpilih (di luar yang sudah ada di CP Master)
-  const defaultLevelSubjects = useMemo(() => {
-    const base = getDefaultSubjectsByLevel(level);
-    const cpSet = new Set(cpMasterSubjects.map((s) => s.subject.trim().toLowerCase()));
-    return base.filter((s) => !cpSet.has(s.trim().toLowerCase()));
-  }, [level, cpMasterSubjects]);
 
   const activeCPSubjectMatch = useMemo(() => {
     const clean = subject.trim().toLowerCase();
@@ -193,8 +190,9 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     const handleRefresh = (customDetail?: any) => {
       setCatalogVersion((v) => v + 1);
       if (isSyncingFromSelfRef.current) return;
-      const updated = customDetail?.detail || StorageService.getActiveMasterCP();
-      if (updated) {
+      const rawDetail = customDetail?.detail;
+      const updated = (rawDetail?.masterCP || rawDetail) || StorageService.getActiveMasterCP();
+      if (updated && (updated.subject || updated.level)) {
         if (updated.subject) setSubject(updated.subject);
         if (updated.level) setLevel((updated.level as SchoolLevel));
         if (updated.grade) setGrade(Number(updated.grade));
@@ -240,22 +238,16 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
 
     const validGrades = getGradeOptionsByLevel(newLevel).map((g) => g.grade);
     let nextGrade = levelOpt.defaultGrade;
-    if (pickedMaster && validGrades.includes(Number(pickedMaster.grade))) {
+    if (validGrades.includes(grade)) {
+      nextGrade = grade;
+    } else if (pickedMaster && validGrades.includes(Number(pickedMaster.grade))) {
       nextGrade = Number(pickedMaster.grade);
     }
     const nextPhase = resolvePhaseByLevelAndGrade(newLevel, nextGrade);
 
-    let nextSubject = subject;
+    let nextSubject = '';
     if (pickedMaster) {
       nextSubject = pickedMaster.subject;
-    } else {
-      const levelDefaults = getDefaultSubjectsByLevel(newLevel);
-      const stillValid = levelDefaults.some(
-        (s) => s.toLowerCase() === subject.trim().toLowerCase()
-      );
-      if (!stillValid) {
-        nextSubject = levelDefaults[0] || 'Pendidikan Pancasila';
-      }
     }
 
     const nextJp = pickedMaster?.jpPerWeek || levelOpt.defaultJpPerWeek || jpPerWeek || 3;
@@ -264,22 +256,24 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     let sem1: CPMaterialItem[] = [];
     let sem2: CPMaterialItem[] = [];
 
-    if (
-      pickedMaster &&
-      ((pickedMaster.materialsSem1?.length || 0) > 0 || (pickedMaster.materialsSem2?.length || 0) > 0)
-    ) {
-      sem1 = (pickedMaster.materialsSem1 || []).map((m, idx) => ({
-        ...m,
-        id: m.id || `mat-1-${idx + 1}`,
-      }));
-      sem2 = (pickedMaster.materialsSem2 || []).map((m, idx) => ({
-        ...m,
-        id: m.id || `mat-2-${idx + 1}`,
-      }));
-    } else {
-      const preset = getSubjectPresetByGrade(nextSubject, newLevel as EducationLevel, nextGrade);
-      sem1 = (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
-      sem2 = (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
+    if (pickedMaster) {
+      if (
+        Number(pickedMaster.grade) === Number(nextGrade) &&
+        ((pickedMaster.materialsSem1?.length || 0) > 0 || (pickedMaster.materialsSem2?.length || 0) > 0)
+      ) {
+        sem1 = (pickedMaster.materialsSem1 || []).map((m, idx) => ({
+          ...m,
+          id: m.id || `mat-1-${idx + 1}`,
+        }));
+        sem2 = (pickedMaster.materialsSem2 || []).map((m, idx) => ({
+          ...m,
+          id: m.id || `mat-2-${idx + 1}`,
+        }));
+      } else {
+        const preset = getSubjectPresetByGrade(nextSubject, newLevel as EducationLevel, nextGrade);
+        sem1 = (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
+        sem2 = (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
+      }
     }
 
     setLevel(newLevel);
@@ -298,8 +292,8 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
       sem2,
       nextJp,
       pickedMaster
-        ? `Tingkat Sekolah "${lvlLabel}" dipilih. Mata pelajaran mengikuti CP Master: "${nextSubject}" (${nextPhase}, Kelas ${nextGrade}) dengan ${sem1.length} Bab Sem 1 & ${sem2.length} Bab Sem 2.`
-        : `Tingkat Sekolah "${lvlLabel}" dipilih (${nextPhase}, Kelas ${nextGrade}). Daftar mata pelajaran & materi preset telah disesuaikan.`,
+        ? `Tingkat Sekolah "${lvlLabel}" dipilih. Mata pelajaran mengikuti CP BSKAP 046 Admin: "${nextSubject}" (${nextPhase}, Kelas ${nextGrade}) — total ${masterEntries.length} mapel tersedia.`
+        : `Tingkat Sekolah "${lvlLabel}" dipilih (${nextPhase}, Kelas ${nextGrade}). Belum ada CP BSKAP 046 yang diupload Admin untuk jenjang ini — silakan upload dokumen CP di menu Upload CP Master.`,
       {
         subject: nextSubject,
         level: newLevel,
@@ -360,10 +354,9 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
 
     const masterEntry = StorageService.findMasterCPEntry(cleanSub, level, grade);
     const validGrades = getGradeOptionsByLevel(level).map((g) => g.grade);
-    const nextGrade =
-      masterEntry && validGrades.includes(Number(masterEntry.grade))
-        ? Number(masterEntry.grade)
-        : grade;
+    const nextGrade = validGrades.includes(grade)
+      ? grade
+      : (masterEntry && validGrades.includes(Number(masterEntry.grade)) ? Number(masterEntry.grade) : (validGrades[0] || 10));
     const nextPhase = resolvePhaseByLevelAndGrade(level, nextGrade);
 
     let sem1: CPMaterialItem[] = [];
@@ -373,6 +366,7 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
 
     if (
       masterEntry &&
+      Number(masterEntry.grade) === Number(nextGrade) &&
       ((masterEntry.materialsSem1?.length || 0) > 0 || (masterEntry.materialsSem2?.length || 0) > 0)
     ) {
       sem1 = (masterEntry.materialsSem1 || []).map((m, idx) => ({
@@ -1083,11 +1077,15 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                               {card.group}
                             </span>
                           </div>
-                          {masterCount > 0 && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-600 text-white font-bold shrink-0 shadow-2xs">
-                              {masterCount} CP
-                            </span>
-                          )}
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 shadow-2xs ${
+                              masterCount > 0
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {masterCount} Mapel CP
+                          </span>
                         </div>
                         <div className="text-[11px] font-black mt-1 tracking-tight">{card.aliases}</div>
                         <div className="text-[10px] opacity-75 font-semibold">{card.title}</div>
@@ -1129,39 +1127,35 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                     const lowerSub = subject.trim().toLowerCase();
                     const cpMatch = cpMasterSubjects.find((s) => s.subject.trim().toLowerCase() === lowerSub);
                     if (cpMatch) return cpMatch.subject;
-                    const defMatch = defaultLevelSubjects.find((s) => s.trim().toLowerCase() === lowerSub);
-                    if (defMatch) return defMatch;
+                    if (!lowerSub && cpMasterSubjects.length === 0) return '';
                     return '__CUSTOM_CURRENT__';
                   })()}
                   onChange={(e) => {
                     const val = e.target.value;
                     if (val === '__MANUAL__') {
                       setShowSubjectSelector(true);
-                    } else if (val !== '__CUSTOM_CURRENT__') {
+                    } else if (val && val !== '__CUSTOM_CURRENT__') {
                       handleSubjectChange(val);
                     }
                   }}
                   className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-blue-800 font-bold focus:outline-none focus:border-blue-600 text-xs"
                 >
-                  {cpMasterSubjects.length > 0 && (
-                    <optgroup label={`Semua Mapel dari CP yang Dianalisis — ${levelDisplay.shortLabel} (${cpMasterSubjects.length} Mapel)`}>
+                  {cpMasterSubjects.length > 0 ? (
+                    <optgroup label={`Seluruh Mapel dari CP BSKAP 046 Admin — ${levelDisplay.shortLabel} (${cpMasterSubjects.length} Mapel)`}>
                       {cpMasterSubjects.map((s) => (
                         <option key={`cp-${s.subject}`} value={s.subject}>
                           {s.subject}
                         </option>
                       ))}
                     </optgroup>
+                  ) : (
+                    <option value="" disabled>
+                      -- Belum ada CP BSKAP 046 yang diupload Admin untuk {levelDisplay.shortLabel} --
+                    </option>
                   )}
-                  <optgroup label={`Referensi Mapel — ${levelDisplay.shortLabel}`}>
-                    {defaultLevelSubjects.map((s) => (
-                      <option key={`ref-${s}`} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </optgroup>
-                  {!cpMasterSubjects.some((s) => s.subject.trim().toLowerCase() === subject.trim().toLowerCase()) &&
-                    !defaultLevelSubjects.some((s) => s.trim().toLowerCase() === subject.trim().toLowerCase()) && (
-                      <option value="__CUSTOM_CURRENT__">{subject} (Kustom)</option>
+                  {subject.trim() &&
+                    !cpMasterSubjects.some((s) => s.subject.trim().toLowerCase() === subject.trim().toLowerCase()) && (
+                      <option value="__CUSTOM_CURRENT__">{subject} (Manual / Kustom)</option>
                     )}
                   <option value="__MANUAL__">+ Tulis Mapel Manual Lainnya...</option>
                 </select>
@@ -1169,13 +1163,13 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-1 text-[10px]">
                   {activeCPSubjectMatch ? (
                     <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
-                      Sesuai CP yang Dianalisis ({levelDisplay.shortLabel} • {cpMasterSubjects.length} Mapel Tersedia)
+                      Sesuai CP BSKAP 046 Admin ({levelDisplay.shortLabel} • {cpMasterSubjects.length} Mapel Tersedia)
                     </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-medium">
                       {cpMasterSubjects.length > 0
-                        ? `Memuat ${cpMasterSubjects.length} mapel dari CP yang dianalisis (${levelDisplay.shortLabel})`
-                        : `Khusus jenjang ${levelDisplay.shortLabel}`}
+                        ? `Memuat ${cpMasterSubjects.length} mapel dari CP BSKAP 046 Admin (${levelDisplay.shortLabel})`
+                        : `Menunggu upload CP BSKAP 046 Admin untuk ${levelDisplay.shortLabel}`}
                     </span>
                   )}
                 </div>

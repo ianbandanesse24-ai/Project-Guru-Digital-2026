@@ -1,2107 +1,2239 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  FileSearch,
+  UploadCloud,
+  FileText,
+  FolderOpen,
+  Sparkles,
+  CheckCircle2,
+  Trash2,
+  Search,
+  RefreshCw,
+  ArrowRight,
+  AlertCircle,
   BookOpen,
   Layers,
-  Sparkles,
-  Printer,
-  FileSpreadsheet,
-  Copy,
-  CheckCircle2,
-  Calendar,
-  Clock,
-  Target,
-  ArrowRight,
-  ShieldCheck,
-  ShieldAlert,
-  Zap,
-  Info,
-  ExternalLink,
-  Search,
-  Filter,
-  Download,
-  Share2,
-  ChevronRight,
-  BrainCircuit,
   GraduationCap,
-  Bookmark,
-  RefreshCw,
-  Grid,
-  Check,
-  FolderSync,
-  Compass,
-  UploadCloud,
-  FileUp,
-  FileText,
-  Trash2,
-  Eye,
-  Upload,
-  Settings2,
+  X,
   FileCheck,
+  ShieldCheck,
 } from 'lucide-react';
 import { StorageService, DEFAULT_ADMIN } from '../lib/storage';
-import { ActiveMasterCPData, CPMaterialItem, SchoolLevel } from '../types';
-import { ExportService } from '../lib/exportUtils';
-import { CustomFormatSelector, CustomFormatConfig, CustomFormatFile } from '../components/CustomFormatSelector';
 import { UniversalFileParser } from '../lib/universalFileParser';
-import { CPUploaderAndAnalyzer } from '../components/CPUploaderAndAnalyzer';
 import {
-  SUBJECT_MATERIAL_PRESETS,
-  SubjectPreset,
-  getSubjectPresetByGrade,
-  syncAllPresetSubjectsToMasterCP,
-} from '../lib/subjectMaterialPresets';
+  TIERED_SCHOOL_LEVEL_CARDS,
+  SchoolLevelGroup,
+  getSchoolLevelGroup,
+  isSameSchoolLevelGroup,
+  getGradeOptionsByLevel,
+  resolvePhaseByLevelAndGrade,
+  getSchoolLevelDisplay,
+  normalizeSchoolLevel,
+  analyzeCPTextHeuristic,
+  buildLevelRecapFromSubjects,
+  buildPhaseDirectoryByLevel,
+  extractCPDocumentInsights,
+  mergeAnalyzedSubjects,
+  detectLevelPhaseGradeFromText,
+  KNOWN_SUBJECT_PATTERNS,
+} from '../lib/curriculumLevels';
+import { getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
 import {
-  AgamaIslamCPUploadModal,
-  isAgamaIslamSubject,
-} from '../components/AgamaIslamCPUploadModal';
+  ActiveMasterCPData,
+  AdminUploadedCPItem,
+  CPCoverageReport,
+  CPDocumentInsights,
+  CPMaterialItem,
+  CPSubjectEntry,
+  SchoolLevel,
+} from '../types';
 
 interface UploadCPMasterViewProps {
   onNavigate?: (viewId: string) => void;
 }
 
+interface AnalysisDraft {
+  id: string;
+  docName: string;
+  docNumber: string;
+  fileName: string;
+  folderName?: string;
+  fileType?: string;
+  fileSize?: number;
+  rawText: string;
+  executiveSummary: string;
+  analyzedSubjects: CPSubjectEntry[];
+  coverageReport?: CPCoverageReport;
+  documentInsights?: CPDocumentInsights;
+  primarySubject: string;
+  primaryLevel: SchoolLevel;
+  primaryGrade: number | string;
+  primaryPhase: string;
+  analyzedAt: string;
+  syncedAt?: string;
+  isSynced: boolean;
+}
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function formatDateID(iso?: string): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString('id-ID', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function stripExtension(name: string): string {
+  return name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').trim();
+}
+
+function detectMetadataFromFilename(name: string) {
+  const cleanName = (name || '').replace(/[_-]+/g, ' ');
+  const lvlMeta = detectLevelPhaseGradeFromText(cleanName);
+  let detectedSub = '';
+  for (const entry of KNOWN_SUBJECT_PATTERNS) {
+    if (entry.pattern.test(cleanName)) {
+      detectedSub = entry.canonical;
+      break;
+    }
+  }
+  const noMatch = name.match(/(?:no|nomor)[\s._-]*([a-z0-9./-]+)/i);
+  const detectedNo = noMatch && noMatch[1] ? noMatch[1].replace(/\.[^.]+$/, '') : '';
+  return {
+    subject: detectedSub,
+    level: lvlMeta.level,
+    phase: lvlMeta.phase,
+    grade: lvlMeta.grade,
+    docNumber: detectedNo,
+  };
+}
+
+function buildInitialDraftFromStorage(): AnalysisDraft | null {
+  const active = StorageService.getActiveMasterCP(DEFAULT_ADMIN.id) || StorageService.getActiveMasterCP();
+  const uploadedList = StorageService.getAdminUploadedCPs();
+  if (!active || (uploadedList.length === 0 && active.uploadedByRole !== 'admin')) {
+    return null;
+  }
+
+  const subjects: CPSubjectEntry[] =
+    Array.isArray(active.analyzedSubjects) && active.analyzedSubjects.length > 0
+      ? active.analyzedSubjects
+      : active.subject
+      ? [
+          {
+            id: active.id,
+            subject: active.subject,
+            level: active.level,
+            subLevelLabel: active.subLevelLabel || getSchoolLevelDisplay(active.level, active.grade).subLabel,
+            grade: active.grade,
+            phase: active.phase,
+            jpPerWeek: active.jpPerWeek,
+            totalHoursPerYear: active.totalHoursPerYear,
+            cpText: active.cpText,
+            elements: active.elements,
+            materialsSem1: active.materialsSem1 || [],
+            materialsSem2: active.materialsSem2 || [],
+          },
+        ]
+      : [];
+
+  if (subjects.length === 0) return null;
+
+  return {
+    id: active.id,
+    docName: stripExtension(active.fileName || '') || active.subject || 'Dokumen CP Resmi',
+    docNumber: active.docNumber || '',
+    fileName: active.fileName || '',
+    folderName: active.folderName,
+    fileType: active.fileType,
+    fileSize: active.fileSize,
+    rawText: active.cpText || '',
+    executiveSummary: active.executiveSummary || '',
+    analyzedSubjects: subjects,
+    coverageReport: active.coverageReport,
+    documentInsights: active.documentInsights,
+    primarySubject: active.subject || subjects[0].subject,
+    primaryLevel: active.level || subjects[0].level,
+    primaryGrade: active.grade || subjects[0].grade,
+    primaryPhase: active.phase || subjects[0].phase,
+    analyzedAt: active.uploadedAt || new Date().toISOString(),
+    syncedAt: active.lastSyncedAt || active.uploadedAt,
+    isSynced: true,
+  };
+}
+
 export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNavigate }) => {
   const currentUser = StorageService.getCurrentUser() || DEFAULT_ADMIN;
-  const schoolProfile = StorageService.getSchoolProfile();
 
-  const [activeTab, setActiveTab] = useState<'upload_master' | 'catalog' | 'all' | 'elements' | 'sem1' | 'sem2' | 'format_sekolah'>('upload_master');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [copiedSection, setCopiedSection] = useState<string | null>(null);
-  const [syncedNotice, setSyncedNotice] = useState<string | null>(null);
-  const [catalogLevelFilter, setCatalogLevelFilter] = useState<'ALL' | 'SD' | 'SMP' | 'SMA' | 'SMK'>('ALL');
-  const [catalogPhaseFilter, setCatalogPhaseFilter] = useState<string>('ALL');
-  const [catalogSearch, setCatalogSearch] = useState('');
-  const [showSyncAllModal, setShowSyncAllModal] = useState<boolean>(false);
-  const [syncAllResults, setSyncAllResults] = useState<{ totalSynced: number; subjects: string[] } | null>(null);
-  const [showAgamaIslamCPModal, setShowAgamaIslamCPModal] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Adopt & Sync Success Modal for Teachers
-  const [adoptedSuccessModal, setAdoptedSuccessModal] = useState<{
-    isOpen: boolean;
-    subject: string;
-    level: string;
-    phase: string;
-    grade: number | string;
-    totalTP: number;
-    hours: number;
+  // Upload & Naming States
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [folderFiles, setFolderFiles] = useState<File[]>([]);
+  const [folderName, setFolderName] = useState<string>('');
+  const [fileName, setFileName] = useState<string>('');
+  const [fileType, setFileType] = useState<string>('');
+  const [fileSize, setFileSize] = useState<number>(0);
+  const [fileBase64, setFileBase64] = useState<string>('');
+  const [rawTextContent, setRawTextContent] = useState<string>('');
+  const [docName, setDocName] = useState<string>('');
+  const [docNumber, setDocNumber] = useState<string>('');
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isReadingFile, setIsReadingFile] = useState<boolean>(false);
+  const [resultViewMode, setResultViewMode] = useState<'detail' | 'matrix'>('detail');
+
+  // Saved Admin CP List
+  const [adminUploadedCPs, setAdminUploadedCPs] = useState<AdminUploadedCPItem[]>(() =>
+    StorageService.getAdminUploadedCPs()
+  );
+
+  // Deep Analysis States
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [progressPercent, setProgressPercent] = useState<number>(0);
+  const [analysisStepText, setAnalysisStepText] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState<string>('');
+  const [analysisDraft, setAnalysisDraft] = useState<AnalysisDraft | null>(() =>
+    buildInitialDraftFromStorage()
+  );
+
+  // Structured Inspection Filters (Tingkat Sekolah -> Kelas/Fase -> Mata Pelajaran -> Lingkup Materi)
+  const [selectedLevelGroup, setSelectedLevelGroup] = useState<SchoolLevelGroup>(() => {
+    const initial = buildInitialDraftFromStorage();
+    return initial ? getSchoolLevelGroup(initial.primaryLevel) : 'SD';
+  });
+  const [selectedGrade, setSelectedGrade] = useState<number>(() => {
+    const initial = buildInitialDraftFromStorage();
+    return Number(initial?.primaryGrade) || 4;
+  });
+  const [selectedSubjectName, setSelectedSubjectName] = useState<string>(() => {
+    const initial = buildInitialDraftFromStorage();
+    return initial?.primarySubject || '';
+  });
+  const [subjectSearch, setSubjectSearch] = useState<string>('');
+
+  // Sync States
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncSuccessInfo, setSyncSuccessInfo] = useState<{
+    docName: string;
+    totalSubjects: number;
+    levelCount: number;
+    profileSubject: string;
+    profileLevel: SchoolLevel;
+    profileGrade: number;
+    profilePhase: string;
+    syncedAt: string;
   } | null>(null);
 
-  // Custom School Format State (Loaded from localStorage or default)
-  const formatUploadInputRef = useRef<HTMLInputElement>(null);
-  const [isProcessingFormatFile, setIsProcessingFormatFile] = useState(false);
-  const [customFormatConfig, setCustomFormatConfig] = useState<CustomFormatConfig>(() => {
-    try {
-      const saved = localStorage.getItem('kurikulum_custom_format_analisis_cp');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error(e);
-    }
-    return {
-      useCustomFormat: false,
-      formatFile: null,
-      customFormatNotes: '',
-    };
-  });
-
-  const handleCustomFormatChange = (newConfig: CustomFormatConfig) => {
-    setCustomFormatConfig(newConfig);
-    try {
-      localStorage.setItem('kurikulum_custom_format_analisis_cp', JSON.stringify(newConfig));
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleDirectFormatUpload = async (file: File) => {
-    setIsProcessingFormatFile(true);
-    try {
-      const parsed = await UniversalFileParser.parseFile(file);
-      const newFile: CustomFormatFile = {
-        name: parsed.fileName,
-        size: parsed.fileSize,
-        type: parsed.category,
-        mimeType: parsed.mimeType,
-        base64: parsed.base64,
-        extractedText: parsed.extractedText,
-        tableMarkdown: parsed.tableMarkdown,
-        sheetNames: parsed.sheetNames,
-        summaryText: parsed.summaryText,
-        previewUrl: parsed.previewUrl,
-      };
-
-      const newConfig: CustomFormatConfig = {
-        useCustomFormat: true,
-        formatFile: newFile,
-        customFormatNotes:
-          parsed.summaryText ||
-          `Format Acuan Dokumen: Mengikuti struktur tabel, tata letak, dan komponen pada file "${parsed.fileName}".`,
-      };
-
-      handleCustomFormatChange(newConfig);
-      setSyncedNotice(`Template format "${parsed.fileName}" berhasil diunggah & diaktifkan untuk Analisis CP!`);
-      setTimeout(() => setSyncedNotice(null), 4000);
-    } catch (err) {
-      console.error('Failed to parse format file:', err);
-      alert('Gagal membaca file template. Pastikan format file sesuai (Word, Excel, PDF, atau Foto).');
-    } finally {
-      setIsProcessingFormatFile(false);
-    }
-  };
-
-  const handleSelectFormatPreset = (presetId: string) => {
-    const presets: Record<string, { label: string; notes: string }> = {
-      analisis_cp_tabel: {
-        label: 'Format Tabel Analisis CP & Elemen Sekolah',
-        notes: `1. IDENTITAS PERANGKAT (Satuan Pendidikan, Mapel, Fase/Kelas, Semester, Tahun Pelajaran)
-2. CAPAIAN PEMBELAJARAN (CP) RESMI
-3. DEKOMPOSISI ELEMEN & ANALISIS KOMPETENSI ESENSIAL (Tabel: No, Elemen CP, Kalimat CP, Kompetensi HOTS, Materi Esensial)
-4. INTEGRASI 3 PILAR DEEP LEARNING (Mindful, Meaningful, Joyful Learning)
-5. PEMETAAN DIMENSI PROFIL PELAJAR PANCASILA
-6. STRATEGI PEMBELAJARAN BERDIFERENSIASI (Konten, Proses, Produk)`,
-      },
-      analisis_cp_deep_learning_matriks: {
-        label: 'Format Matriks 6 Kolom Analisis CP (Deep Learning & Profil Pancasila)',
-        notes: `1. KOP RESMI SATUAN PENDIDIKAN & IDENTITAS GURU
-2. CAPAIAN PEMBELAJARAN (CP) RESMI FASE & KELAS
-3. TABEL MATRIKS ANALISIS CP LENGKAP:
-   | No | Elemen CP | Kalimat Capaian Pembelajaran | Materi Pokok Esensial | Rumusan Tujuan Pembelajaran (TP) | Dimensi Profil Pancasila & 3 Pilar Deep Learning | Alokasi JP |
-4. DISTRIBUSI ALOKASI WAKTU SEMESTER 1 (GANJIL) & SEMESTER 2 (GENAP)
-5. PENGESAHAN DOKUMEN: Kepala Satuan Pendidikan dan Guru Pengampu (Lengkap dengan NIP)`,
-      },
-      analisis_cp_mgmp: {
-        label: 'Format Analisis CP Standar MGMP / MKKS',
-        notes: `A. RASIONAL & CAPAIAN PEMBELAJARAN FASE
-B. PEMETAAN ELEMEN CAPAIAN & KOMPETENSI KUNCI
-C. ANALISIS MATERI POKOK ESENSIAL & ALOKASI WAKTU
-D. INDIKATOR CAPAIAN PEMBELAJARAN
-E. RENCANA PENILAIAN & ASESMEN AUTENTIK`,
-      },
-    };
-
-    if (presetId === 'standar') {
-      handleCustomFormatChange({
-        useCustomFormat: false,
-        formatFile: null,
-        customFormatNotes: '',
-      });
-      setSyncedNotice('Format dikembalikan ke Standar Baku BSKAP Kemendikdasmen.');
-      setTimeout(() => setSyncedNotice(null), 3000);
-      return;
-    }
-
-    const selected = presets[presetId];
-    if (selected) {
-      handleCustomFormatChange({
-        useCustomFormat: true,
-        formatFile: customFormatConfig.formatFile,
-        customFormatNotes: selected.notes,
-      });
-      setSyncedNotice(`Preset "${selected.label}" berhasil diterapkan!`);
-      setTimeout(() => setSyncedNotice(null), 3000);
-    }
-  };
-
-  // Load Master CP Data from storage or create fallback
-  const [masterCP, setMasterCP] = useState<ActiveMasterCPData>(() => {
-    const existing = StorageService.getActiveMasterCP();
-    if (existing) return existing;
-
-    // Fallback to first CP Distribution plan if available
-    const plans = StorageService.getCPDistributions();
-    if (plans && plans.length > 0) {
-      const p = plans[0];
-      return {
-        id: p.id,
-        fileName: `Dokumen_CP_${p.subject}_BSKAP_Kemendikdasmen.pdf`,
-        fileType: 'application/pdf',
-        fileSize: 1024 * 350,
-        uploadedAt: p.createdAt || new Date().toISOString(),
-        level: p.level || 'SMA',
-        grade: p.grade || 10,
-        phase: p.phase || 'Fase E',
-        subject: p.subject || 'Bahasa Indonesia',
-        teacherName: p.teacherName || schoolProfile.teacherName,
-        schoolName: p.schoolName || schoolProfile.schoolName,
-        academicYear: p.academicYear || '2025/2026',
-        totalHoursPerYear: p.totalHoursPerYear || 108,
-        jpPerWeek: p.jpPerWeek || 3,
-        cpText: p.cpText || `Capaian Pembelajaran Mata Pelajaran ${p.subject} Jenjang ${p.level} (${p.phase}).`,
-        elements: p.elements?.map((e) => ({
-          name: e.name,
-          description: e.description,
-          competencies: ['Menganalisis konsep esensial', 'Mengevaluasi gagasan kritis'],
-          essentialMaterials: [`Materi Pokok ${e.name}`],
-        })) || [
-          {
-            name: 'Menyimak',
-            description: 'Peserta didik mampu mengevaluasi dan mengkreasi informasi berupa gagasan, pikiran, perasaan, pandangan, arahan atau pesan yang akurat dari menyimak berbagai tipe teks.',
-            competencies: ['Mengevaluasi informasi gagasan akurat', 'Mengkreasi pesan teks kritis'],
-            essentialMaterials: ['Teks Laporan Hasil Observasi', 'Teks Anekdot Kritis'],
-          },
-          {
-            name: 'Membaca dan Memirsa',
-            description: 'Peserta didik mampu mengevaluasi informasi berupa gagasan, pikiran, pandangan, arahan atau pesan dari berbagai jenis teks untuk menemukan makna yang tersurat dan tersirat.',
-            competencies: ['Menganalisis makna tersurat & tersirat', 'Menilai akurasi data teks eksposisi'],
-            essentialMaterials: ['Teks Eksposisi Analitis', 'Teks Hikayat & Cerpen'],
-          },
-          {
-            name: 'Berbicara dan Mempresentasikan',
-            description: 'Peserta didik mampu mengolah dan menyajikan gagasan, pikiran, pandangan, arahan atau pesan untuk tujuan pengajuan usul, perumusan masalah, dan solusi secara lisan.',
-            competencies: ['Mempresentasikan ide persuasif', 'Berdebat santun berbasis data'],
-            essentialMaterials: ['Debat Ilmiah Bahasa', 'Negosiasi Kontekstual'],
-          },
-          {
-            name: 'Menulis',
-            description: 'Peserta didik mampu menulis gagasan, pikiran, pandangan, arahan atau pesan tertulis untuk berbagai tujuan secara logis, kritis, dan kreatif.',
-            competencies: ['Menulis karya ilmiah ringkas', 'Membuat teks negosiasi & biografi'],
-            essentialMaterials: ['Teks Biografi Tokoh Bangsa', 'Karya Tulis Ilmiah Populer'],
-          },
-        ],
-        materialsSem1: p.materialsSem1 || [],
-        materialsSem2: p.materialsSem2 || [],
-        executiveSummary: `Analisis komprehensif Capaian Pembelajaran (CP) resmi untuk mata pelajaran ${p.subject} Jenjang ${p.level} (${p.phase} - Kelas ${p.grade}). Diperkaya dengan pendekatan Deep Learning (Mindful, Meaningful, Joyful Learning) dan integrasi 6 Karakter Utama (Character, Citizenship, Critical Thinking, Creativity, Collaboration, Communication).`,
-        kktpSummary: 'Interval Ketuntasan: 0-40% (Perlu Bimbingan Khusus), 41-65% (Cukup/Remedial Bagian Tertentu), 66-85% (Baik/Tuntas Capaian), 86-100% (Sangat Baik/Pengayaan Mandiri).',
-        syncStatus: 'synced',
-        lastSyncedAt: new Date().toISOString(),
-      };
-    }
-
-    // Default standard Master CP
-    return {
-      id: 'default-master-cp',
-      fileName: 'Dokumen_CP_Resmi_BSKAP_Kemendikdasmen_2025.pdf',
-      fileType: 'application/pdf',
-      fileSize: 1024 * 420,
-      uploadedAt: new Date().toISOString(),
-      level: 'SMA',
-      grade: 10,
-      phase: 'Fase E',
-      subject: 'Bahasa Indonesia',
-      teacherName: schoolProfile.teacherName || 'Aspian La Ode Madimu, S.Pd. Gr',
-      schoolName: schoolProfile.schoolName || 'SMA NEGERI 30 MALUKU TENGAH',
-      academicYear: '2025/2026',
-      totalHoursPerYear: 108,
-      jpPerWeek: 3,
-      cpText: 'Pada akhir Fase E, peserta didik memiliki kemampuan berbahasa untuk berkomunikasi dan bernalar sesuai dengan tujuan, konteks sosial, akademis, dan dunia kerja. Peserta didik mampu memahami, mengolah, menginterpretasi, dan mengevaluasi informasi dari berbagai tipe teks secara kritis dan kreatif.',
-      elements: [
-        {
-          name: 'Menyimak',
-          description: 'Peserta didik mampu mengevaluasi dan mengkreasi informasi berupa gagasan, pikiran, pandangan dari berbagai tipe teks lisan dan audiovisual.',
-          competencies: ['Mengevaluasi keakuratan fakta & opini', 'Mengkreasi tanggapan kritis terhadap simakan'],
-          essentialMaterials: ['Teks Laporan Hasil Observasi (LHO)', 'Teks Anekdot Kritis'],
-        },
-        {
-          name: 'Membaca dan Memirsa',
-          description: 'Peserta didik mampu mengevaluasi informasi tersurat dan tersirat untuk mengidentifikasi bias dan memvalidasi argumen pada teks ilmiah atau sastra.',
-          competencies: ['Menganalisis struktur dan kaidah kebahasaan', 'Memvalidasi bukti argumen teks eksposisi'],
-          essentialMaterials: ['Teks Eksposisi Lingkungan Hidup', 'Karakterisasi Nilai Hikayat & Cerpen'],
-        },
-        {
-          name: 'Berbicara dan Mempresentasikan',
-          description: 'Peserta didik mampu menyajikan gagasan dan pemikiran untuk perumusan solusi secara lisan dengan santun, terstruktur, dan meyakinkan.',
-          competencies: ['Menyampaikan gagasan berbasis bukti empiris', 'Melakukan negosiasi dan debat santun'],
-          essentialMaterials: ['Keterampilan Negosiasi Bisnis/Sosial', 'Debat Isu Aktual Nasional'],
-        },
-        {
-          name: 'Menulis',
-          description: 'Peserta didik mampu menulis berbagai teks fiksi dan nonfiksi secara logis, kritis, dan kreatif dengan memperhatikan kaidah bahasa baku.',
-          competencies: ['Menyusun artikel opini logis & sistematis', 'Menulis biografi inspiratif tokoh lokal/nasional'],
-          essentialMaterials: ['Artikel Ilmiah Populer', 'Teks Biografi Tokoh Pahlawan'],
-        },
-      ],
-      materialsSem1: [
-        {
-          id: 'sem1-1',
-          semester: 1,
-          orderNumber: 1,
-          tpCode: 'TP.10.1.1',
-          tpName: 'Menganalisis dan mengevaluasi informasi akurat dalam Teks Laporan Hasil Observasi (LHO) lingkungan sekitar secara kritis dan objektif.',
-          essentialMaterial: 'Teks Laporan Hasil Observasi (LHO)',
-          elementName: 'Menyimak & Membaca',
-          allocatedHours: 18,
-          assessmentStrategy: 'Tes Formatif & Kinerja Observasi Lapangan',
-          deepLearningMethod: 'Mindful (Observasi Lingkungan), Meaningful (Laporan Nyata)',
-        },
-        {
-          id: 'sem1-2',
-          semester: 1,
-          orderNumber: 2,
-          tpCode: 'TP.10.1.2',
-          tpName: 'Mengkreasi gagasan kritik sosial secara santun dan bernalar dalam bentuk Teks Anekdot bertema fenomena sosial masa kini.',
-          essentialMaterial: 'Teks Anekdot & Kritik Sosial',
-          elementName: 'Berbicara & Menulis',
-          allocatedHours: 18,
-          assessmentStrategy: 'Unjuk Kerja Presentasi Komikal & Portofolio Teks',
-          deepLearningMethod: 'Joyful (Komedi Edukatif), Meaningful (Solusi Masalah Sosial)',
-        },
-        {
-          id: 'sem1-3',
-          semester: 1,
-          orderNumber: 3,
-          tpCode: 'TP.10.1.3',
-          tpName: 'Menyusun argumen logis dan memvalidasi fakta empiris dalam Teks Eksposisi bertema konservasi lingkungan hidup.',
-          essentialMaterial: 'Teks Eksposisi Analitis',
-          elementName: 'Membaca & Menulis',
-          allocatedHours: 18,
-          assessmentStrategy: 'Tes Tertulis Argumen & Rubrik 6C Critical Thinking',
-          deepLearningMethod: 'Meaningful (Isu Konservasi Alam), Mindful (Refleksi Kritis)',
-        },
-      ],
-      materialsSem2: [
-        {
-          id: 'sem2-1',
-          semester: 2,
-          orderNumber: 4,
-          tpCode: 'TP.10.2.1',
-          tpName: 'Mengevaluasi nilai-nilai karakter luhur dalam Hikayat dan mentransformasikan ke dalam cerpen kontekstual kehidupan modern.',
-          essentialMaterial: 'Hikayat & Cerita Pendek (Cerpen)',
-          elementName: 'Membaca & Menulis',
-          allocatedHours: 18,
-          assessmentStrategy: 'Penilaian Proyek Menulis Cerpen & Resensi Sastra',
-          deepLearningMethod: 'Mindful (Refleksi Moral), Joyful (Kreativitas Menulis Sastra)',
-        },
-        {
-          id: 'sem2-2',
-          semester: 2,
-          orderNumber: 5,
-          tpCode: 'TP.10.2.2',
-          tpName: 'Menerapkan strategi negosiasi kolaboratif untuk mencapai kesepakatan win-win solution dalam simulasi problem sosial nyata.',
-          essentialMaterial: 'Teks Negosiasi & Komunikasi Efektif',
-          elementName: 'Berbicara & Mempresentasikan',
-          allocatedHours: 18,
-          assessmentStrategy: 'Simulasi Praktik Negosiasi & Asesmen Rekan Sejawat',
-          deepLearningMethod: 'Meaningful (Dunia Nyata), Joyful (Roleplay Interaktif)',
-        },
-        {
-          id: 'sem2-3',
-          semester: 2,
-          orderNumber: 6,
-          tpCode: 'TP.10.2.3',
-          tpName: 'Menulis teks biografi tokoh inspiratif Maluku Tengah dengan kaidah penulisan ilmiah populer yang runut dan estetik.',
-          essentialMaterial: 'Teks Biografi Tokoh Inspiratif',
-          elementName: 'Menulis & Membaca',
-          allocatedHours: 18,
-          assessmentStrategy: 'Portofolio Biografi & Pameran Karya Literasi Siswa',
-          deepLearningMethod: 'Meaningful (Keteladanan Karakter Tokoh), Mindful (Inspirasi Hidup)',
-        },
-      ],
-      executiveSummary: 'Analisis mendalam Capaian Pembelajaran (CP) Bahasa Indonesia Fase E (Kelas 10) berlandaskan Kurikulum Berbasis Deep Learning. Struktur materi dirancang seimbang antara Semester 1 dan 2 dengan total alokasi 108 JP setahun (3 JP/Minggu) serta terintegrasi utuh dengan 3 Pilar Deep Learning (Mindful, Meaningful, Joyful Learning) dan 8 Dimensi Kelulusan / Karakter 6C.',
-      kktpSummary: 'Pedoman Interval Ketuntasan KKTP: 0 - 40% (Perlu Bimbingan Individual), 41 - 65% (Remedial pada Indikator yang Belum Dikuasai), 66 - 85% (Tuntas Mencapai Tujuan Pembelajaran), 86 - 100% (Pengayaan & Pendalaman Materi Mandiri).',
-      syncStatus: 'synced',
-      lastSyncedAt: new Date().toISOString(),
-    };
-  });
-
-  // Listen for active master CP changes
   useEffect(() => {
-    const handleStorageChange = () => {
-      const updated = StorageService.getActiveMasterCP();
-      if (updated) {
-        setMasterCP(updated);
-      }
+    const syncLists = () => {
+      setAdminUploadedCPs(StorageService.getAdminUploadedCPs());
     };
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('master-cp-updated' as any, handleStorageChange);
+    window.addEventListener('admin-cp-updated', syncLists);
+    window.addEventListener('storage', syncLists);
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('master-cp-updated' as any, handleStorageChange);
+      window.removeEventListener('admin-cp-updated', syncLists);
+      window.removeEventListener('storage', syncLists);
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     };
   }, []);
 
-  const totalSem1Hours = (masterCP.materialsSem1 || []).reduce((acc, m) => acc + (Number(m.allocatedHours) || 0), 0);
-  const totalSem2Hours = (masterCP.materialsSem2 || []).reduce((acc, m) => acc + (Number(m.allocatedHours) || 0), 0);
-  const totalTPCount = (masterCP.materialsSem1 || []).length + (masterCP.materialsSem2 || []).length;
+  // Derived collections from Analysis Draft
+  const analyzedSubjects = useMemo(
+    () => analysisDraft?.analyzedSubjects || [],
+    [analysisDraft]
+  );
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleCopyTable = (sectionName: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedSection(sectionName);
-    setTimeout(() => setCopiedSection(null), 2500);
-  };
-
-  const handleExportWord = () => {
-    let content = `# HASIL ANALISIS CAPAIAN PEMBELAJARAN (CP) MASTER ACUAN
-Mata Pelajaran: ${masterCP.subject}
-Jenjang / Fase / Kelas: ${masterCP.level} / ${masterCP.phase} / Kelas ${masterCP.grade}
-Sekolah: ${masterCP.schoolName || schoolProfile.schoolName}
-Guru Pengampu: ${masterCP.teacherName || schoolProfile.teacherName}
-Tahun Ajaran: ${masterCP.academicYear || '2025/2026'}
-Total Alokasi Waktu: ${masterCP.totalHoursPerYear} JP/Tahun (${masterCP.jpPerWeek} JP/Minggu)
-${
-  customFormatConfig.useCustomFormat
-    ? `\n---
-## [ACUAN FORMAT RESMI SEKOLAH]
-Status Format: Format Kustom Sekolah Aktif
-${customFormatConfig.formatFile ? `File Template Acuan: ${customFormatConfig.formatFile.name} (${customFormatConfig.formatFile.type.toUpperCase()})` : ''}
-${customFormatConfig.customFormatNotes ? `Struktur & Catatan Khusus Format:\n${customFormatConfig.customFormatNotes}` : ''}
-`
-    : ''
-}
----
-## I. ELEMEN & KOMPETENSI CAPAIAN PEMBELAJARAN
-`;
-    (masterCP.elements || []).forEach((el, i) => {
-      content += `\n${i + 1}. Elemen: ${el.name}\nDeskripsi: ${el.description}\nKompetensi Esensial: ${(el.competencies || []).join(', ')}\nMateri Esensial: ${(el.essentialMaterials || []).join(', ')}\n`;
-    });
-
-    content += `\n---
-## II. TABEL DISTRIBUSI MATERI & TP SEMESTER 1 (GANJIL) - ${totalSem1Hours} JP\n`;
-    (masterCP.materialsSem1 || []).forEach((m, i) => {
-      content += `${i + 1}. [${m.tpCode}] ${m.tpName} | Materi: ${m.essentialMaterial} | Elemen: ${m.elementName || '-'} | Alokasi: ${m.allocatedHours} JP | Asesmen: ${m.assessmentStrategy}\n`;
-    });
-
-    content += `\n---
-## III. TABEL DISTRIBUSI MATERI & TP SEMESTER 2 (GENAP) - ${totalSem2Hours} JP\n`;
-    (masterCP.materialsSem2 || []).forEach((m, i) => {
-      content += `${i + 1}. [${m.tpCode}] ${m.tpName} | Materi: ${m.essentialMaterial} | Elemen: ${m.elementName || '-'} | Alokasi: ${m.allocatedHours} JP | Asesmen: ${m.assessmentStrategy}\n`;
-    });
-
-    content += `\n---
-## IV. KRITERIA KETERCAPAIAN TUJUAN PEMBELAJARAN (KKTP)
-${masterCP.kktpSummary || 'Interval Standar Kriteria Ketuntasan Berbasis Deep Learning 0-100%'}\n`;
-
-    ExportService.exportToWord(
-      `Hasil Analisis CP ${masterCP.subject} ${masterCP.phase}`,
-      content,
-      schoolProfile,
-      `Hasil_Analisis_CP_${masterCP.subject}_${masterCP.phase}`
-    );
-  };
-
-  const handleSyncToAll = () => {
-    StorageService.setActiveMasterCP(masterCP);
-    setSyncedNotice(`Master CP ${masterCP.subject} Berhasil Disinkronkan ke Seluruh Perangkat Ajar!`);
-    setTimeout(() => setSyncedNotice(null), 3500);
-  };
-
-  const handleSyncAllSubjects = () => {
-    const result = syncAllPresetSubjectsToMasterCP();
-    const updatedMaster = StorageService.getActiveMasterCP();
-    if (updatedMaster) {
-      setMasterCP(updatedMaster);
-    }
-    setSyncAllResults(result);
-    setShowSyncAllModal(true);
-    setSyncedNotice(`Berhasil sinkronisasi ${result.totalSynced} mata pelajaran ke Master CP!`);
-    setTimeout(() => setSyncedNotice(null), 4000);
-  };
-
-  const handleSelectPresetSubject = (preset: SubjectPreset) => {
-    const sem1 = preset.materialsSem1.map((m, idx) => ({
-      ...m,
-      id: `m-sem1-${preset.subject.toLowerCase()}-${preset.grade}-${idx + 1}`,
-    }));
-    const sem2 = preset.materialsSem2.map((m, idx) => ({
-      ...m,
-      id: `m-sem2-${preset.subject.toLowerCase()}-${preset.grade}-${idx + 1}`,
-    }));
-
-    const newMaster: ActiveMasterCPData = {
-      id: `master-${preset.subject.toLowerCase()}-${preset.grade}`,
-      fileName: `Dokumen_CP_${preset.subject}_${preset.level}_BSKAP.pdf`,
-      fileType: 'application/pdf',
-      fileSize: 1024 * 400,
-      uploadedAt: new Date().toISOString(),
-      level: preset.level,
-      grade: preset.grade,
-      phase: preset.phase,
-      subject: preset.subject,
-      teacherName: schoolProfile.teacherName || 'Aspian La Ode Madimu, S.Pd. Gr',
-      teacherNip: schoolProfile.teacherNip,
-      schoolName: schoolProfile.schoolName || 'SMA NEGERI 30 MALUKU TENGAH',
-      academicYear: schoolProfile.academicYear || '2025/2026',
-      totalHoursPerYear: preset.totalHoursPerYear,
-      jpPerWeek: preset.jpPerWeek || (preset.level === 'SD' ? 4 : 3),
-      cpText: preset.cpSummary,
-      elements: preset.elements || [
-        {
-          name: 'Pemahaman Konsep',
-          description: `Penguasaan konsep dan materi esensial ${preset.subject}`,
-          competencies: ['Menganalisis prinsip inti', 'Mengevaluasi konsep esensial'],
-          essentialMaterials: [`Materi Pokok ${preset.subject}`],
-        },
-        {
-          name: 'Keterampilan Proses',
-          description: `Penerapan metode ilmiah dan penyelesaian masalah ${preset.subject}`,
-          competencies: ['Merancang eksperimen/karya', 'Mengomunikasikan hasil'],
-          essentialMaterials: [`Proyek Inovasi ${preset.subject}`],
-        },
-      ],
-      materialsSem1: sem1,
-      materialsSem2: sem2,
-      executiveSummary: `Analisis resmi komprehensif Capaian Pembelajaran (CP) untuk mata pelajaran ${preset.subject} Jenjang ${preset.level} (${preset.phase} - Kelas ${preset.grade}). Diperkaya dengan pendekatan Deep Learning (Mindful, Meaningful, Joyful Learning).`,
-      kktpSummary: 'Interval Ketuntasan: 0-40% (Perlu Bimbingan Khusus), 41-65% (Cukup/Remedial Bagian Tertentu), 66-85% (Baik/Tuntas Capaian), 86-100% (Sangat Baik/Pengayaan Mandiri).',
-      syncStatus: 'synced',
-      lastSyncedAt: new Date().toISOString(),
+  // Deduplicated subjects per school level group (preserving exact subject types & counts from uploaded CP)
+  const subjectsByLevelMap = useMemo(() => {
+    const map: Record<SchoolLevelGroup, CPSubjectEntry[]> = {
+      SD: [],
+      SMP: [],
+      SMA: [],
+      SMK: [],
+    };
+    const seenByLevel: Record<SchoolLevelGroup, Set<string>> = {
+      SD: new Set(),
+      SMP: new Set(),
+      SMA: new Set(),
+      SMK: new Set(),
     };
 
-    StorageService.setActiveMasterCP(newMaster);
-    setMasterCP(newMaster);
-    setSyncedNotice(`Mata Pelajaran Aktif dialihkan ke ${preset.subject} (${preset.level} Kelas ${preset.grade}) & otomatis tersinkron ke semua perangkat ajar!`);
-    setTimeout(() => setSyncedNotice(null), 3500);
-    if (isAgamaIslamSubject(preset.subject)) {
-      setShowAgamaIslamCPModal(true);
-    }
-  };
-
-  // Download CP Data in JSON Format (Standard E-Project Guru Digital)
-  const handleDownloadJSON = (preset: SubjectPreset | ActiveMasterCPData) => {
-    const exportData = {
-      appName: 'E - Project Guru Digital',
-      documentType: 'CP_MASTER_EXPORT',
-      version: '1.0',
-      exportedAt: new Date().toISOString(),
-      schoolName: schoolProfile.schoolName || 'Satuan Pendidikan',
-      subject: preset.subject,
-      level: preset.level,
-      grade: preset.grade,
-      phase: preset.phase,
-      totalHoursPerYear: preset.totalHoursPerYear,
-      jpPerWeek: (preset as any).jpPerWeek || 3,
-      cpSummary: (preset as any).cpSummary || (preset as any).cpText || '',
-      elements: preset.elements || [],
-      materialsSem1: preset.materialsSem1 || [],
-      materialsSem2: preset.materialsSem2 || [],
-      kktpSummary: (preset as any).kktpSummary || 'Interval Ketuntasan: 0-40% (Perlu Bimbingan Khusus), 41-65% (Cukup/Remedial), 66-85% (Baik/Tuntas), 86-100% (Sangat Baik/Pengayaan).',
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `CP_${preset.subject}_${preset.level}_${preset.phase}_Kelas_${preset.grade}.json`.replace(/\s+/g, '_');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    setSyncedNotice(`File JSON CP "${preset.subject} (${preset.level} ${preset.phase})" berhasil diunduh untuk arsip atau diupload oleh guru!`);
-    setTimeout(() => setSyncedNotice(null), 3500);
-  };
-
-  // Download CP Document in Microsoft Word (.docx/.doc) Format
-  const handleDownloadWord = (preset: SubjectPreset | ActiveMasterCPData) => {
-    const sem1 = preset.materialsSem1 || [];
-    const sem2 = preset.materialsSem2 || [];
-    const totalTP = sem1.length + sem2.length;
-    const elements = preset.elements || [];
-
-    let mdContent = `# ANALISIS RESMI CAPAIAN PEMBELAJARAN (CP) MASTER ACUAN
-**Mata Pelajaran:** ${preset.subject}  
-**Jenjang / Fase / Kelas:** ${preset.level} / ${preset.phase} / Kelas ${preset.grade}  
-**Satuan Pendidikan:** ${schoolProfile.schoolName || 'SMA NEGERI 30 MALUKU TENGAH'}  
-**Alokasi Beban Belajar:** ${preset.totalHoursPerYear} JP/Tahun (${(preset as any).jpPerWeek || 3} JP/Minggu)  
-**Total Target TP:** ${totalTP} Tujuan Pembelajaran  
-
----
-
-### A. RASIONAL & CAPAIAN PEMBELAJARAN UMUM
-${(preset as any).cpSummary || (preset as any).cpText || ''}
-
----
-
-### B. DEKOMPOSISI ELEMEN CAPAIAN PEMBELAJARAN
-| No | Elemen CP | Deskripsi Capaian Pembelajaran | Kompetensi Esensial (HOTS) | Materi Pokok Esensial |
-|---|---|---|---|---|
-${elements.map((el, i) => `| ${i + 1} | **${el.name}** | ${el.description} | ${(el.competencies || []).join('; ') || 'Menganalisis prinsip inti'} | ${(el.essentialMaterials || []).join(', ') || `Materi Pokok ${el.name}`} |`).join('\n')}
-
----
-
-### C. PEMETAAN MATERI & TUJUAN PEMBELAJARAN (SEMESTER 1 - GANJIL)
-| No | Kode TP | Rumusan Tujuan Pembelajaran | Materi Pokok | Elemen CP | Alokasi JP | Pendekatan Deep Learning |
-|---|---|---|---|---|---|---|
-${sem1.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.1.${i+1}`} | ${m.tpName} | ${m.essentialMaterial} | ${m.elementName || '-'} | ${m.allocatedHours} JP | ${m.deepLearningMethod || 'Mindful & Meaningful'} |`).join('\n')}
-
----
-
-### D. PEMETAAN MATERI & TUJUAN PEMBELAJARAN (SEMESTER 2 - GENAP)
-| No | Kode TP | Rumusan Tujuan Pembelajaran | Materi Pokok | Elemen CP | Alokasi JP | Pendekatan Deep Learning |
-|---|---|---|---|---|---|---|
-${sem2.map((m, i) => `| ${i + 1} | ${m.tpCode || `TP.${preset.grade}.2.${i+1}`} | ${m.tpName} | ${m.essentialMaterial} | ${m.elementName || '-'} | ${m.allocatedHours} JP | ${m.deepLearningMethod || 'Meaningful & Joyful'} |`).join('\n')}
-`;
-
-    ExportService.exportToWord(
-      `Analisis_CP_${preset.subject}_${preset.level}_${preset.phase}`,
-      mdContent,
-      {
-        schoolName: schoolProfile.schoolName,
-        teacherName: schoolProfile.teacherName,
-        teacherNip: schoolProfile.teacherNip,
-        principalName: schoolProfile.principalName,
-        principalNip: schoolProfile.principalNip,
-        academicYear: schoolProfile.academicYear,
-        subject: preset.subject,
-        grade: preset.grade,
+    analyzedSubjects.forEach((entry) => {
+      const grp = getSchoolLevelGroup(entry.level);
+      const key = (entry.subject || '').trim().toLowerCase();
+      if (!key) return;
+      if (!seenByLevel[grp].has(key)) {
+        seenByLevel[grp].add(key);
+        map[grp].push(entry);
       }
+    });
+
+    return map;
+  }, [analyzedSubjects]);
+
+  const activeLevelCount = useMemo(
+    () =>
+      (['SD', 'SMP', 'SMA', 'SMK'] as SchoolLevelGroup[]).filter(
+        (g) => subjectsByLevelMap[g].length > 0
+      ).length,
+    [subjectsByLevelMap]
+  );
+
+  const totalUniqueSubjects = useMemo(
+    () =>
+      (['SD', 'SMP', 'SMA', 'SMK'] as SchoolLevelGroup[]).reduce(
+        (sum, g) => sum + subjectsByLevelMap[g].length,
+        0
+      ),
+    [subjectsByLevelMap]
+  );
+
+  const gradeOptionsForSelectedLevel = useMemo(
+    () => getGradeOptionsByLevel(selectedLevelGroup),
+    [selectedLevelGroup]
+  );
+
+  const selectedPhase = useMemo(
+    () => resolvePhaseByLevelAndGrade(selectedLevelGroup, selectedGrade),
+    [selectedLevelGroup, selectedGrade]
+  );
+
+  const subjectsInSelectedLevel = useMemo(() => {
+    const list = subjectsByLevelMap[selectedLevelGroup] || [];
+    const q = subjectSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((s) => s.subject.toLowerCase().includes(q));
+  }, [subjectsByLevelMap, selectedLevelGroup, subjectSearch]);
+
+  // Keep selectedGrade & selectedSubjectName synchronized when level changes or new analysis completes
+  useEffect(() => {
+    const validGrades = getGradeOptionsByLevel(selectedLevelGroup).map((o) => o.grade);
+    if (!validGrades.includes(selectedGrade)) {
+      setSelectedGrade(validGrades[0]);
+    }
+  }, [selectedLevelGroup, selectedGrade]);
+
+  useEffect(() => {
+    const list = subjectsByLevelMap[selectedLevelGroup] || [];
+    if (list.length === 0) {
+      setSelectedSubjectName('');
+      return;
+    }
+    const stillExists = list.some(
+      (s) => s.subject.toLowerCase() === selectedSubjectName.toLowerCase()
     );
+    if (!stillExists) {
+      setSelectedSubjectName(list[0].subject);
+    }
+  }, [subjectsByLevelMap, selectedLevelGroup, selectedSubjectName]);
+
+  // Resolve exact Lingkup Materi (Sem 1 & Sem 2) differentiated per Class & Phase!
+  const activeSubjectInspection = useMemo(() => {
+    if (!selectedSubjectName) return null;
+    const exactGradeMatch = analyzedSubjects.find(
+      (e) =>
+        e.subject.toLowerCase() === selectedSubjectName.toLowerCase() &&
+        isSameSchoolLevelGroup(e.level, selectedLevelGroup) &&
+        Number(e.grade) === Number(selectedGrade)
+    );
+
+    const anyGradeMatch =
+      exactGradeMatch ||
+      analyzedSubjects.find(
+        (e) =>
+          e.subject.toLowerCase() === selectedSubjectName.toLowerCase() &&
+          isSameSchoolLevelGroup(e.level, selectedLevelGroup)
+      );
+
+    if (!anyGradeMatch) return null;
+
+    const targetPhase = resolvePhaseByLevelAndGrade(selectedLevelGroup, selectedGrade);
+    const hasExactGradeMaterials =
+      Number(anyGradeMatch.grade) === Number(selectedGrade) &&
+      ((anyGradeMatch.materialsSem1?.length || 0) > 0 ||
+        (anyGradeMatch.materialsSem2?.length || 0) > 0);
+
+    let materialsSem1: CPMaterialItem[] = [];
+    let materialsSem2: CPMaterialItem[] = [];
+    let elements = anyGradeMatch.elements || [];
+    let cpSummary = anyGradeMatch.cpText || '';
+
+    if (hasExactGradeMaterials) {
+      materialsSem1 = anyGradeMatch.materialsSem1 || [];
+      materialsSem2 = anyGradeMatch.materialsSem2 || [];
+    } else {
+      const gradePreset = getSubjectPresetByGrade(
+        anyGradeMatch.subject,
+        selectedLevelGroup,
+        selectedGrade,
+        targetPhase
+      );
+      materialsSem1 = (gradePreset.materialsSem1 || []).map((m, i) => ({
+        ...m,
+        id: `grade-${selectedGrade}-sem1-${i + 1}`,
+      }));
+      materialsSem2 = (gradePreset.materialsSem2 || []).map((m, i) => ({
+        ...m,
+        id: `grade-${selectedGrade}-sem2-${i + 1}`,
+      }));
+      if ((!elements || elements.length === 0) && gradePreset.elements?.length) {
+        elements = gradePreset.elements;
+      }
+      if (!cpSummary && gradePreset.cpSummary) {
+        cpSummary = gradePreset.cpSummary;
+      }
+    }
+
+    const totalJp =
+      materialsSem1.reduce((sum, m) => sum + (Number(m.allocatedHours) || 0), 0) +
+      materialsSem2.reduce((sum, m) => sum + (Number(m.allocatedHours) || 0), 0);
+
+    return {
+      subject: anyGradeMatch.subject,
+      level: selectedLevelGroup as SchoolLevel,
+      grade: selectedGrade,
+      phase: targetPhase,
+      jpPerWeek: Number(anyGradeMatch.jpPerWeek) || (selectedLevelGroup === 'SD' ? 4 : 3),
+      totalHoursPerYear: totalJp || Number(anyGradeMatch.totalHoursPerYear) || 108,
+      cpText: cpSummary,
+      elements,
+      materialsSem1,
+      materialsSem2,
+    };
+  }, [analyzedSubjects, selectedSubjectName, selectedLevelGroup, selectedGrade]);
+
+  const levelRecap = useMemo(
+    () => buildLevelRecapFromSubjects(analyzedSubjects, analysisDraft?.rawText || ''),
+    [analyzedSubjects, analysisDraft?.rawText]
+  );
+
+  const phaseDirectory = useMemo(
+    () => buildPhaseDirectoryByLevel(analyzedSubjects, analysisDraft?.rawText || ''),
+    [analyzedSubjects, analysisDraft?.rawText]
+  );
+
+  // Handle Single File Upload
+  const processSingleFile = (file: File, activeFolder?: string) => {
+    setSelectedFile(file);
+    setFileName(file.name);
+    setFileType(file.type || 'application/octet-stream');
+    setFileSize(file.size);
+    if (!activeFolder) {
+      setFolderFiles([]);
+      setFolderName('');
+    }
+    setErrorMsg('');
+    setSyncSuccessInfo(null);
+
+    const detected = detectMetadataFromFilename(file.name);
+    setDocName(stripExtension(file.name));
+    if (detected.docNumber) {
+      setDocNumber(detected.docNumber);
+    }
+
+    setIsReadingFile(true);
+    UniversalFileParser.parseFile(file)
+      .then((parsed) => {
+        if (parsed.base64) setFileBase64(parsed.base64);
+        const extracted = (parsed.extractedText || '').trim();
+        const isPlaceholder =
+          extracted.startsWith('[Dokumen PDF terlampir:') ||
+          extracted.startsWith('[Lampiran Gambar Visual:') ||
+          extracted.startsWith('[Gambar Format Dokumen');
+        if (extracted && !isPlaceholder) {
+          setRawTextContent(extracted);
+          const skMatch = extracted.match(
+            /(?:Nomor|No\.?)\s*[:.]?\s*([0-9]{1,4}(?:\/[A-Za-z0-9.-]+){1,4}(?:\s*Tahun\s*\d{4})?)/i
+          );
+          if (skMatch && skMatch[1]) {
+            setDocNumber((prev) => prev.trim() || skMatch[1].trim());
+          }
+        } else {
+          setRawTextContent('');
+        }
+      })
+      .catch(() => {
+        const reader = new FileReader();
+        reader.onload = (ev) => setFileBase64((ev.target?.result as string) || '');
+        reader.readAsDataURL(file);
+      })
+      .finally(() => {
+        setIsReadingFile(false);
+      });
   };
 
-  // 1-Click Adopt CP for Teacher with Auto-Sync to all 9 teaching tools
-  const handleAdoptCPForTeacher = (preset: SubjectPreset) => {
-    const sem1Items: CPMaterialItem[] = preset.materialsSem1.map((m, idx) => ({
-      ...m,
-      id: `sem1-${preset.subject.toLowerCase()}-${preset.grade}-${idx + 1}`,
-    }));
-    const sem2Items: CPMaterialItem[] = preset.materialsSem2.map((m, idx) => ({
-      ...m,
-      id: `sem2-${preset.subject.toLowerCase()}-${preset.grade}-${idx + 1}`,
-    }));
-
-    const newMaster: ActiveMasterCPData = {
-      id: `master-${preset.subject.toLowerCase()}-${preset.grade}-${Date.now()}`,
-      fileName: `Dokumen_CP_${preset.subject}_${preset.level}_${preset.phase}.pdf`,
-      fileType: 'application/pdf',
-      fileSize: 1024 * 380,
-      uploadedAt: new Date().toISOString(),
-      level: preset.level,
-      grade: preset.grade,
-      phase: preset.phase,
-      subject: preset.subject,
-      teacherName: schoolProfile.teacherName || currentUser.name,
-      teacherNip: schoolProfile.teacherNip,
-      schoolName: schoolProfile.schoolName,
-      academicYear: schoolProfile.academicYear || '2025/2026',
-      totalHoursPerYear: preset.totalHoursPerYear,
-      jpPerWeek: preset.jpPerWeek || (preset.level === 'SD' ? 4 : 3),
-      cpText: preset.cpSummary,
-      elements: preset.elements || [
-        {
-          name: 'Pemahaman Konsep',
-          description: `Penguasaan konsep dan materi esensial ${preset.subject}`,
-          competencies: ['Menganalisis konsep esensial', 'Mengevaluasi penalaran kritis'],
-          essentialMaterials: [`Materi Pokok ${preset.subject}`],
-        },
-        {
-          name: 'Keterampilan Proses',
-          description: `Penerapan metode penyelidikan dan karya inovatif ${preset.subject}`,
-          competencies: ['Merancang eksperimen/proyek inovasi', 'Mengomunikasikan gagasan'],
-          essentialMaterials: [`Proyek Inovasi ${preset.subject}`],
-        },
-      ],
-      materialsSem1: sem1Items,
-      materialsSem2: sem2Items,
-      executiveSummary: `Analisis resmi Capaian Pembelajaran (CP) untuk mata pelajaran ${preset.subject} Jenjang ${preset.level} (${preset.phase} - Kelas ${preset.grade}). Diperkaya dengan pendekatan Deep Learning (Mindful, Meaningful, Joyful Learning).`,
-      kktpSummary: 'Interval Ketuntasan: 0-40% (Perlu Bimbingan Khusus), 41-65% (Cukup/Remedial Bagian Tertentu), 66-85% (Baik/Tuntas Capaian), 86-100% (Sangat Baik/Pengayaan Mandiri).',
-      syncStatus: 'synced',
-      lastSyncedAt: new Date().toISOString(),
-    };
-
-    StorageService.setActiveMasterCP(newMaster);
-    setMasterCP(newMaster);
-
-    // Update teacher profile so every part of the app aligns to this adopted CP
-    StorageService.saveSchoolProfile({
-      ...schoolProfile,
-      subject: preset.subject,
-      level: preset.level,
-      grade: preset.grade,
-      phase: preset.phase,
-      jpPerWeek: preset.jpPerWeek || (preset.level === 'SD' ? 4 : 3),
-    });
-
-    // Trigger storage dispatch events
-    try {
-      window.dispatchEvent(new Event('master-cp-updated'));
-      window.dispatchEvent(new Event('storage'));
-    } catch {}
-
-    setAdoptedSuccessModal({
-      isOpen: true,
-      subject: preset.subject,
-      level: preset.level,
-      phase: preset.phase,
-      grade: preset.grade,
-      totalTP: preset.materialsSem1.length + preset.materialsSem2.length,
-      hours: preset.totalHoursPerYear,
-    });
-    if (isAgamaIslamSubject(preset.subject)) {
-      setShowAgamaIslamCPModal(true);
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processSingleFile(file);
     }
   };
 
-  // Filtered materials
-  const filterList = (items: CPMaterialItem[]) => {
-    if (!searchQuery.trim()) return items;
-    const q = searchQuery.toLowerCase();
-    return items.filter(
-      (m) =>
-        m.tpCode.toLowerCase().includes(q) ||
-        m.tpName.toLowerCase().includes(q) ||
-        m.essentialMaterial.toLowerCase().includes(q) ||
-        (m.elementName && m.elementName.toLowerCase().includes(q))
+  const handleFolderInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const validFiles = Array.from(e.target.files || []).filter(
+      (f) => f.name && !f.name.startsWith('.') && f.name !== 'Thumbs.db'
     );
+    if (validFiles.length === 0) return;
+
+    const relPath = (validFiles[0] as File & { webkitRelativePath?: string }).webkitRelativePath || '';
+    const detectedFolder = relPath.includes('/') ? relPath.split('/')[0] : 'Folder_CP_Master';
+
+    setFolderFiles(validFiles);
+    setFolderName(detectedFolder);
+    processSingleFile(validFiles[0], detectedFolder);
+    setDocName(detectedFolder.replace(/[_]+/g, ' '));
   };
 
-  const filteredSem1 = filterList(masterCP.materialsSem1 || []);
-  const filteredSem2 = filterList(masterCP.materialsSem2 || []);
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const dropped = Array.from(e.dataTransfer.files || []).filter(
+      (f) => f.name && !f.name.startsWith('.') && f.name !== 'Thumbs.db'
+    );
+    if (dropped.length === 0) return;
+    if (dropped.length > 1) {
+      setFolderFiles(dropped);
+      setFolderName('Folder_CP_Unggahan');
+      processSingleFile(dropped[0], 'Folder_CP_Unggahan');
+      setDocName('Kumpulan File CP Master');
+    } else {
+      processSingleFile(dropped[0]);
+    }
+  };
+
+  const handleClearPickedFile = () => {
+    setSelectedFile(null);
+    setFolderFiles([]);
+    setFolderName('');
+    setFileName('');
+    setFileType('');
+    setFileSize(0);
+    setFileBase64('');
+    setRawTextContent('');
+    setDocName('');
+    setDocNumber('');
+    setErrorMsg('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (folderInputRef.current) folderInputRef.current.value = '';
+  };
+
+  // Run Deep Analysis across SD/MI/Paket A, SMP/MTs/Paket B, SMA/MA/Paket C, SMK/MAK + Classes/Phases + Subjects + Materials
+  const handleDeepAnalysis = async () => {
+    if (!selectedFile && !fileBase64 && !rawTextContent.trim() && !fileName.trim()) {
+      setErrorMsg('Pilih file CP terlebih dahulu (PDF, Word, Excel, TXT, atau Folder CP).');
+      return;
+    }
+    if (!docName.trim()) {
+      setErrorMsg('Isi Nama Dokumen CP terlebih dahulu sebelum menjalankan analisis.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setErrorMsg('');
+    setSyncSuccessInfo(null);
+    setProgressPercent(8);
+    setAnalysisStepText('Membaca berkas CP & mengekstrak seluruh teks dokumen...');
+
+    let pct = 8;
+    progressTimerRef.current = setInterval(() => {
+      pct = Math.min(90, pct + Math.floor(Math.random() * 5) + 2);
+      setProgressPercent(pct);
+      if (pct < 30) {
+        setAnalysisStepText('Membaca berkas CP & mengekstrak seluruh halaman dokumen...');
+      } else if (pct < 55) {
+        setAnalysisStepText(
+          'Mengidentifikasi 4 tingkat sekolah (SD/MI/Paket A, SMP/MTs/Paket B, SMA/MA/Paket C, SMK/MAK)...'
+        );
+      } else if (pct < 78) {
+        setAnalysisStepText('Memetakan jenjang kelas, fase (A–F), dan seluruh mata pelajaran resmi...');
+      } else {
+        setAnalysisStepText(
+          'Mengekstrak lingkup materi pokok Semester 1 & 2 spesifik tiap kelas dan fase...'
+        );
+      }
+    }, 180);
+
+    try {
+      const normalizeMaterials = (
+        arr: unknown[],
+        sem: 1 | 2,
+        targetGrade: number | string,
+        resolvedHours: number,
+        startOrder: number
+      ): CPMaterialItem[] =>
+        (arr || []).map((rawItem, idx) => {
+          const m = rawItem as Partial<CPMaterialItem>;
+          return {
+            id: m.id || `cp-sem${sem}-${Date.now()}-${idx + 1}`,
+            semester: sem,
+            orderNumber: m.orderNumber || startOrder + idx,
+            tpCode: m.tpCode || `TP.${targetGrade}.${sem}.${idx + 1}`,
+            tpName: m.tpName || '',
+            essentialMaterial: m.essentialMaterial || '',
+            elementName: m.elementName || (sem === 1 ? 'Pemahaman Konsep' : 'Keterampilan Proses'),
+            allocatedHours:
+              Number(m.allocatedHours) || Math.round(resolvedHours / 2 / Math.max(1, arr.length || 3)),
+            meetingCount: m.meetingCount,
+            assessmentStrategy:
+              m.assessmentStrategy ||
+              (sem === 1 ? 'Tes Formatif & Kinerja 6C' : 'Penilaian Proyek Sumatif'),
+            deepLearningMethod:
+              m.deepLearningMethod ||
+              (sem === 1 ? 'Mindful & Meaningful Learning' : 'Meaningful & Joyful Learning'),
+          };
+        });
+
+      let currentBase64 = fileBase64;
+      let currentRawText = rawTextContent;
+      if (selectedFile && !currentBase64 && !currentRawText.trim()) {
+        setAnalysisStepText(`Membaca isi berkas "${selectedFile.name}" secara keseluruhan...`);
+        try {
+          const parsedFresh = await UniversalFileParser.parseFile(selectedFile);
+          currentBase64 = parsedFresh.base64 || '';
+          const freshText = (parsedFresh.extractedText || '').trim();
+          const isPlaceholder =
+            freshText.startsWith('[Dokumen PDF terlampir:') ||
+            freshText.startsWith('[Lampiran Gambar Visual:') ||
+            freshText.startsWith('[Gambar Format Dokumen');
+          currentRawText = isPlaceholder ? '' : freshText;
+          if (currentBase64) setFileBase64(currentBase64);
+          if (currentRawText) setRawTextContent(currentRawText);
+        } catch {
+          // fallback FileReader base64 if parser fails
+          currentBase64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve((ev.target?.result as string) || '');
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(selectedFile);
+          });
+          if (currentBase64) setFileBase64(currentBase64);
+        }
+      }
+
+      const hintMeta = detectMetadataFromFilename(fileName || docName);
+
+      let apiResData: Record<string, unknown> | null = null;
+      let apiRawText = '';
+      let apiCoverageReport: CPCoverageReport | undefined;
+      let apiDocumentInsights: CPDocumentInsights | undefined;
+
+      try {
+        const res = await fetch('/api/ai/analyze-cp-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: fileName || docName,
+            fileBase64: currentBase64,
+            fileType,
+            fileContent: currentRawText,
+            subject: hintMeta.subject || undefined,
+            level: hintMeta.level,
+            grade: hintMeta.grade,
+            phase: hintMeta.phase,
+            totalHoursPerYear: hintMeta.level === 'SD' ? 144 : 108,
+            jpPerWeek: hintMeta.level === 'SD' ? 4 : 3,
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.success && json.data) {
+            apiResData = json.data;
+            apiRawText = (json.rawText || json.data.extractedCpText || '') as string;
+            if (json.coverageReport) {
+              apiCoverageReport = json.coverageReport as CPCoverageReport;
+            }
+            if (json.documentInsights) {
+              apiDocumentInsights = json.documentInsights as CPDocumentInsights;
+            }
+          }
+        }
+      } catch {
+        // Fallback smoothly to client-side heuristic analyzer below
+      }
+
+      const effectiveRawText = (currentRawText || apiRawText || '').trim();
+      const strictDocMode = effectiveRawText.length >= 120;
+      const heuristicRes = analyzeCPTextHeuristic({
+        fileName: fileName || docName,
+        rawText: effectiveRawText,
+        subjectHint: hintMeta.subject || undefined,
+        levelHint: hintMeta.level,
+        gradeHint: hintMeta.grade,
+        phaseHint: hintMeta.phase,
+        totalHoursHint: hintMeta.level === 'SD' ? 144 : 108,
+        jpPerWeekHint: hintMeta.level === 'SD' ? 4 : 3,
+        strictDocumentOnly: strictDocMode,
+        getFallbackPreset: strictDocMode
+          ? undefined
+          : (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+      });
+
+      const apiMeta = (apiResData?.identifiedMetadata || {}) as Record<string, unknown>;
+      const resolvedPrimarySub =
+        (typeof apiMeta.subject === 'string' &&
+        apiMeta.subject !== 'Mata Pelajaran Teridentifikasi'
+          ? apiMeta.subject
+          : heuristicRes.identifiedMetadata.subject) || 'Pendidikan Pancasila';
+      const resolvedPrimaryLvl = normalizeSchoolLevel(
+        (apiMeta.level as string) || heuristicRes.identifiedMetadata.level,
+        resolvedPrimarySub
+      );
+      const resolvedPrimaryGrd =
+        Number(apiMeta.grade) || heuristicRes.identifiedMetadata.grade || 10;
+      const resolvedPrimaryPhs =
+        (apiMeta.phase as string) ||
+        resolvePhaseByLevelAndGrade(resolvedPrimaryLvl, resolvedPrimaryGrd);
+
+      const rawApiSubjects = Array.isArray(apiResData?.analyzedSubjects)
+        ? (apiResData?.analyzedSubjects as Record<string, unknown>[])
+        : [];
+
+      const mappedApiSubjects: CPSubjectEntry[] = rawApiSubjects.map((entry, idx) => {
+        const subName = String(entry.subject || resolvedPrimarySub).trim();
+        const rawPhs = String(entry.phase || '');
+        const rawGrd = Number(entry.grade) || 0;
+        const subLvl = normalizeSchoolLevel(
+          String(entry.level || resolvedPrimaryLvl),
+          `${subName} ${rawPhs} ${rawGrd ? `Kelas ${rawGrd}` : ''}`
+        );
+        const subGrd = rawGrd || (subLvl === 'SD' ? 4 : subLvl === 'SMP' ? 7 : 10);
+        const subPhs = rawPhs || resolvePhaseByLevelAndGrade(subLvl, subGrd);
+        const subHours = Number(entry.totalHoursPerYear) || (subLvl === 'SD' ? 144 : 108);
+        const subJp = Number(entry.jpPerWeek) || (subLvl === 'SD' ? 4 : 3);
+
+        const rawSem1 = Array.isArray(entry.materialsSem1) ? entry.materialsSem1 : [];
+        const rawSem2 = Array.isArray(entry.materialsSem2) ? entry.materialsSem2 : [];
+        const presetFallback =
+          !strictDocMode && (rawSem1.length === 0 || rawSem2.length === 0)
+            ? getSubjectPresetByGrade(subName, subLvl, subGrd, subPhs)
+            : null;
+
+        const sem1 = normalizeMaterials(
+          rawSem1.length > 0 ? rawSem1 : presetFallback?.materialsSem1 || [],
+          1,
+          subGrd,
+          subHours,
+          1
+        );
+        const sem2 = normalizeMaterials(
+          rawSem2.length > 0 ? rawSem2 : presetFallback?.materialsSem2 || [],
+          2,
+          subGrd,
+          subHours,
+          sem1.length + 1
+        );
+
+        return {
+          id: String(entry.id || `cp-api-${Date.now()}-${idx + 1}`),
+          subject: subName,
+          level: subLvl,
+          subLevelLabel:
+            String(entry.subLevelLabel || '') ||
+            getSchoolLevelDisplay(subLvl, subGrd).subLabel,
+          grade: subGrd,
+          phase: subPhs,
+          categoryTag:
+            entry.categoryTag === 'Pilihan/Tingkat Lanjut' ||
+            entry.categoryTag === 'Kejuruan/Konsentrasi' ||
+            entry.categoryTag === 'Umum/Wajib'
+              ? (entry.categoryTag as CPSubjectEntry['categoryTag'])
+              : undefined,
+          locationRef:
+            typeof entry.locationRef === 'string' && entry.locationRef.trim()
+              ? entry.locationRef.trim()
+              : undefined,
+          specialNotes:
+            typeof entry.specialNotes === 'string' && entry.specialNotes.trim()
+              ? entry.specialNotes.trim()
+              : undefined,
+          jpPerWeek: subJp,
+          totalHoursPerYear: subHours,
+          cpText: String(
+            entry.cpText || `Capaian Pembelajaran ${subName} ${subLvl} (${subPhs})`
+          ),
+          elements: Array.isArray(entry.elements)
+            ? (entry.elements as CPSubjectEntry['elements'])
+            : (apiResData?.elements as CPSubjectEntry['elements']) || [],
+          materialsSem1: sem1,
+          materialsSem2: sem2,
+        };
+      });
+
+      let mergedSubjects = mergeAnalyzedSubjects(
+        mappedApiSubjects,
+        heuristicRes.analyzedSubjects
+      );
+
+      // Process any additional files in an uploaded Folder CP
+      if (folderFiles.length > 1) {
+        for (let i = 1; i < folderFiles.length; i++) {
+          const extra = folderFiles[i];
+          setAnalysisStepText(
+            `Menganalisis berkas folder (${i + 1}/${folderFiles.length}): ${extra.name}...`
+          );
+          try {
+            const extraMeta = detectMetadataFromFilename(extra.name);
+            let extraText = '';
+            let extraBase64 = '';
+            try {
+              const parsedExtra = await UniversalFileParser.parseFile(extra);
+              extraBase64 = parsedExtra.base64 || '';
+              const rawExtra = (parsedExtra.extractedText || '').trim();
+              const isPlaceholder =
+                rawExtra.startsWith('[Dokumen PDF terlampir:') ||
+                rawExtra.startsWith('[Lampiran Gambar Visual:') ||
+                rawExtra.startsWith('[Gambar Format Dokumen');
+              extraText = isPlaceholder ? '' : rawExtra;
+            } catch {
+              extraText = '';
+            }
+
+            let extraApiSubs: CPSubjectEntry[] = [];
+            if ((!extraText || extraText.length < 200) && extraBase64) {
+              try {
+                const extraRes = await fetch('/api/ai/analyze-cp-file', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    fileName: extra.name,
+                    fileBase64: extraBase64,
+                    fileType: extra.type || 'application/pdf',
+                    subject: extraMeta.subject || undefined,
+                    level: extraMeta.level,
+                    grade: extraMeta.grade,
+                    phase: extraMeta.phase,
+                    totalHoursPerYear: extraMeta.level === 'SD' ? 144 : 108,
+                    jpPerWeek: extraMeta.level === 'SD' ? 4 : 3,
+                  }),
+                });
+                if (extraRes.ok) {
+                  const extraJson = await extraRes.json();
+                  if (!extraText && extraJson?.rawText) {
+                    extraText = extraJson.rawText;
+                  }
+                  const eList = extraJson?.data?.analyzedSubjects;
+                  if (Array.isArray(eList)) {
+                    extraApiSubs = eList.map((e: Record<string, unknown>, idx: number) => {
+                      const sLvl = normalizeSchoolLevel(
+                        String(e.level || extraMeta.level),
+                        String(e.subject || '')
+                      );
+                      const sGrd = Number(e.grade) || extraMeta.grade;
+                      const sHours = Number(e.totalHoursPerYear) || (sLvl === 'SD' ? 144 : 108);
+                      const s1 = normalizeMaterials(
+                        Array.isArray(e.materialsSem1) ? e.materialsSem1 : [],
+                        1,
+                        sGrd,
+                        sHours,
+                        1
+                      );
+                      const s2 = normalizeMaterials(
+                        Array.isArray(e.materialsSem2) ? e.materialsSem2 : [],
+                        2,
+                        sGrd,
+                        sHours,
+                        s1.length + 1
+                      );
+                      return {
+                        id: String(e.id || `cp-folder-${i}-${idx + 1}`),
+                        subject: String(e.subject || extraMeta.subject || stripExtension(extra.name)),
+                        level: sLvl,
+                        subLevelLabel: getSchoolLevelDisplay(sLvl, sGrd).subLabel,
+                        grade: sGrd,
+                        phase: String(e.phase || resolvePhaseByLevelAndGrade(sLvl, sGrd)),
+                        jpPerWeek: Number(e.jpPerWeek) || (sLvl === 'SD' ? 4 : 3),
+                        totalHoursPerYear: sHours,
+                        cpText: String(e.cpText || extraJson?.data?.extractedCpText || ''),
+                        elements: (e.elements as CPSubjectEntry['elements']) || [],
+                        materialsSem1: s1,
+                        materialsSem2: s2,
+                      };
+                    });
+                  }
+                }
+              } catch {
+                // fallback handled by heuristic below
+              }
+            }
+
+            const extraStrictMode = extraText.trim().length >= 120;
+            const extraHeuristic = analyzeCPTextHeuristic({
+              fileName: extra.name,
+              rawText: extraText,
+              subjectHint: extraMeta.subject || undefined,
+              levelHint: extraMeta.level,
+              gradeHint: extraMeta.grade,
+              phaseHint: extraMeta.phase,
+              totalHoursHint: extraMeta.level === 'SD' ? 144 : 108,
+              jpPerWeekHint: extraMeta.level === 'SD' ? 4 : 3,
+              strictDocumentOnly: extraStrictMode,
+              getFallbackPreset: extraStrictMode
+                ? undefined
+                : (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+            });
+
+            mergedSubjects = mergeAnalyzedSubjects(
+              mergedSubjects,
+              mergeAnalyzedSubjects(extraApiSubs, extraHeuristic.analyzedSubjects)
+            );
+          } catch {
+            // continue other files gracefully
+          }
+        }
+      }
+
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+      setProgressPercent(100);
+      setAnalysisStepText('Analisis mendalam selesai.');
+
+      const firstPresentGroup =
+        (['SD', 'SMP', 'SMA', 'SMK'] as SchoolLevelGroup[]).find((grp) =>
+          mergedSubjects.some((s) => isSameSchoolLevelGroup(s.level, grp))
+        ) || getSchoolLevelGroup(resolvedPrimaryLvl);
+
+      const defaultEntryForGroup =
+        mergedSubjects.find((s) => isSameSchoolLevelGroup(s.level, firstPresentGroup)) ||
+        mergedSubjects[0];
+
+      const computedCoverage: CPCoverageReport = apiCoverageReport || {
+        totalCharacters: effectiveRawText.length,
+        aiAnalyzedCharacters: 0,
+        chunksProcessed: 0,
+        totalChunksNeeded: Math.max(1, Math.ceil(effectiveRawText.length / 180000)),
+        isFullyAnalyzedByAI: false,
+        isFullyScannedStructurally: true,
+        readSectionsSummary: buildLevelRecapFromSubjects(mergedSubjects, effectiveRawText)
+          .filter((r) => r.uniqueSubjectCount > 0)
+          .map((r) => `${r.label}: ${r.uniqueSubjectCount} mapel (${r.phasesCovered.join(', ')})`),
+        unreadOrTruncatedNotice: effectiveRawText
+          ? 'Analisis dijalankan melalui pemindai struktural penuh (100% teks terbaca tanpa mengarang materi di luar dokumen).'
+          : undefined,
+      };
+
+      const resolvedDocumentInsights: CPDocumentInsights =
+        apiDocumentInsights ||
+        extractCPDocumentInsights(effectiveRawText, mergedSubjects, computedCoverage);
+
+      const draft: AnalysisDraft = {
+        id: `admin-cp-${Date.now()}`,
+        docName: docName.trim() || stripExtension(fileName) || 'Dokumen CP Resmi',
+        docNumber: docNumber.trim(),
+        fileName: fileName.trim() || `${docName.trim()}.pdf`,
+        folderName: folderName || undefined,
+        fileType: fileType || 'application/pdf',
+        fileSize,
+        rawText: effectiveRawText || heuristicRes.extractedCpText,
+        executiveSummary:
+          String(apiResData?.executiveSummary || '') || heuristicRes.executiveSummary,
+        analyzedSubjects: mergedSubjects,
+        coverageReport: computedCoverage,
+        documentInsights: resolvedDocumentInsights,
+        primarySubject: defaultEntryForGroup?.subject || resolvedPrimarySub,
+        primaryLevel: (defaultEntryForGroup?.level || resolvedPrimaryLvl) as SchoolLevel,
+        primaryGrade: defaultEntryForGroup?.grade || resolvedPrimaryGrd,
+        primaryPhase: defaultEntryForGroup?.phase || resolvedPrimaryPhs,
+        analyzedAt: new Date().toISOString(),
+        isSynced: false,
+      };
+
+      setAnalysisDraft(draft);
+      setSelectedLevelGroup(firstPresentGroup);
+      setSelectedGrade(
+        Number(defaultEntryForGroup?.grade) ||
+          getGradeOptionsByLevel(firstPresentGroup)[0].grade
+      );
+      setSelectedSubjectName(defaultEntryForGroup?.subject || resolvedPrimarySub);
+    } catch (err) {
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+      setErrorMsg(
+        err instanceof Error
+          ? `Analisis gagal dijalankan: ${err.message}`
+          : 'Terjadi kendala saat menganalisis dokumen CP.'
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Sync analyzed CP automatically across Profil Guru Mata Pelajaran & Parameter Kurikulum
+  const handleSyncToApp = () => {
+    if (!analysisDraft || analysisDraft.analyzedSubjects.length === 0) {
+      setErrorMsg('Lakukan analisis file CP terlebih dahulu sebelum menyinkronkan ke aplikasi.');
+      return;
+    }
+
+    setIsSyncing(true);
+    setErrorMsg('');
+
+    try {
+      const targetSubject =
+        activeSubjectInspection?.subject || analysisDraft.primarySubject;
+      const targetLevel =
+        (activeSubjectInspection?.level || analysisDraft.primaryLevel) as SchoolLevel;
+      const targetGrade =
+        Number(activeSubjectInspection?.grade) || Number(analysisDraft.primaryGrade) || 10;
+      const targetPhase =
+        activeSubjectInspection?.phase ||
+        resolvePhaseByLevelAndGrade(targetLevel, targetGrade);
+      const targetJpPerWeek = activeSubjectInspection?.jpPerWeek || (targetLevel === 'SD' ? 4 : 3);
+      const targetSem1 = activeSubjectInspection?.materialsSem1 || [];
+      const targetSem2 = activeSubjectInspection?.materialsSem2 || [];
+      const targetHours =
+        targetSem1.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0) +
+          targetSem2.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0) ||
+        activeSubjectInspection?.totalHoursPerYear ||
+        108;
+
+      const resolvedDocTitle = docName.trim() || analysisDraft.docName;
+      const extMatch = (analysisDraft.fileName || '').match(/(\.[^.]+)$/);
+      const recordedFileName =
+        resolvedDocTitle +
+        (extMatch && !resolvedDocTitle.toLowerCase().endsWith(extMatch[1].toLowerCase())
+          ? extMatch[1]
+          : '');
+
+      const schoolProfile = StorageService.getSchoolProfile();
+
+      const activeInspectionEntry: CPSubjectEntry = {
+        id: `${analysisDraft.id}-${getSchoolLevelGroup(targetLevel)}-${targetGrade}-${targetSubject.toLowerCase().replace(/\s+/g, '-')}`,
+        subject: targetSubject,
+        level: targetLevel,
+        subLevelLabel: getSchoolLevelDisplay(targetLevel, targetGrade).subLabel,
+        grade: targetGrade,
+        phase: targetPhase,
+        jpPerWeek: targetJpPerWeek,
+        totalHoursPerYear: targetHours,
+        cpText:
+          activeSubjectInspection?.cpText ||
+          analysisDraft.rawText ||
+          `Capaian Pembelajaran ${targetSubject} (${targetLevel} · ${targetPhase})`,
+        elements: activeSubjectInspection?.elements || [],
+        materialsSem1: targetSem1,
+        materialsSem2: targetSem2,
+      };
+
+      const syncedAnalyzedSubjects = mergeAnalyzedSubjects(
+        [activeInspectionEntry],
+        analysisDraft.analyzedSubjects
+      );
+
+      const syncedMaster: ActiveMasterCPData = {
+        id: analysisDraft.id,
+        fileName: recordedFileName || analysisDraft.fileName,
+        folderName: analysisDraft.folderName,
+        docNumber: docNumber.trim() || analysisDraft.docNumber || undefined,
+        uploadedByRole: currentUser.role,
+        uploadedByName: currentUser.name,
+        fileType: analysisDraft.fileType,
+        fileSize: analysisDraft.fileSize,
+        uploadedAt: analysisDraft.analyzedAt,
+        level: targetLevel,
+        subLevelLabel: getSchoolLevelDisplay(targetLevel, targetGrade).subLabel,
+        grade: targetGrade,
+        phase: targetPhase,
+        subject: targetSubject,
+        teacherName: schoolProfile.teacherName || currentUser.name,
+        teacherNip: schoolProfile.teacherNip,
+        schoolName: schoolProfile.schoolName || currentUser.school,
+        academicYear: schoolProfile.academicYear || '2026/2027',
+        totalHoursPerYear: targetHours,
+        jpPerWeek: targetJpPerWeek,
+        cpText: activeInspectionEntry.cpText || '',
+        elements: activeInspectionEntry.elements || [],
+        materialsSem1: targetSem1,
+        materialsSem2: targetSem2,
+        analyzedSubjects: syncedAnalyzedSubjects,
+        coverageReport: analysisDraft.coverageReport,
+        documentInsights: analysisDraft.documentInsights,
+        executiveSummary: analysisDraft.executiveSummary,
+        syncStatus: 'synced',
+        lastSyncedAt: new Date().toISOString(),
+      };
+
+      // 1. Update Master CP, Parameter Kurikulum catalog, server catalog, distributions, refs, kaldik
+      StorageService.setActiveMasterCP(syncedMaster);
+
+      // 2. Explicitly synchronize Profil Guru Mata Pelajaran
+      const latestProfile = StorageService.getSchoolProfile();
+      StorageService.saveSchoolProfile({
+        ...latestProfile,
+        subject: targetSubject,
+        level: targetLevel,
+        grade: targetGrade,
+        phase: targetPhase,
+        jpPerWeek: targetJpPerWeek,
+        totalHoursPerYear: targetHours,
+        cpText: syncedMaster.cpText,
+      });
+
+      StorageService.addNotification({
+        title: `CP "${resolvedDocTitle}" Tersinkron ke Aplikasi`,
+        message: `${totalUniqueSubjects} mata pelajaran lintas ${activeLevelCount} tingkat sekolah telah disinkronkan ke Menu Profil Guru dan Parameter Kurikulum.`,
+        type: 'sync',
+        actionUrl: 'parameter_kurikulum',
+      });
+
+      const nowIso = new Date().toISOString();
+      setAnalysisDraft((prev) =>
+        prev
+          ? {
+              ...prev,
+              docName: resolvedDocTitle,
+              docNumber: docNumber.trim(),
+              fileName: recordedFileName,
+              syncedAt: nowIso,
+              isSynced: true,
+            }
+          : null
+      );
+      setAdminUploadedCPs(StorageService.getAdminUploadedCPs());
+      setSyncSuccessInfo({
+        docName: resolvedDocTitle,
+        totalSubjects: totalUniqueSubjects,
+        levelCount: activeLevelCount,
+        profileSubject: targetSubject,
+        profileLevel: targetLevel,
+        profileGrade: targetGrade,
+        profilePhase: targetPhase,
+        syncedAt: nowIso,
+      });
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error
+          ? `Gagal menyinkronkan ke aplikasi: ${err.message}`
+          : 'Terjadi kendala saat menyinkronkan data CP.'
+      );
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleDeleteUploadedRecord = (id: string) => {
+    const remaining = StorageService.removeAdminUploadedCP(id);
+    setAdminUploadedCPs(remaining);
+    if (remaining.length === 0) {
+      StorageService.clearActiveMasterCP(DEFAULT_ADMIN.id);
+      StorageService.clearActiveMasterCP(currentUser.id);
+      setAnalysisDraft(null);
+      setSyncSuccessInfo(null);
+    }
+  };
+
+  const handleResetWorkspace = () => {
+    adminUploadedCPs.forEach((item) => {
+      StorageService.removeAdminUploadedCP(item.id);
+    });
+    const remainingCatalog = StorageService.getMasterCPCatalog().filter(
+      (c) => c.uploadedByRole !== 'admin'
+    );
+    StorageService.saveMasterCPCatalog(remainingCatalog);
+    StorageService.saveAdminSettings({ adminUploadedCPs: [] });
+    StorageService.clearActiveMasterCP(DEFAULT_ADMIN.id);
+    StorageService.clearActiveMasterCP(currentUser.id);
+    StorageService.clearAdminCPCatalogOnServer();
+
+    setAdminUploadedCPs([]);
+    setAnalysisDraft(null);
+    setSyncSuccessInfo(null);
+    handleClearPickedFile();
+  };
 
   return (
-    <div className="space-y-6 pb-12 animate-in fade-in duration-300">
-      {/* Top Banner Notice */}
-      {syncedNotice && (
-        <div className="p-3.5 bg-emerald-600/20 border border-emerald-500/40 rounded-2xl flex items-center justify-between text-xs text-emerald-200">
-          <div className="flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="font-bold">{syncedNotice}</span>
-          </div>
-          <button
-            onClick={() => setSyncedNotice(null)}
-            className="text-slate-400 hover:text-white text-[11px] uppercase font-bold"
-          >
-            Tutup
-          </button>
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+      {/* Header Workspace */}
+      <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Upload &amp; Analisis Mendalam Capaian Pembelajaran
+          </h1>
+          <p className="text-sm text-slate-600 max-w-3xl">
+            Unggah dokumen resmi Capaian Pembelajaran, jalankan analisis terstruktur berdasarkan
+            tingkat sekolah, kelas/fase, mata pelajaran, serta lingkup materi, lalu sinkronkan
+            otomatis ke Menu Profil Guru dan Menu Parameter Kurikulum.
+          </p>
         </div>
-      )}
-
-      {/* MASTER CP HEADER CARD */}
-      <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-                Master CP Resmi Terverifikasi
-              </span>
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                {masterCP.level} - {masterCP.phase} (Kelas {masterCP.grade})
-              </span>
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                {masterCP.academicYear || '2025/2026'}
-              </span>
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-400" />
-                Deep Learning Ready
-              </span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2">
-                <span>Hasil Analisis CP:</span>
-                <span className="text-sky-300">
-                  {masterCP.subject}
-                </span>
-              </h1>
-            </div>
-
-            <p className="text-xs text-slate-400 max-w-3xl leading-relaxed">
-              Tabel hasil analisis otomatis mendalam dari dokumen Capaian Pembelajaran (CP) resmi. Menjadi acuan tunggal (<em>Single Source of Truth</em>) yang tersinkronisasi ke seluruh 9 modul perangkat ajar.
-            </p>
-
-            {/* QUICK SUBJECT SELECTOR BAR */}
-            <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-slate-800/80">
-              <span className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
-                <Compass className="w-3.5 h-3.5 text-indigo-400" />
-                Pilih Mapel Cepat:
-              </span>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {SUBJECT_MATERIAL_PRESETS.slice(0, 8).map((preset) => {
-                  const isActive =
-                    masterCP.subject.toLowerCase() === preset.subject.toLowerCase() &&
-                    Number(masterCP.grade) === Number(preset.grade) &&
-                    masterCP.level === preset.level;
-                  return (
-                    <button
-                      key={`${preset.subject}-${preset.grade}`}
-                      onClick={() => handleSelectPresetSubject(preset)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 ${
-                        isActive
-                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                          : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 border border-slate-700/60'
-                      }`}
-                    >
-                      {isActive && <Check className="w-3 h-3 text-indigo-200" />}
-                      <span>{preset.subject}</span>
-                      <span className="text-[9px] opacity-70">({preset.level} K{preset.grade})</span>
-                    </button>
-                  );
-                })}
-                <button
-                  onClick={() => setActiveTab('catalog')}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-800 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition flex items-center gap-1"
-                >
-                  <Grid className="w-3 h-3" />
-                  <span>Lihat Semua ({SUBJECT_MATERIAL_PRESETS.length} Mapel)...</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400 pt-1">
-              <div className="flex items-center gap-1">
-                <Bookmark className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Dokumen Acuan: <strong className="text-slate-200">{masterCP.fileName}</strong></span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
-                <span>Total Waktu: <strong className="text-emerald-400 font-mono">{masterCP.totalHoursPerYear} JP/Tahun</strong> ({masterCP.jpPerWeek} JP/Minggu)</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Target className="w-3.5 h-3.5 text-rose-400" />
-                <span>Target TP: <strong className="text-indigo-300 font-mono">{totalTPCount} Tujuan Pembelajaran</strong></span>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Toolbar */}
-          <div className="flex flex-col sm:flex-row lg:flex-col gap-2 self-start lg:self-center shrink-0">
+        {(analysisDraft || adminUploadedCPs.length > 0) && (
+          <div className="flex items-center gap-3 shrink-0">
             <button
-              onClick={handleSyncAllSubjects}
-              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center justify-center gap-2 shadow-xl shadow-emerald-900/30 transition transform active:scale-95"
-              title="Sinkronkan seluruh mata pelajaran master CP (Fisika, MTK, B.Indo, IPA, dll) sekaligus"
+              type="button"
+              onClick={handleResetWorkspace}
+              className="h-10 px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors"
             >
-              <FolderSync className="w-4 h-4 text-emerald-200 animate-spin-slow" />
-              <span>⚡ SINKRONKAN SEMUA MAPEL</span>
+              <RefreshCw className="w-4 h-4 text-slate-500" />
+              Kosongkan Data CP
             </button>
+          </div>
+        )}
+      </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => setActiveTab('format_sekolah')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition shadow-sm ${
-                  customFormatConfig.useCustomFormat
-                    ? 'bg-emerald-600 border-emerald-400/50 text-white shadow-emerald-950/40 ring-1 ring-emerald-400/40'
-                    : 'bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-200 hover:text-white border-indigo-500/40'
-                }`}
-                title="Upload format atau template Analisis CP resmi sekolah Anda (Word, Excel, PDF, Foto)"
-              >
-                <UploadCloud className="w-4 h-4 text-emerald-400" />
-                <span>Upload Format/Template</span>
-                {customFormatConfig.useCustomFormat && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-white/20 text-white font-black">
-                    Kustom
-                  </span>
+      {/* Bagian 1: Upload File CP & Penamaan Dokumen */}
+      <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              1. Upload File CP &amp; Penamaan Dokumen
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Format yang didukung: PDF, Word (DOCX/DOC), Excel (XLSX/XLS/CSV), TXT, JSON, atau Folder CP.
+            </p>
+          </div>
+          {fileName && (
+            <button
+              type="button"
+              onClick={handleClearPickedFile}
+              className="h-9 px-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 self-start sm:self-auto"
+            >
+              <X className="w-3.5 h-3.5" />
+              Hapus Pilihan Berkas
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Dropzone Upload File / Folder */}
+          <div className="lg:col-span-6 space-y-3">
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+              className={`rounded-xl border-2 border-dashed p-6 transition-colors text-center ${
+                isDragging
+                  ? 'border-blue-500 bg-blue-50/60'
+                  : selectedFile
+                  ? 'border-slate-300 bg-slate-50/70'
+                  : 'border-slate-300 bg-slate-50/40 hover:border-blue-400'
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.json"
+                onChange={handleFileInputChange}
+                className="hidden"
+              />
+              <input
+                ref={folderInputRef}
+                type="file"
+                {...({ webkitdirectory: '', directory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
+                multiple
+                onChange={handleFolderInputChange}
+                className="hidden"
+              />
+
+              <div className="mx-auto w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
+                {folderFiles.length > 1 ? (
+                  <FolderOpen className="w-5 h-5" />
+                ) : selectedFile ? (
+                  <FileText className="w-5 h-5" />
+                ) : (
+                  <UploadCloud className="w-5 h-5" />
                 )}
-              </button>
+              </div>
 
-              {onNavigate && (
-                <button
-                  type="button"
-                  onClick={() => onNavigate('ai_analisis_cp')}
-                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
-                  title="Lihat dokumen lengkap hasil analisis CP siap cetak"
-                >
-                  <FileText className="w-4 h-4" />
-                  <span>Dokumen Siap Cetak</span>
-                </button>
+              {selectedFile ? (
+                <div className="space-y-1.5">
+                  <p className="text-sm font-semibold text-slate-900 break-all">
+                    {folderFiles.length > 1
+                      ? `${folderName || 'Folder CP'} (${folderFiles.length} berkas)`
+                      : fileName}
+                  </p>
+                  <p className="text-xs text-slate-500 tabular-nums">
+                    {formatFileSize(fileSize)}
+                    {isReadingFile
+                      ? ' · Membaca keseluruhan berkas...'
+                      : rawTextContent
+                        ? ` · ${rawTextContent.length.toLocaleString('id-ID')} karakter teks terbaca`
+                        : ' · Siap diekstrak saat analisis'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-slate-800">
+                    Tarik dan lepas file CP di sini
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    atau pilih berkas dokumen tunggal maupun satu folder sekaligus
+                  </p>
+                </div>
               )}
 
-              <button
-                onClick={handlePrint}
-                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition"
-                title="Cetak Tabel Hasil Analisis CP"
-              >
-                <Printer className="w-4 h-4 text-slate-400" />
-                <span>Cetak</span>
-              </button>
-
-              <button
-                onClick={handleExportWord}
-                className="px-3 py-2 rounded-xl bg-indigo-600/30 hover:bg-indigo-600 border border-indigo-500/40 text-indigo-200 hover:text-white text-xs font-bold flex items-center gap-1.5 transition"
-                title="Ekspor Laporan ke Format Word"
-              >
-                <Download className="w-4 h-4 text-indigo-400" />
-                <span>Word</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* SEARCH & TAB SELECTOR */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        {/* Navigation Tabs */}
-        <div className="flex rounded-2xl bg-slate-900 p-1.5 border border-slate-800 text-xs flex-wrap gap-1">
-          <button
-            onClick={() => setActiveTab('upload_master')}
-            className={`px-3.5 py-2 rounded-xl font-bold transition flex items-center gap-1.5 ${
-              activeTab === 'upload_master'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-indigo-300 hover:text-white bg-indigo-950/40 hover:bg-indigo-900/60'
-            }`}
-          >
-            <UploadCloud className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Upload &amp; Analisis File CP Baru</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-500/30 text-indigo-200">
-              PDF/Word/Excel
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('catalog')}
-            className={`px-3.5 py-2 rounded-xl font-bold transition flex items-center gap-1.5 ${
-              activeTab === 'catalog'
-                ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Grid className="w-3.5 h-3.5 text-sky-300" />
-            <span>Katalog Master CP ({SUBJECT_MATERIAL_PRESETS.length} Mapel)</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-3.5 py-2 rounded-xl font-bold transition flex items-center gap-1.5 ${
-              activeTab === 'all' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>Hasil Analisis CP Aktif</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('elements')}
-            className={`px-3.5 py-2 rounded-xl font-bold transition flex items-center gap-1.5 ${
-              activeTab === 'elements' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Elemen & Kompetensi ({masterCP.elements?.length || 0})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('sem1')}
-            className={`px-3.5 py-2 rounded-xl font-bold transition flex items-center gap-1.5 ${
-              activeTab === 'sem1' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            <span>Sem 1 ({totalSem1Hours} JP)</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('sem2')}
-            className={`px-3.5 py-2 rounded-xl font-bold transition flex items-center gap-1.5 ${
-              activeTab === 'sem2' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            <span>Sem 2 ({totalSem2Hours} JP)</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('format_sekolah')}
-            className={`px-3.5 py-2 rounded-xl font-bold transition flex items-center gap-1.5 ${
-              activeTab === 'format_sekolah'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <UploadCloud className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Upload Format & Template</span>
-            {customFormatConfig.useCustomFormat ? (
-              <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-emerald-400/20 text-emerald-300 font-extrabold border border-emerald-400/40">
-                Aktif
-              </span>
-            ) : (
-              <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-slate-800 text-slate-400 font-medium">
-                Word/Excel/PDF
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Search in Tables */}
-        <div className="relative min-w-[240px]">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari materi, kode TP, elemen..."
-            className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-          />
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* TAB: UPLOAD CP MASTER (ADMIN ONLY) - ANALISIS & AUTO-SYNC TOTAL */}
-      {/* ========================================================================= */}
-      {activeTab === 'upload_master' && (
-        <div className="space-y-6">
-          {currentUser.role !== 'admin' ? (
-            <div className="p-8 bg-slate-900 rounded-3xl border border-amber-500/30 text-center space-y-4 shadow-2xl">
-              <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center mx-auto text-amber-400">
-                <ShieldCheck className="w-8 h-8" />
-              </div>
-              <div className="space-y-2 max-w-xl mx-auto">
-                <h3 className="text-lg font-bold text-white">
-                  Fitur Khusus Administrator Sekolah
-                </h3>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Upload dan analisis berkas dokumen CP Master baru (BSKAP / SK Sekolah) hanya dapat dilakukan oleh <strong>Administrator Sekolah</strong> demi standardisasi kurikulum terpusat.
-                </p>
-                <p className="text-xs text-slate-400">
-                  Sebagai Guru Mata Pelajaran, Anda dapat langsung memilih, mengadopsi, dan menyinkronkan Capaian Pembelajaran resmi yang telah disiapkan melalui <strong>Katalog Master CP</strong>.
-                </p>
-              </div>
-              <div className="pt-2 flex justify-center gap-3">
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
                 <button
-                  onClick={() => setActiveTab('catalog')}
-                  className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-lg shadow-sky-600/30 transition flex items-center gap-2"
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-10 px-4 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors"
                 >
-                  <Grid className="w-4 h-4" />
-                  <span>Buka Katalog Master CP ({SUBJECT_MATERIAL_PRESETS.length} Mapel)</span>
+                  <UploadCloud className="w-4 h-4 text-blue-600" />
+                  Pilih File CP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => folderInputRef.current?.click()}
+                  className="h-10 px-4 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors"
+                >
+                  <FolderOpen className="w-4 h-4 text-slate-600" />
+                  Pilih Folder CP
                 </button>
               </div>
             </div>
-          ) : (
-            <>
-              <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 rounded-3xl border border-indigo-500/30 shadow-2xl space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-600/30">
-                      <UploadCloud className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-black border border-indigo-500/40 mb-1">
-                        <ShieldCheck className="w-3 h-3 text-indigo-400" />
-                        <span>PANEL RESMI ADMINISTRATOR SEKOLAH</span>
-                      </div>
-                      <h2 className="text-lg font-black text-white">
-                        Upload & Analisis CP Master (Auto-Sync ke Seluruh Perangkat Ajar)
-                      </h2>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('catalog')}
-                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition flex items-center gap-1.5 shrink-0 self-start sm:self-center"
-                  >
-                    <Grid className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Buka Katalog Master ({SUBJECT_MATERIAL_PRESETS.length} Mapel)</span>
-                  </button>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed max-w-4xl">
-                  Unggah dokumen regulasi Capaian Pembelajaran (CP) Kemdikbudristek (No. 020 Tahun 2026 atau SK Sekolah). Sistem otomatis mengekstrak elemen, memilah kompetensi Bloom HOTS, merumuskan TP, membagi materi Semester 1 &amp; 2, dan menyinkronkan ke seluruh 9 perangkat ajar.
-                </p>
-              </div>
+          </div>
 
-              <CPUploaderAndAnalyzer
-                teacherName={schoolProfile.teacherName || currentUser.name}
-                schoolName={schoolProfile.schoolName}
-                onAnalysisComplete={(masterData) => {
-                  setMasterCP(masterData);
-                  setActiveTab('all');
-                }}
-                onNavigate={onNavigate}
-                customTitle="Form Upload & Ekstraksi Dokumen CP Master Resmi BSKAP"
-                customDescription="Unggah berkas CP (PDF, Word, Excel, Teks, Scan) untuk dianalisis dan disinkronkan otomatis ke seluruh kurikulum & perangkat ajar"
+          {/* Form Penamaan & Eksekusi Analisis */}
+          <div className="lg:col-span-6 space-y-4">
+            <div>
+              <label
+                htmlFor="cp-doc-name"
+                className="block text-sm font-medium text-slate-800 mb-1.5"
+              >
+                Nama Dokumen CP <span className="text-rose-600">*</span>
+              </label>
+              <input
+                id="cp-doc-name"
+                type="text"
+                value={docName}
+                onChange={(e) => setDocName(e.target.value)}
+                placeholder="Contoh: CP BSKAP No. 046/H/KR/2025 Semua Jenjang"
+                className="w-full h-10 px-3.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               />
-            </>
-          )}
-        </div>
-      )}
-
-      {/* UPLOAD FORMAT / TEMPLATE ANALISIS CP CARD (VISIBLE ON PRIMARY VIEWS) */}
-      {(activeTab === 'all' || activeTab === 'elements' || activeTab === 'sem1' || activeTab === 'sem2') && (
-        <div className="p-5 bg-slate-900 rounded-3xl border border-slate-800 shadow-xl space-y-4">
-          <input
-            type="file"
-            ref={formatUploadInputRef}
-            onChange={(e) => {
-              if (e.target.files && e.target.files[0]) {
-                handleDirectFormatUpload(e.target.files[0]);
-                e.target.value = '';
-              }
-            }}
-            accept=".docx,.doc,.xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.txt"
-            className="hidden"
-          />
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3.5">
-            <div className="flex items-center space-x-3">
-              <div className="p-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">
-                <UploadCloud className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <h3 className="text-sm font-black text-white">
-                    Format & Template Dokumen Analisis CP
-                  </h3>
-                  {customFormatConfig.useCustomFormat ? (
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                      ✓ Format Kustom Aktif
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                      Standar BSKAP Kemendikdasmen
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Unggah file resmi sekolah (Word .docx, Excel .xlsx, PDF, Foto Scan) atau pilih preset untuk menyelaraskan struktur Analisis CP.
-                </p>
-              </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-center">
+            <div>
+              <label
+                htmlFor="cp-doc-number"
+                className="block text-sm font-medium text-slate-800 mb-1.5"
+              >
+                Nomor / Kode Dokumen SK (Opsional)
+              </label>
+              <input
+                id="cp-doc-number"
+                type="text"
+                value={docNumber}
+                onChange={(e) => setDocNumber(e.target.value)}
+                placeholder="Contoh: 046/H/KR/2025"
+                className="w-full h-10 px-3.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              />
+            </div>
+
+            <div className="pt-1 flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => setActiveTab('format_sekolah')}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                onClick={handleDeepAnalysis}
+                disabled={isAnalyzing}
+                className="h-11 px-5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors"
               >
-                <Settings2 className="w-3.5 h-3.5 text-slate-400" />
-                <span>Pengaturan Lengkap</span>
+                {isAnalyzing ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Menganalisis ({progressPercent}%)
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Analisis Secara Mendalam
+                  </>
+                )}
               </button>
+              <span className="text-xs text-slate-500">
+                Mengekstrak 4 tingkat sekolah, kelas/fase, mata pelajaran &amp; lingkup materi.
+              </span>
+            </div>
+
+            {isAnalyzing && (
+              <div className="pt-2 space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span className="font-medium truncate pr-3">{analysisStepText}</span>
+                  <span className="font-semibold tabular-nums shrink-0">{progressPercent}%</span>
+                </div>
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-200"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {errorMsg && (
+              <div className="p-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Arsip Berkas CP Tersimpan (ditampilkan bila ada) */}
+        {adminUploadedCPs.length > 0 && (
+          <div className="pt-4 border-t border-slate-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-800">
+                Daftar File CP Tersimpan ({adminUploadedCPs.length})
+              </h3>
+            </div>
+            <div className="overflow-x-auto border border-slate-200 rounded-lg">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600">
+                    <th className="py-2.5 px-3 w-12">No</th>
+                    <th className="py-2.5 px-3">Nama File / Dokumen CP</th>
+                    <th className="py-2.5 px-3">No. SK</th>
+                    <th className="py-2.5 px-3">Cakupan Terdeteksi</th>
+                    <th className="py-2.5 px-3">Diunggah</th>
+                    <th className="py-2.5 px-3 text-right w-20">Hapus</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {adminUploadedCPs.map((item, idx) => (
+                    <tr key={item.id} className="hover:bg-slate-50/70">
+                      <td className="py-2.5 px-3 text-slate-500 tabular-nums">{idx + 1}</td>
+                      <td className="py-2.5 px-3 font-medium text-slate-900">{item.fileName}</td>
+                      <td className="py-2.5 px-3 text-slate-600">{item.docNumber || '—'}</td>
+                      <td className="py-2.5 px-3 text-slate-600">
+                        {[item.level, item.phase, item.subject].filter(Boolean).join(' · ') || 'Semua Jenjang'}
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-500 text-xs tabular-nums">
+                        {formatDateID(item.uploadedAt)}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUploadedRecord(item.id)}
+                          aria-label={`Hapus ${item.fileName}`}
+                          className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
+        )}
+      </section>
 
-          {/* If Custom Format File is Active */}
-          {customFormatConfig.useCustomFormat && customFormatConfig.formatFile ? (
-            <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center space-x-3 min-w-0">
-                <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                  <FileCheck className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-white text-xs truncate">
-                      {customFormatConfig.formatFile.name}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase shrink-0">
-                      {customFormatConfig.formatFile.type}
-                    </span>
-                    <span className="text-[10px] text-slate-400 shrink-0">
-                      ({(customFormatConfig.formatFile.size / 1024).toFixed(1)} KB)
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-300 mt-0.5">
-                    File ini dijadikan acuan resmi struktur tabel, tata letak, dan ekspor Word Analisis CP untuk {masterCP.subject}.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => formatUploadInputRef.current?.click()}
-                  disabled={isProcessingFormatFile}
-                  className="px-3 py-1.5 bg-emerald-600/30 hover:bg-emerald-600 border border-emerald-500/40 text-emerald-200 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-1"
-                >
-                  <FileUp className="w-3.5 h-3.5" />
-                  <span>Ganti File</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectFormatPreset('standar')}
-                  className="px-3 py-1.5 bg-slate-800 hover:bg-rose-900/40 hover:text-rose-200 border border-slate-700 hover:border-rose-500/30 text-slate-300 rounded-xl text-xs font-bold transition flex items-center gap-1"
-                  title="Kembalikan ke format standar BSKAP"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Reset Standar</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* Upload Dropzone & Quick Presets */
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-              {/* Dropzone */}
-              <div
-                onClick={() => formatUploadInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                    handleDirectFormatUpload(e.dataTransfer.files[0]);
-                  }
-                }}
-                className="md:col-span-7 p-4 rounded-2xl border-2 border-dashed border-slate-700 hover:border-emerald-500/60 bg-slate-950/60 hover:bg-slate-950 transition cursor-pointer group flex items-center space-x-3 text-left"
-              >
-                <div className="p-3 rounded-xl bg-slate-900 group-hover:bg-emerald-500/20 text-slate-400 group-hover:text-emerald-300 border border-slate-800 group-hover:border-emerald-500/40 transition shrink-0">
-                  {isProcessingFormatFile ? (
-                    <RefreshCw className="w-5 h-5 animate-spin text-emerald-400" />
-                  ) : (
-                    <FileUp className="w-5 h-5" />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-white group-hover:text-emerald-300 transition">
-                    {isProcessingFormatFile
-                      ? 'Sedang membaca file template...'
-                      : 'Klik atau Tarik File Format/Template ke Sini'}
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    Mendukung Word (.docx), Excel (.xlsx), PDF, Teks, & Foto Scan Format Sekolah
-                  </p>
-                </div>
-              </div>
-
-              {/* Quick Presets */}
-              <div className="md:col-span-5 p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Atau Pilih Preset Format Resmi:
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleSelectFormatPreset('analisis_cp_deep_learning_matriks')}
-                    className="px-2.5 py-1 rounded-lg bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-500/30 text-indigo-200 text-[10px] font-bold transition flex items-center gap-1"
-                  >
-                    <span>✨ Matriks 6 Kolom (Deep Learning)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectFormatPreset('analisis_cp_tabel')}
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold transition flex items-center gap-1"
-                  >
-                    <span>📋 Tabel Analisis CP Sekolah</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectFormatPreset('analisis_cp_mgmp')}
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[10px] font-bold transition flex items-center gap-1"
-                  >
-                    <span>🏛️ Standar MGMP / MKKS</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* KATALOG MASTER CP SEMUA MAPEL TAB */}
-      {activeTab === 'catalog' && (
-        <div className="space-y-6">
-          <div className="p-6 bg-slate-900 rounded-3xl border border-slate-800 space-y-4 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Bagian 2: Hasil Analisis Mendalam Berdasarkan Prioritas */}
+      {!analysisDraft ? (
+        <section className="bg-white border border-slate-200 rounded-xl p-10 text-center space-y-3">
+          <div className="mx-auto w-12 h-12 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center">
+            <BookOpen className="w-6 h-6" />
+          </div>
+          <h2 className="text-base font-semibold text-slate-900">
+            Belum Ada Hasil Analisis Dokumen CP
+          </h2>
+          <p className="text-sm text-slate-600 max-w-xl mx-auto">
+            Unggah file CP pada formulir di atas, isi penamaan dokumen, lalu klik tombol{' '}
+            <span className="font-semibold text-slate-800">Analisis Secara Mendalam</span> untuk
+            memetakan tingkat sekolah, kelas/fase, mata pelajaran, dan lingkup materi ajar.
+          </p>
+        </section>
+      ) : (
+        <>
+          <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
+            {/* Judul Hasil Analisis + Mode Tampilan */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
               <div>
-                <h2 className="text-lg font-black text-white flex items-center gap-2">
-                  <Grid className="w-5 h-5 text-sky-400" />
-                  <span>Katalog Master CP Semua Mata Pelajaran</span>
+                <h2 className="text-base font-semibold text-slate-900">
+                  2. Hasil Analisis Mendalam: {analysisDraft.docName}
                 </h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Pilih mata pelajaran untuk melihat struktur CP, bab materi esensial, alokasi JP semester, dan sinkronkan ke seluruh 9 modul perangkat ajar.
+                <p className="text-xs text-slate-500 mt-0.5 tabular-nums">
+                  {analysisDraft.docNumber ? `No. SK: ${analysisDraft.docNumber} · ` : ''}
+                  {analysisDraft.rawText
+                    ? `Total ${analysisDraft.rawText.length.toLocaleString('id-ID')} karakter dokumen dianalisis · `
+                    : ''}
+                  Dianalisis {formatDateID(analysisDraft.analyzedAt)} · Status:{' '}
+                  <span
+                    className={
+                      analysisDraft.isSynced
+                        ? 'text-emerald-700 font-semibold'
+                        : 'text-amber-700 font-semibold'
+                    }
+                  >
+                    {analysisDraft.isSynced
+                      ? 'Tersinkron ke Profil Guru & Parameter Kurikulum'
+                      : 'Siap Disinkronkan ke Aplikasi'}
+                  </span>
                 </p>
               </div>
-
-              <button
-                onClick={handleSyncAllSubjects}
-                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition shrink-0"
-              >
-                <FolderSync className="w-4 h-4 text-emerald-200" />
-                <span>⚡ Sinkronkan Seluruh {SUBJECT_MATERIAL_PRESETS.length} Mapel</span>
-              </button>
+              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setResultViewMode('detail')}
+                  className={`h-8 px-3 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+                    resultViewMode === 'detail'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Detail per Jenjang &amp; Kelas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResultViewMode('matrix')}
+                  className={`h-8 px-3 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+                    resultViewMode === 'matrix'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Ringkasan 4 Jenjang (SD–SMK)
+                </button>
+              </div>
             </div>
 
-            {/* Level & Phase Filter & Catalog Search */}
-            <div className="space-y-3 pt-2 border-t border-slate-800">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                {/* Level Filters */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-bold text-slate-400 mr-1">Jenjang:</span>
-                  {(['ALL', 'SMA', 'SMK', 'SMP', 'SD'] as const).map((lvl) => {
-                    const count = lvl === 'ALL'
-                      ? SUBJECT_MATERIAL_PRESETS.length
-                      : SUBJECT_MATERIAL_PRESETS.filter(p => p.level === lvl || (lvl === 'SMK' && p.level === 'SMA')).length;
+            {/* Banner Kelengkapan Pembacaan Dokumen (Anti-Halusinasi) */}
+            {analysisDraft.coverageReport && (
+              <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                  <div className="space-y-1 text-xs">
+                    <p className="font-semibold text-slate-800">
+                      Verifikasi Sumber Tunggal (Anti-Halusinasi):{' '}
+                      <span className="font-normal text-slate-600 tabular-nums">
+                        {analysisDraft.coverageReport.totalCharacters.toLocaleString('id-ID')} karakter
+                        {analysisDraft.coverageReport.totalPdfPages
+                          ? ` (${analysisDraft.coverageReport.totalPdfPages} halaman PDF)`
+                          : ''}{' '}
+                        dipindai penuh secara struktural
+                        {analysisDraft.coverageReport.aiAnalyzedCharacters > 0
+                          ? ` · ${analysisDraft.coverageReport.aiAnalyzedCharacters.toLocaleString('id-ID')} karakter dianalisis AI (${analysisDraft.coverageReport.chunksProcessed}/${analysisDraft.coverageReport.totalChunksNeeded} bagian)`
+                          : ''}
+                      </span>
+                    </p>
+                    {analysisDraft.coverageReport.unreadOrTruncatedNotice && (
+                      <p className="text-amber-800 font-medium">
+                        Catatan Cakupan: {analysisDraft.coverageReport.unreadOrTruncatedNotice}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {resultViewMode === 'matrix' && (
+              <div className="space-y-6">
+                {/* BAGIAN 1: RINGKASAN & ANALISIS MENDALAM DOKUMEN */}
+                {analysisDraft.documentInsights && (
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                      <h3 className="text-sm font-bold text-slate-900">
+                        Bagian 1: Ringkasan &amp; Analisis Mendalam Dokumen
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Ketentuan diktum, dasar hukum, pencabutan aturan sebelumnya, pembagian Lampiran I–V beserta rentang halaman, paradigma pembelajaran mendalam, dan kesinambungan fase berdasarkan bukti teks PDF.
+                      </p>
+                    </div>
+                    <div className="p-4 space-y-4 text-xs">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="p-3 rounded-lg border border-slate-200 bg-slate-50/40 space-y-1.5">
+                          <p className="font-semibold text-slate-900">Ketentuan Umum &amp; Diktum Penetapan</p>
+                          <p className="text-slate-700 leading-relaxed">
+                            {analysisDraft.documentInsights.diktumSummary || 'Belum ditemukan diktum penetapan eksplisit pada teks yang terbaca.'}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-lg border border-slate-200 bg-slate-50/40 space-y-1.5">
+                          <p className="font-semibold text-slate-900">Pencabutan Aturan Sebelumnya &amp; Dasar Hukum</p>
+                          {analysisDraft.documentInsights.revokedRegulations &&
+                          analysisDraft.documentInsights.revokedRegulations.length > 0 ? (
+                            <p className="text-slate-700">
+                              <span className="font-semibold">Pencabutan:</span>{' '}
+                              {analysisDraft.documentInsights.revokedRegulations.join(' | ')}
+                            </p>
+                          ) : (
+                            <p className="text-slate-600">Klausul pencabutan belum ditemukan pada potongan teks yang terbaca.</p>
+                          )}
+                          {analysisDraft.documentInsights.legalBasis &&
+                            analysisDraft.documentInsights.legalBasis.length > 0 && (
+                              <p className="text-slate-700">
+                                <span className="font-semibold">Dasar Hukum:</span>{' '}
+                                {analysisDraft.documentInsights.legalBasis.join(' | ')}
+                              </p>
+                            )}
+                        </div>
+                      </div>
+
+                      {analysisDraft.documentInsights.lampiranMap &&
+                        analysisDraft.documentInsights.lampiranMap.length > 0 && (
+                          <div className="border border-slate-200 rounded-lg overflow-hidden">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                                  <th className="py-2 px-3 w-36">Lampiran</th>
+                                  <th className="py-2 px-3">Judul / Cakupan Lampiran</th>
+                                  <th className="py-2 px-3 w-32 text-right tabular-nums">Rentang Halaman</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 bg-white">
+                                {analysisDraft.documentInsights.lampiranMap.map((lm, lIdx) => (
+                                  <tr key={`${lm.lampiran}-${lIdx}`}>
+                                    <td className="py-2 px-3 font-semibold text-slate-900">{lm.lampiran}</td>
+                                    <td className="py-2 px-3 text-slate-700">{lm.title}</td>
+                                    <td className="py-2 px-3 text-right text-slate-600 tabular-nums">
+                                      {lm.pageRange || '—'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="p-3 rounded-lg border border-slate-200 bg-white space-y-1">
+                          <p className="font-semibold text-slate-900">
+                            Pembelajaran Mendalam &amp; 8 Dimensi Profil Lulusan
+                          </p>
+                          <p className="text-slate-700 leading-relaxed">
+                            {analysisDraft.documentInsights.deepLearningAndDimensions ||
+                              'Belum ditemukan uraian eksplisit pada potongan teks yang terbaca.'}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-lg border border-slate-200 bg-white space-y-1">
+                          <p className="font-semibold text-slate-900">
+                            Kesinambungan Fase (Fondasi &amp; Fase A–F) &amp; Pendekatan Jenjang
+                          </p>
+                          <p className="text-slate-700 leading-relaxed">
+                            {analysisDraft.documentInsights.phaseContinuityNotes ||
+                              'Mengikuti kemunculan tajuk fase pada tiap jenjang dalam dokumen.'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* BAGIAN 2: REKAPITULASI JUMLAH MATA PELAJARAN PER JENJANG & FASE */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Bagian 2: Rekapitulasi Jumlah Mata Pelajaran per Jenjang (SD, SMP, SMA, SMK)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Pemisahan tegas antara Mata Pelajaran Umum/Wajib/Pilihan (Lampiran II) dan Kejuruan/Program/Konsentrasi Keahlian SMK/MAK (Lampiran III) beserta rujukan halaman dokumen.
+                    </p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50/70 border-b border-slate-200 text-slate-600 font-semibold">
+                          <th className="py-2.5 px-3">Jenjang &amp; Rujukan</th>
+                          <th className="py-2.5 px-3">Fase &amp; Pemetaan Kelas</th>
+                          <th className="py-2.5 px-3 text-right tabular-nums">Umum/Wajib (Lamp. II)</th>
+                          <th className="py-2.5 px-3 text-right tabular-nums">Pilihan/Kejuruan (Lamp. II/III)</th>
+                          <th className="py-2.5 px-3 text-right tabular-nums">Total Rumusan CP</th>
+                          <th className="py-2.5 px-3">Catatan Pengecualian</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {phaseDirectory.map((lvlDir) => {
+                          const phaseMappingLabel =
+                            lvlDir.group === 'SD'
+                              ? 'Fase A (Kls I–II), B (III–IV), C (V–VI)'
+                              : lvlDir.group === 'SMP'
+                                ? 'Fase D (Kls VII–IX)'
+                                : lvlDir.group === 'SMA'
+                                  ? 'Fase E (Kls X), F (Kls XI–XII)'
+                                  : 'Fase E (Kls X), F (Kls XI–XII / XIII 4 Thn)';
+                          return (
+                            <tr key={`summary-${lvlDir.group}`} className="align-top">
+                              <td className="py-2.5 px-3">
+                                <span className="font-semibold text-slate-900 block">
+                                  {lvlDir.number}. {lvlDir.title}
+                                </span>
+                                {lvlDir.lampiranRef && (
+                                  <span className="text-[11px] text-slate-500 block mt-0.5">
+                                    {lvlDir.lampiranRef}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700">{phaseMappingLabel}</td>
+                              <td className="py-2.5 px-3 text-right font-medium text-slate-700 tabular-nums">
+                                {lvlDir.generalSubjectCount}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-medium text-slate-700 tabular-nums">
+                                {lvlDir.electiveOrVocationalCount}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-bold text-slate-900 tabular-nums">
+                                {lvlDir.totalUniqueSubjectCount}
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-600">
+                                {lvlDir.specialNotes.length > 0
+                                  ? lvlDir.specialNotes.join(' ')
+                                  : lvlDir.totalUniqueSubjectCount > 0
+                                    ? 'Sesuai teks dokumen CP.'
+                                    : 'Belum ditemukan pada teks yang terbaca.'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* DAFTAR RINCI MATA PELAJARAN & RUANG LINGKUP MATERI */}
+                <div className="space-y-4">
+                  <div className="px-1">
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Daftar Rinci Mata Pelajaran &amp; Ruang Lingkup Materi per Jenjang &amp; Fase
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Disusun per Jenjang, Fase, dan Mata Pelajaran lengkap dengan Rujukan Bagian/Halaman, Elemen CP, Ruang Lingkup Materi per Elemen, dan Catatan Khusus.
+                    </p>
+                  </div>
+
+                  {phaseDirectory.map((lvlDir) => {
+                    const recap = levelRecap.find((r) => r.group === lvlDir.group);
                     return (
-                      <button
-                        key={lvl}
-                        onClick={() => setCatalogLevelFilter(lvl as any)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
-                          catalogLevelFilter === lvl
-                            ? 'bg-sky-600 text-white shadow-md'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                        }`}
+                      <div
+                        key={lvlDir.group}
+                        className="border border-slate-200 rounded-xl overflow-hidden bg-white"
                       >
-                        <span>{lvl === 'ALL' ? 'Semua Jenjang' : lvl}</span>
-                        <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/30 opacity-80">
-                          {count}
-                        </span>
-                      </button>
+                        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-900">
+                              {lvlDir.number}. {lvlDir.title}
+                            </h4>
+                            {lvlDir.specialNotes.length > 0 && (
+                              <p className="text-xs text-slate-600 mt-0.5">
+                                Catatan Khusus: {lvlDir.specialNotes.join(' ')}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-xs font-semibold text-slate-700 tabular-nums">
+                              {recap ? recap.uniqueSubjectCount : lvlDir.totalUniqueSubjectCount} Mata Pelajaran
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedLevelGroup(lvlDir.group);
+                                setResultViewMode('detail');
+                              }}
+                              className="h-8 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 whitespace-nowrap"
+                            >
+                              Tinjau Materi
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="divide-y divide-slate-100">
+                          {lvlDir.phases.map((phGroup) => (
+                            <div key={phGroup.phaseTitle} className="p-4 space-y-3">
+                              <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                {lvlDir.title} — {phGroup.phaseTitle}
+                              </h5>
+                              {phGroup.subjects.length === 0 ? (
+                                <p className="text-xs text-slate-500">
+                                  Tidak ada mata pelajaran pada {phGroup.phaseTitle} dalam dokumen yang terbaca.
+                                </p>
+                              ) : (
+                                <div className="space-y-3">
+                                  {phGroup.subjects.map((row, rIdx) => (
+                                    <div
+                                      key={`${row.subject}-${row.grade}-${rIdx}`}
+                                      className="p-3.5 rounded-lg border border-slate-200 bg-white space-y-2 text-xs"
+                                    >
+                                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                        <p className="font-bold text-slate-900 text-sm">
+                                          {row.number}. {row.subject}{' '}
+                                          <span className="text-xs font-medium text-slate-500">
+                                            ({row.categoryTag} · Kelas {row.grade})
+                                          </span>
+                                        </p>
+                                        <span className="text-[11px] font-medium text-slate-500">
+                                          Rujukan: {row.locationRef}
+                                        </span>
+                                      </div>
+
+                                      {row.elements.length > 0 && (
+                                        <div>
+                                          <span className="font-semibold text-slate-700">Elemen CP: </span>
+                                          <span className="text-slate-600">
+                                            {row.elements
+                                              .map((el) =>
+                                                el.focus ? `${el.name} (${el.focus})` : el.name
+                                              )
+                                              .join('; ')}
+                                          </span>
+                                        </div>
+                                      )}
+
+                                      <div className="space-y-1">
+                                        <p className="font-semibold text-slate-700">
+                                          Ruang Lingkup Materi:
+                                        </p>
+                                        {row.scopeByElement.length > 0 ? (
+                                          <ul className="list-disc pl-5 space-y-1 text-slate-700">
+                                            {row.scopeByElement.map((sc, sIdx) => (
+                                              <li key={`${sc.elementName}-${sIdx}`}>
+                                                <span className="font-semibold text-slate-800">
+                                                  {sc.elementName}:
+                                                </span>{' '}
+                                                {sc.details}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        ) : (
+                                          <p className="text-slate-600">
+                                            {row.scopes.length > 0
+                                              ? row.scopes.join(' · ')
+                                              : 'Mengikuti deskripsi capaian pada teks dokumen CP.'}
+                                          </p>
+                                        )}
+                                      </div>
+
+                                      {row.specialNotes && (
+                                        <p className="text-[11px] text-slate-600 pt-1 border-t border-slate-100">
+                                          <span className="font-semibold text-slate-700">Catatan Khusus:</span>{' '}
+                                          {row.specialNotes}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
 
-                {/* Search Bar */}
-                <div className="relative w-full lg:w-72">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    type="text"
-                    value={catalogSearch}
-                    onChange={(e) => setCatalogSearch(e.target.value)}
-                    placeholder="Cari mapel, fase, materi CP..."
-                    className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
-                  />
-                </div>
+                {/* BAGIAN 3: METODOLOGI PENGHITUNGAN & CATATAN AMBIGUITAS / KETERBATASAN PDF */}
+                {analysisDraft.documentInsights?.countingMethodology && (
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                      <h3 className="text-sm font-bold text-slate-900">
+                        Bagian 3: Metodologi Penghitungan &amp; Catatan Ambiguitas / Keterbatasan Data pada PDF
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Transparansi aturan penghitungan rumusan CP serta catatan keterbatasan teks PDF yang terbaca.
+                      </p>
+                    </div>
+                    <div className="p-4 space-y-2.5 text-xs text-slate-700">
+                      <p>
+                        <span className="font-semibold text-slate-900">1. Pendidikan Agama &amp; Kepercayaan:</span>{' '}
+                        {analysisDraft.documentInsights.countingMethodology.religionRule}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-slate-900">2. Mata Pelajaran Tingkat Lanjut / Pilihan Fase F:</span>{' '}
+                        {analysisDraft.documentInsights.countingMethodology.advancedPhaseFRule}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-slate-900">3. Status IPA / IPS / IPAS:</span>{' '}
+                        {analysisDraft.documentInsights.countingMethodology.scienceSocialSplitRule}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-slate-900">4. Status Informatika di SD:</span>{' '}
+                        {analysisDraft.documentInsights.countingMethodology.informatikaSDRule}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-slate-900">5. Pemisahan Kejuruan SMK (Lampiran III):</span>{' '}
+                        {analysisDraft.documentInsights.countingMethodology.smkLampiranIIIRule}
+                      </p>
+                      {analysisDraft.documentInsights.countingMethodology.ambiguitiesOrLimitations.length > 0 && (
+                        <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/70 text-amber-900 space-y-1">
+                          <p className="font-semibold">Catatan Ambiguitas / Keterbatasan Data PDF:</p>
+                          <ul className="list-disc pl-5 space-y-0.5">
+                            {analysisDraft.documentInsights.countingMethodology.ambiguitiesOrLimitations.map((note, nIdx) => (
+                              <li key={nIdx}>{note}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
+            )}
 
-              {/* Phase Filters */}
-              <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-slate-800/60">
-                <span className="text-[11px] font-bold text-slate-400 mr-1">Fase CP:</span>
-                {(['ALL', 'Fase A', 'Fase B', 'Fase C', 'Fase D', 'Fase E', 'Fase F'] as const).map((ph) => {
-                  const count = ph === 'ALL'
-                    ? SUBJECT_MATERIAL_PRESETS.length
-                    : SUBJECT_MATERIAL_PRESETS.filter(p => p.phase.includes(ph)).length;
-                  if (count === 0 && ph !== 'ALL') return null;
+            {/* 4 KPI Ringkasan Flat */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
+                <p className="text-xs font-medium text-slate-500">Tingkat Sekolah Terdeteksi</p>
+                <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                  {activeLevelCount} / 4
+                </p>
+              </div>
+              <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
+                <p className="text-xs font-medium text-slate-500">Total Mata Pelajaran Resmi</p>
+                <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                  {totalUniqueSubjects}
+                </p>
+              </div>
+              <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
+                <p className="text-xs font-medium text-slate-500">Kelas &amp; Fase Aktif</p>
+                <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                  Kelas {selectedGrade} · {selectedPhase}
+                </p>
+              </div>
+              <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
+                <p className="text-xs font-medium text-slate-500">Lingkup Materi Mapel Ini</p>
+                <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                  {activeSubjectInspection
+                    ? activeSubjectInspection.materialsSem1.length +
+                      activeSubjectInspection.materialsSem2.length
+                    : 0}{' '}
+                  Bab
+                </p>
+              </div>
+            </div>
+
+            {/* Prioritas 1: 4 Tingkat Sekolah */}
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <GraduationCap className="w-4 h-4 text-slate-400" />
+                Tingkat Sekolah
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {TIERED_SCHOOL_LEVEL_CARDS.map((card) => {
+                  const count = subjectsByLevelMap[card.group].length;
+                  const isActive = selectedLevelGroup === card.group;
                   return (
                     <button
-                      key={ph}
-                      onClick={() => setCatalogPhaseFilter(ph)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 ${
-                        catalogPhaseFilter === ph
-                          ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-400'
-                          : 'bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800'
+                      key={card.group}
+                      type="button"
+                      onClick={() => setSelectedLevelGroup(card.group)}
+                      className={`text-left p-4 rounded-xl border transition-colors ${
+                        isActive
+                          ? 'border-blue-600 bg-blue-50/60'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
                       }`}
                     >
-                      <span>{ph === 'ALL' ? 'Semua Fase' : ph}</span>
-                      <span className="px-1 py-0.2 rounded-full text-[9px] bg-black/40 text-slate-300">
-                        {count}
-                      </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`text-sm font-bold ${
+                            isActive ? 'text-blue-700' : 'text-slate-900'
+                          }`}
+                        >
+                          {card.aliases}
+                        </span>
+                        <span
+                          className={`text-xs font-semibold tabular-nums ${
+                            isActive ? 'text-blue-700' : 'text-slate-600'
+                          }`}
+                        >
+                          {count} Mapel
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 mt-1">{card.title}</p>
+                      <p className="text-xs text-slate-500 mt-1.5">
+                        {card.phaseDetails.join(' · ')}
+                      </p>
                     </button>
                   );
                 })}
               </div>
             </div>
-          </div>
 
-          {/* Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {SUBJECT_MATERIAL_PRESETS.filter((preset) => {
-              if (catalogLevelFilter !== 'ALL') {
-                if (catalogLevelFilter === 'SMK') {
-                  if (preset.level !== 'SMA' && preset.level !== 'SMK') return false;
-                } else if (preset.level !== catalogLevelFilter) {
-                  return false;
-                }
-              }
-              if (catalogPhaseFilter !== 'ALL' && !preset.phase.includes(catalogPhaseFilter)) return false;
-              if (!catalogSearch.trim()) return true;
-              const q = catalogSearch.toLowerCase();
-              return (
-                preset.subject.toLowerCase().includes(q) ||
-                preset.phase.toLowerCase().includes(q) ||
-                preset.level.toLowerCase().includes(q) ||
-                preset.cpSummary.toLowerCase().includes(q) ||
-                (preset.elements && preset.elements.some(el => el.name.toLowerCase().includes(q) || (el.essentialMaterials && el.essentialMaterials.some(m => m.toLowerCase().includes(q)))))
-              );
-            }).map((preset) => {
-              const isActive =
-                masterCP.subject.toLowerCase() === preset.subject.toLowerCase() &&
-                Number(masterCP.grade) === Number(preset.grade) &&
-                masterCP.level === preset.level;
-
-              const totalTP = preset.materialsSem1.length + preset.materialsSem2.length;
-              const elementCount = preset.elements?.length || 2;
-
-              return (
-                <div
-                  key={`${preset.subject}-${preset.level}-${preset.grade}`}
-                  className={`p-5 rounded-3xl border transition flex flex-col justify-between relative overflow-hidden group ${
-                    isActive
-                      ? 'bg-slate-900 border-indigo-500 shadow-2xl ring-1 ring-indigo-500'
-                      : 'bg-slate-900/90 border-slate-800 hover:border-slate-700 shadow-lg'
-                  }`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                            {preset.level}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            {preset.phase} (Kelas {preset.grade})
-                          </span>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-sky-500/10 text-sky-300 border border-sky-500/20">
-                            {elementCount} Elemen CP
-                          </span>
-                        </div>
-                        <h3 className="text-base font-black text-white mt-1.5 group-hover:text-indigo-300 transition">
-                          {preset.subject}
-                        </h3>
-                      </div>
-
-                      {isActive ? (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shrink-0">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                          Master Aktif
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-slate-500 font-mono shrink-0">
-                          Kemendikdasmen
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="text-[11px] text-slate-400 line-clamp-3 leading-relaxed">
-                      {preset.cpSummary}
-                    </p>
-
-                    {/* Elemen CP chips */}
-                    {preset.elements && preset.elements.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {preset.elements.map((el, elIdx) => (
-                          <span key={elIdx} className="px-2 py-0.5 rounded-md bg-slate-950/80 border border-slate-800 text-[10px] font-medium text-slate-300">
-                            • {el.name}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
-                      <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-                        <span className="text-slate-500 text-[10px] block">Alokasi Waktu:</span>
-                        <strong className="text-emerald-400 font-mono">{preset.totalHoursPerYear} JP/Tahun</strong>
-                      </div>
-                      <div className="p-2 rounded-xl bg-slate-950 border border-slate-800">
-                        <span className="text-slate-500 text-[10px] block">Target Bab/TP:</span>
-                        <strong className="text-indigo-300 font-mono">{totalTP} TP ({preset.materialsSem1.length}S1 + {preset.materialsSem2.length}S2)</strong>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 mt-3 border-t border-slate-800/80 space-y-2">
-                    {/* Primary Button: 🌟 Adopsi & Sinkronkan ke CP Saya */}
+            {/* Prioritas 2: Jenjang Kelas / Fase */}
+            <div className="space-y-2.5 pt-2 border-t border-slate-100">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <Layers className="w-4 h-4 text-slate-400" />
+                Jenjang Kelas &amp; Fase ({getSchoolLevelDisplay(selectedLevelGroup).shortLabel})
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {gradeOptionsForSelectedLevel.map((opt) => {
+                  const isActive = Number(selectedGrade) === opt.grade;
+                  return (
                     <button
-                      onClick={() => handleAdoptCPForTeacher(preset)}
-                      className={`w-full py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition shadow-md ${
+                      key={opt.grade}
+                      type="button"
+                      onClick={() => setSelectedGrade(opt.grade)}
+                      className={`h-10 px-4 rounded-lg border text-sm font-medium whitespace-nowrap shrink-0 transition-colors tabular-nums ${
                         isActive
-                          ? 'bg-emerald-600 text-white shadow-emerald-950/40 ring-1 ring-emerald-400/50'
-                          : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-900/30 active:scale-98'
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
                       }`}
-                      title="Adopsi CP ini ke profil guru Anda dan otomatis sinkronkan ke 9 perangkat ajar"
                     >
-                      {isActive ? (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
-                          <span>CP Aktif Guru Saya</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-                          <span>Terapkan ke CP Saya & Sinkronkan</span>
-                        </>
-                      )}
+                      Kelas {opt.grade} · {opt.phase}
                     </button>
+                  );
+                })}
+              </div>
+            </div>
 
-                    {/* Secondary Action Buttons: Download JSON, Word, & Detail Analisis */}
-                    <div className="grid grid-cols-3 gap-1.5 pt-1">
-                      <button
-                        onClick={() => handleDownloadJSON(preset)}
-                        className="py-1.5 px-2 rounded-lg bg-slate-950 hover:bg-slate-800 text-amber-300 hover:text-amber-200 text-[10px] font-bold border border-amber-500/20 hover:border-amber-500/40 transition flex items-center justify-center gap-1"
-                        title="Download file JSON standar untuk diupload di akun guru"
-                      >
-                        <Download className="w-3 h-3 text-amber-400" />
-                        <span>JSON</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleDownloadWord(preset)}
-                        className="py-1.5 px-2 rounded-lg bg-slate-950 hover:bg-slate-800 text-indigo-300 hover:text-indigo-200 text-[10px] font-bold border border-indigo-500/20 hover:border-indigo-500/40 transition flex items-center justify-center gap-1"
-                        title="Download format Microsoft Word (.docx)"
-                      >
-                        <FileText className="w-3 h-3 text-indigo-400" />
-                        <span>Word</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          handleSelectPresetSubject(preset);
-                          setActiveTab('all');
-                        }}
-                        className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-bold border border-slate-700 transition flex items-center justify-center gap-1"
-                        title="Lihat Rincian Analisis CP Mapel Ini"
-                      >
-                        <Eye className="w-3 h-3 text-slate-400" />
-                        <span>Detail</span>
-                      </button>
-                    </div>
-                  </div>
+            {/* Prioritas 3 & 4: Daftar Mata Pelajaran + Lingkup Materi Spesifik Kelas/Fase */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2 border-t border-slate-100">
+              {/* Kolom Kiri: Mata Pelajaran pada Tingkat Sekolah */}
+              <div className="lg:col-span-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    Mata Pelajaran ({subjectsByLevelMap[selectedLevelGroup].length})
+                  </h3>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
-      {/* EXECUTIVE SUMMARY & RASIONAL MAPEL */}
-      {(activeTab === 'all' || activeTab === 'elements') && (
-        <div className="p-5 bg-slate-900/90 rounded-3xl border border-slate-800 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
-              <BrainCircuit className="w-4 h-4 text-indigo-400" />
-              <span>Rasional Capaian Pembelajaran & Filosofi Deep Learning</span>
-            </h3>
-            <button
-              onClick={() => handleCopyTable('summary', masterCP.executiveSummary || masterCP.cpText)}
-              className="text-[11px] font-bold text-slate-400 hover:text-indigo-300 flex items-center gap-1"
-            >
-              {copiedSection === 'summary' ? (
-                <>
-                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                  <span className="text-emerald-400">Tersalin</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3 h-3" />
-                  <span>Salin Deskripsi</span>
-                </>
-              )}
-            </button>
-          </div>
-          <p className="text-xs text-slate-300 leading-relaxed font-sans">
-            {masterCP.executiveSummary || masterCP.cpText}
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
-            <div className="p-3 bg-slate-950/80 rounded-2xl border border-indigo-500/20">
-              <div className="text-[11px] font-black text-indigo-300 uppercase tracking-wider">1. Mindful Learning</div>
-              <p className="text-[11px] text-slate-400 mt-1">Refleksi mendalam, kesadaran diri, pemahaman konsep fundamental tanpa ketergesaan hafalan.</p>
-            </div>
-            <div className="p-3 bg-slate-950/80 rounded-2xl border border-sky-500/20">
-              <div className="text-[11px] font-black text-sky-300 uppercase tracking-wider">2. Meaningful Learning</div>
-              <p className="text-[11px] text-slate-400 mt-1">Keterhubungan materi esensial dengan konteks nyata, fenomena alam, dan kebutuhan masyarakat.</p>
-            </div>
-            <div className="p-3 bg-slate-950/80 rounded-2xl border border-teal-500/20">
-              <div className="text-[11px] font-black text-teal-300 uppercase tracking-wider">3. Joyful Learning</div>
-              <p className="text-[11px] text-slate-400 mt-1">Aktivitas pembelajaran interaktif, eksperimen menyenangkan, kolaborasi 6C yang memberdayakan.</p>
-            </div>
-          </div>
-        </div>
-      )}
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={subjectSearch}
+                    onChange={(e) => setSubjectSearch(e.target.value)}
+                    placeholder="Cari mata pelajaran..."
+                    className="w-full h-10 pl-9 pr-3 rounded-lg border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
 
-      {/* TABEL 1: ELEMEN & KOMPETENSI CP */}
-      {(activeTab === 'all' || activeTab === 'elements') && (
-        <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-xl space-y-4 p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-            <div>
-              <h2 className="text-sm font-black text-white flex items-center gap-2">
-                <Layers className="w-4 h-4 text-cyan-400" />
-                <span>Tabel 1: Dekomposisi Elemen CP & Kompetensi Esensial</span>
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Rincian capaian resmi setiap elemen beserta kompetensi esensial ranah HOTS (C4–C6)
-              </p>
-            </div>
-            <span className="text-[11px] font-bold text-cyan-300 px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/30 self-start">
-              {masterCP.elements?.length || 0} Elemen Resmi
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-950 text-slate-300 border-b border-slate-800">
-                  <th className="py-3 px-3.5 w-12 text-center font-bold">No</th>
-                  <th className="py-3 px-3.5 w-44 font-bold">Elemen CP</th>
-                  <th className="py-3 px-3.5 font-bold">Capaian Pembelajaran Elemen</th>
-                  <th className="py-3 px-3.5 w-64 font-bold">Kompetensi Esensial (KKO HOTS)</th>
-                  <th className="py-3 px-3.5 w-56 font-bold">Materi Pokok Esensial</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80 text-slate-200">
-                {(masterCP.elements || []).map((el, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/40 transition">
-                    <td className="py-3.5 px-3.5 text-center font-mono font-bold text-slate-400">{idx + 1}</td>
-                    <td className="py-3.5 px-3.5 align-top">
-                      <div className="font-bold text-indigo-300 text-xs">{el.name}</div>
-                    </td>
-                    <td className="py-3.5 px-3.5 leading-relaxed text-slate-300 align-top">
-                      {el.description}
-                    </td>
-                    <td className="py-3.5 px-3.5 align-top">
-                      <div className="space-y-1">
-                        {(el.competencies && el.competencies.length > 0 ? el.competencies : ['Menganalisis prinsip inti', 'Mengevaluasi gagasan kritis']).map((comp, cIdx) => (
-                          <div key={cIdx} className="flex items-start gap-1.5 text-[11px] text-emerald-300">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />
-                            <span>{comp}</span>
+                {subjectsInSelectedLevel.length === 0 ? (
+                  <div className="p-4 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-600">
+                    Tidak ada mata pelajaran yang terdeteksi pada tingkat{' '}
+                    {getSchoolLevelDisplay(selectedLevelGroup).shortLabel} di berkas CP ini.
+                  </div>
+                ) : (
+                  <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-[520px] overflow-y-auto">
+                    {subjectsInSelectedLevel.map((entry, idx) => {
+                      const isActive =
+                        entry.subject.toLowerCase() === selectedSubjectName.toLowerCase();
+                      return (
+                        <button
+                          key={`${entry.subject}-${idx}`}
+                          type="button"
+                          onClick={() => setSelectedSubjectName(entry.subject)}
+                          className={`w-full text-left px-3.5 py-3 flex items-center justify-between gap-2 transition-colors ${
+                            isActive
+                              ? 'bg-blue-50 text-blue-800'
+                              : 'bg-white hover:bg-slate-50 text-slate-800'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate">{entry.subject}</p>
+                            <p className="text-xs text-slate-500 tabular-nums mt-0.5">
+                              {entry.jpPerWeek || 3} JP/minggu ·{' '}
+                              {(entry.materialsSem1?.length || 0) +
+                                (entry.materialsSem2?.length || 0)}{' '}
+                              Bab
+                            </p>
                           </div>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-3.5 align-top">
-                      <div className="space-y-1">
-                        {(el.essentialMaterials && el.essentialMaterials.length > 0 ? el.essentialMaterials : [`Materi Esensial ${el.name}`]).map((mat, mIdx) => (
-                          <span key={mIdx} className="inline-block px-2 py-0.5 bg-slate-950 text-slate-300 border border-slate-800 rounded-md text-[11px] mr-1 mb-1">
-                            {mat}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TABEL 2: DISTRIBUSI SEMESTER 1 */}
-      {(activeTab === 'all' || activeTab === 'sem1') && (
-        <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-xl space-y-4 p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-            <div>
-              <h2 className="text-sm font-black text-white flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-indigo-400" />
-                <span>Tabel 2: Hasil Analisis & Distribusi Materi Semester 1 (Ganjil)</span>
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Alokasi Tujuan Pembelajaran (TP), Materi Esensial, Jam Pelajaran (JP), dan Strategi Asesmen
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-indigo-300 px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/30">
-                {filteredSem1.length} TP Terpetakan
-              </span>
-              <span className="text-[11px] font-bold text-emerald-400 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 font-mono">
-                Total: {totalSem1Hours} JP
-              </span>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-950 text-slate-300 border-b border-slate-800">
-                  <th className="py-3 px-3 w-10 text-center font-bold">No</th>
-                  <th className="py-3 px-3 w-24 font-bold">Kode TP</th>
-                  <th className="py-3 px-3 font-bold">Rumusan Tujuan Pembelajaran (ABCD & HOTS)</th>
-                  <th className="py-3 px-3 w-48 font-bold">Materi Pokok & Target TP</th>
-                  <th className="py-3 px-3 w-32 font-bold">Elemen CP</th>
-                  <th className="py-3 px-3 w-16 text-center font-bold">JP</th>
-                  <th className="py-3 px-3 w-48 font-bold">Strategi Asesmen Formatif / 6C</th>
-                  <th className="py-3 px-3 w-44 font-bold">Strategi Deep Learning</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80 text-slate-200">
-                {filteredSem1.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-6 text-center text-slate-500 text-xs">
-                      Tidak ada data materi yang sesuai dengan filter pencarian.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSem1.map((m, idx) => (
-                    <tr key={m.id || idx} className="hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-3 text-center font-mono text-slate-500">{idx + 1}</td>
-                      <td className="py-3 px-3 font-mono font-bold text-indigo-300 align-top">{m.tpCode}</td>
-                      <td className="py-3 px-3 leading-relaxed text-white font-medium align-top">{m.tpName}</td>
-                      <td className="py-3 px-3 text-slate-300 font-semibold align-top">
-                        <div>{m.essentialMaterial}</div>
-                        <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                          <span>Target:</span>
-                          <strong className="text-white">{m.tpCount || 1} TP</strong>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-slate-400 align-top">{m.elementName || 'Konsep'}</td>
-                      <td className="py-3 px-3 text-center font-mono font-bold text-emerald-400 align-top">{m.allocatedHours}</td>
-                      <td className="py-3 px-3 text-[11px] text-slate-300 align-top">{m.assessmentStrategy}</td>
-                      <td className="py-3 px-3 text-[11px] text-indigo-300/90 align-top">{m.deepLearningMethod || 'Mindful & Meaningful'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TABEL 3: DISTRIBUSI SEMESTER 2 */}
-      {(activeTab === 'all' || activeTab === 'sem2') && (
-        <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-xl space-y-4 p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
-            <div>
-              <h2 className="text-sm font-black text-white flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-sky-400" />
-                <span>Tabel 3: Hasil Analisis & Distribusi Materi Semester 2 (Genap)</span>
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Alokasi Tujuan Pembelajaran (TP), Materi Esensial, Jam Pelajaran (JP), dan Strategi Asesmen
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-sky-300 px-2.5 py-1 rounded-lg bg-sky-500/10 border border-sky-500/30">
-                {filteredSem2.length} TP Terpetakan
-              </span>
-              <span className="text-[11px] font-bold text-emerald-400 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 font-mono">
-                Total: {totalSem2Hours} JP
-              </span>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-950 text-slate-300 border-b border-slate-800">
-                  <th className="py-3 px-3 w-10 text-center font-bold">No</th>
-                  <th className="py-3 px-3 w-24 font-bold">Kode TP</th>
-                  <th className="py-3 px-3 font-bold">Rumusan Tujuan Pembelajaran (ABCD & HOTS)</th>
-                  <th className="py-3 px-3 w-48 font-bold">Materi Pokok & Target TP</th>
-                  <th className="py-3 px-3 w-32 font-bold">Elemen CP</th>
-                  <th className="py-3 px-3 w-16 text-center font-bold">JP</th>
-                  <th className="py-3 px-3 w-48 font-bold">Strategi Asesmen Formatif / Sumatif</th>
-                  <th className="py-3 px-3 w-44 font-bold">Strategi Deep Learning</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80 text-slate-200">
-                {filteredSem2.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-6 text-center text-slate-500 text-xs">
-                      Tidak ada data materi yang sesuai dengan filter pencarian.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSem2.map((m, idx) => (
-                    <tr key={m.id || idx} className="hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-3 text-center font-mono text-slate-500">{idx + 1}</td>
-                      <td className="py-3 px-3 font-mono font-bold text-sky-300 align-top">{m.tpCode}</td>
-                      <td className="py-3 px-3 leading-relaxed text-white font-medium align-top">{m.tpName}</td>
-                      <td className="py-3 px-3 text-slate-300 font-semibold align-top">
-                        <div>{m.essentialMaterial}</div>
-                        <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                          <span>Target:</span>
-                          <strong className="text-white">{m.tpCount || 1} TP</strong>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-slate-400 align-top">{m.elementName || 'Keterampilan'}</td>
-                      <td className="py-3 px-3 text-center font-mono font-bold text-emerald-400 align-top">{m.allocatedHours}</td>
-                      <td className="py-3 px-3 text-[11px] text-slate-300 align-top">{m.assessmentStrategy}</td>
-                      <td className="py-3 px-3 text-[11px] text-sky-300/90 align-top">{m.deepLearningMethod || 'Meaningful & Joyful'}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB: UPLOAD & PENGATURAN FORMAT SEKOLAH (KUSTOM) */}
-      {/* ========================================================================= */}
-      {activeTab === 'format_sekolah' && (
-        <div className="space-y-5">
-          {/* Header Banner */}
-          <div className="bg-slate-900 p-6 rounded-3xl border border-emerald-500/30 shadow-xl space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-2xl text-emerald-300">
-                  <UploadCloud className="w-6 h-6" />
-                </div>
-                <div>
-                  <h2 className="text-base font-black text-white flex items-center gap-2">
-                    <span>Upload & Pengaturan Format / Template Analisis CP</span>
-                    {customFormatConfig.useCustomFormat ? (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 font-extrabold border border-emerald-500/40">
-                        Format Kustom Aktif
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-slate-800 text-slate-400 font-bold border border-slate-700">
-                        Format Standar BSKAP
-                      </span>
-                    )}
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Unggah file Word (.docx), Excel (.xlsx), PDF, atau scan foto format resmi sekolah/MGMP untuk menyelaraskan struktur dokumen Analisis CP.
-                  </p>
-                </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleSyncToAll();
-                    setSyncedNotice('Format Sekolah Berhasil Disimpan & Diterapkan ke Seluruh Modul!');
-                  }}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition shadow-lg shadow-emerald-600/20"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Simpan & Terapkan</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportWord}
-                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition"
-                >
-                  <Download className="w-4 h-4 text-emerald-400" />
-                  <span>Ekspor Word</span>
-                </button>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-300 leading-relaxed">
-              💡 <strong>Panduan:</strong> Jika sekolah, yayasan, atau MGMP/MKKS Anda memiliki format baku dokumen Analisis CP (misal: tabel dengan kolom tambahan Profil Pancasila, format Deep Learning, atau tata letak khusus), Anda dapat mengunggah file <strong>Word (.docx), PDF, Excel, atau Foto/Scan</strong> di bawah. Anda juga dapat memilih preset format sekolah atau mengetik instruksi struktur secara manual.
-            </p>
-          </div>
-
-          {/* Core Custom Format Selector Component */}
-          <div className="bg-slate-900 p-5 rounded-3xl border border-slate-800 shadow-xl space-y-4">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-              <span>Komponen Upload Format & Template Acuan</span>
-            </h3>
-
-            <CustomFormatSelector
-              value={customFormatConfig}
-              onChange={handleCustomFormatChange}
-              docTypeName="Analisis Capaian Pembelajaran (CP)"
-              docTypeId="analisis_cp"
-            />
-          </div>
-
-          {/* Status & Preview Box */}
-          <div className="bg-slate-900 rounded-3xl border border-slate-800 p-5 shadow-xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-xs font-bold text-white flex items-center gap-2">
-                <FileSearch className="w-4 h-4 text-indigo-400" />
-                <span>Pratinjau Struktur Dokumen Mengikuti Format Sekolah</span>
-              </h3>
-              <span className="text-[11px] text-slate-400">
-                Mata Pelajaran: <strong className="text-white">{masterCP.subject}</strong> ({masterCP.phase})
-              </span>
-            </div>
-
-            {/* Document Mockup Card */}
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-3 font-sans">
-              <div className="text-center border-b border-slate-800 pb-3 space-y-1">
-                <div className="text-[11px] font-black uppercase text-slate-400 tracking-wider">
-                  {masterCP.schoolName || schoolProfile.schoolName || 'SMA NEGERI CONTOH'}
-                </div>
-                <div className="text-sm font-extrabold text-white">
-                  ANALISIS CAPAIAN PEMBELAJARAN (CP) & MATRIKS TUJUAN PEMBELAJARAN
-                </div>
-                <div className="text-[11px] text-indigo-300">
-                  Mata Pelajaran: {masterCP.subject} | {masterCP.level} {masterCP.phase} (Kelas {masterCP.grade}) | Tahun Pelajaran {masterCP.academicYear || '2025/2026'}
-                </div>
-                {customFormatConfig.useCustomFormat && customFormatConfig.formatFile && (
-                  <div className="mt-1 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/40">
-                    <CheckCircle2 className="w-3 h-3" />
-                    <span>Disesuaikan dengan Template: {customFormatConfig.formatFile.name}</span>
+                          <ArrowRight
+                            className={`w-4 h-4 shrink-0 ${
+                              isActive ? 'text-blue-600' : 'text-slate-300'
+                            }`}
+                          />
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {customFormatConfig.useCustomFormat && customFormatConfig.customFormatNotes && (
-                <div className="p-3 rounded-xl bg-slate-900 border border-emerald-500/30 space-y-1">
-                  <span className="text-[10px] font-bold text-emerald-300 uppercase tracking-wider block">
-                    Struktur & Format Acuan yang Diterapkan:
-                  </span>
-                  <pre className="text-[11px] text-slate-300 font-mono whitespace-pre-wrap leading-relaxed">
-                    {customFormatConfig.customFormatNotes}
-                  </pre>
-                </div>
-              )}
-
-              {/* Sample Table Mockup */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-[11px] text-left border border-slate-800">
-                  <thead className="bg-slate-900 text-slate-300 font-bold border-b border-slate-800">
-                    <tr>
-                      <th className="p-2 border-r border-slate-800 text-center w-10">No</th>
-                      <th className="p-2 border-r border-slate-800">Elemen CP</th>
-                      <th className="p-2 border-r border-slate-800">Kalimat Capaian Pembelajaran</th>
-                      <th className="p-2 border-r border-slate-800">Kompetensi Esensial</th>
-                      <th className="p-2 border-r border-slate-800">Materi Pokok</th>
-                      <th className="p-2 text-center w-16">Alokasi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 text-slate-300">
-                    {(masterCP.elements || []).slice(0, 2).map((el, i) => (
-                      <tr key={i} className="hover:bg-slate-900/50">
-                        <td className="p-2 border-r border-slate-800 text-center font-mono">{i + 1}</td>
-                        <td className="p-2 border-r border-slate-800 font-bold text-indigo-300">{el.name}</td>
-                        <td className="p-2 border-r border-slate-800 text-slate-300 text-[10px]">{el.description}</td>
-                        <td className="p-2 border-r border-slate-800 text-[10px]">
-                          {(el.competencies || []).join(', ')}
-                        </td>
-                        <td className="p-2 border-r border-slate-800 text-[10px] text-emerald-300 font-medium">
-                          {(el.essentialMaterials || []).join(', ')}
-                        </td>
-                        <td className="p-2 text-center font-mono text-amber-400 font-bold">
-                          {masterCP.jpPerWeek ? `${masterCP.jpPerWeek * 6} JP` : '18 JP'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SYNC ALL SUBJECTS SUCCESS MODAL */}
-      {showSyncAllModal && syncAllResults && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center space-x-3">
-                <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 rounded-2xl">
-                  <FolderSync className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-white">
-                    Sinkronisasi Seluruh Mata Pelajaran Berhasil!
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Sebanyak <strong className="text-emerald-400">{syncAllResults.totalSynced} Mata Pelajaran</strong> kurikulum nasional telah disinkronkan ke Master CP & Database.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowSyncAllModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 max-h-60 overflow-y-auto space-y-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-                Daftar Mata Pelajaran Tersinkronisasi:
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {syncAllResults.subjects.map((sub, i) => (
-                  <span
-                    key={i}
-                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-[11px] font-bold text-slate-200 flex items-center gap-1"
-                  >
-                    <Check className="w-3 h-3 text-emerald-400" />
-                    <span>{sub}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-xs text-indigo-200 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span>
-                Seluruh 9 perangkat ajar (TP, ATP, Prota, Prosem, KKTP, RPM / Modul Ajar, LKPD, Rubrik) kini otomatis mengenali materi esensial dari semua mata pelajaran ini.
-              </span>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center justify-end gap-2 pt-2 border-t border-slate-800">
-              <button
-                onClick={() => {
-                  setShowSyncAllModal(false);
-                  setActiveTab('catalog');
-                }}
-                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition"
-              >
-                Buka Katalog Mapel
-              </button>
-              <button
-                onClick={() => setShowSyncAllModal(false)}
-                className="w-full sm:w-auto px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition"
-              >
-                Tutup & Lanjutkan
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL SUKSES ADOPSI & SINKRONISASI CP KE 9 PERANGKAT AJAR */}
-      {adoptedSuccessModal && adoptedSuccessModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
-          <div className="w-full max-w-2xl bg-slate-900 border border-emerald-500/50 rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 text-left">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center space-x-3.5">
-                <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 rounded-2xl shadow-inner">
-                  <CheckCircle2 className="w-7 h-7 text-emerald-400" />
-                </div>
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black border border-emerald-500/40 mb-1">
-                    <span>SINKRONISASI TOTAL 100% SUKSES</span>
+              {/* Kolom Kanan: Lingkup Materi yang Diajarkan untuk Jenjang Kelas/Fase Terpilih */}
+              <div className="lg:col-span-8 space-y-4">
+                {!activeSubjectInspection ? (
+                  <div className="p-8 rounded-lg border border-slate-200 bg-slate-50 text-center text-sm text-slate-500">
+                    Pilih mata pelajaran di sebelah kiri untuk melihat lingkup materi spesifik
+                    untuk Kelas {selectedGrade} ({selectedPhase}).
                   </div>
-                  <h3 className="text-lg font-black text-white">
-                    CP {adoptedSuccessModal.subject} Berhasil Diterapkan & Disinkronkan!
-                  </h3>
-                  <p className="text-xs text-slate-300 mt-0.5">
-                    Jenjang <strong>{adoptedSuccessModal.level}</strong> • <strong>{adoptedSuccessModal.phase}</strong> (Kelas {adoptedSuccessModal.grade}) • <strong>{adoptedSuccessModal.hours} JP/Tahun</strong> ({adoptedSuccessModal.totalTP} Target TP)
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setAdoptedSuccessModal(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-xl hover:bg-slate-800 transition"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
-              <div className="text-[11px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-amber-300" />
-                <span>9 Modul Perangkat Ajar Telah Otomatis Terhubung:</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                {[
-                  { num: '1', title: 'Analisis CP Terbaru', id: 'ai_analisis_cp' },
-                  { num: '2', title: 'Tujuan Pembelajaran (TP)', id: 'ai_tp' },
-                  { num: '3', title: 'Alur Tujuan (ATP)', id: 'ai_atp' },
-                  { num: '4', title: 'Program Tahunan (PROTA)', id: 'ai_prota' },
-                  { num: '5', title: 'Program Semester (PROSEM)', id: 'ai_prosem' },
-                  { num: '6', title: 'Kriteria Ketuntasan (KKTP)', id: 'ai_kktp' },
-                  { num: '7', title: 'RPM / Modul Ajar Deep Learning', id: 'ai_modul_ajar' },
-                  { num: '8', title: 'Lembar Kerja Siswa (LKPD)', id: 'ai_lkpd' },
-                  { num: '9', title: 'Rubrik Penilaian Terpadu', id: 'ai_rubrik_penilaian' },
-                ].map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setAdoptedSuccessModal(null);
-                      if (onNavigate) onNavigate(item.id);
-                    }}
-                    className="p-2 rounded-xl bg-slate-900 border border-slate-800/80 hover:border-emerald-500/50 hover:bg-slate-850 flex items-center justify-between transition cursor-pointer text-left group"
-                    title={`Buka tampilan ${item.title}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold flex items-center justify-center group-hover:bg-emerald-500/30">
-                        {item.num}
-                      </span>
-                      <span className="text-slate-200 group-hover:text-emerald-200 font-medium text-[11px]">{item.title}</span>
+                ) : (
+                  <>
+                    <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900">
+                          Lingkup Materi: {activeSubjectInspection.subject}
+                        </h3>
+                        <p className="text-xs text-slate-600 mt-0.5 tabular-nums">
+                          {getSchoolLevelDisplay(selectedLevelGroup).shortLabel} · Kelas{' '}
+                          {activeSubjectInspection.grade} ({activeSubjectInspection.phase}) ·{' '}
+                          {activeSubjectInspection.jpPerWeek} JP/minggu · Total{' '}
+                          {activeSubjectInspection.totalHoursPerYear} JP/tahun
+                        </p>
+                      </div>
                     </div>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  </button>
-                ))}
+
+                    {/* Semester 1 & Semester 2 Lingkup Materi */}
+                    <div className="space-y-4">
+                      {([
+                        {
+                          title: 'Semester 1 (Ganjil)',
+                          items: activeSubjectInspection.materialsSem1,
+                        },
+                        {
+                          title: 'Semester 2 (Genap)',
+                          items: activeSubjectInspection.materialsSem2,
+                        },
+                      ] as const).map((semBlock) => (
+                        <div
+                          key={semBlock.title}
+                          className="border border-slate-200 rounded-lg overflow-hidden"
+                        >
+                          <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                            <h4 className="text-sm font-semibold text-slate-800">
+                              {semBlock.title}
+                            </h4>
+                            <span className="text-xs font-medium text-slate-500 tabular-nums">
+                              {semBlock.items.length} Bab ·{' '}
+                              {semBlock.items.reduce(
+                                (sum, m) => sum + (Number(m.allocatedHours) || 0),
+                                0
+                              )}{' '}
+                              JP
+                            </span>
+                          </div>
+                          {semBlock.items.length === 0 ? (
+                            <p className="p-4 text-xs text-slate-500">
+                              Belum ada lingkup materi pada {semBlock.title}.
+                            </p>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse text-sm">
+                                <thead>
+                                  <tr className="border-b border-slate-200 text-xs font-semibold text-slate-600 bg-white">
+                                    <th className="py-2 px-3 w-12">No</th>
+                                    <th className="py-2 px-3">Bab / Lingkup Materi Pokok</th>
+                                    <th className="py-2 px-3">Elemen CP</th>
+                                    <th className="py-2 px-3">Rumusan Tujuan Pembelajaran</th>
+                                    <th className="py-2 px-3 text-right w-16">JP</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 bg-white">
+                                  {semBlock.items.map((mat, mIdx) => (
+                                    <tr key={mat.id || mIdx} className="align-top">
+                                      <td className="py-2.5 px-3 text-slate-500 tabular-nums">
+                                        {mIdx + 1}
+                                      </td>
+                                      <td className="py-2.5 px-3 font-medium text-slate-900">
+                                        {mat.essentialMaterial}
+                                      </td>
+                                      <td className="py-2.5 px-3 text-xs text-slate-600">
+                                        {mat.elementName || 'Pemahaman Konsep'}
+                                      </td>
+                                      <td className="py-2.5 px-3 text-xs text-slate-600">
+                                        <span className="font-semibold text-slate-800 tabular-nums">
+                                          {mat.tpCode}
+                                        </span>{' '}
+                                        — {mat.tpName}
+                                      </td>
+                                      <td className="py-2.5 px-3 text-right font-semibold text-slate-800 tabular-nums">
+                                        {mat.allocatedHours}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Elemen CP Mapel */}
+                    {activeSubjectInspection.elements &&
+                      activeSubjectInspection.elements.length > 0 && (
+                        <div className="border border-slate-200 rounded-lg p-4 space-y-2.5">
+                          <h4 className="text-sm font-semibold text-slate-800">
+                            Elemen Capaian Pembelajaran ({activeSubjectInspection.elements.length})
+                          </h4>
+                          <div className="divide-y divide-slate-100">
+                            {activeSubjectInspection.elements.map((el, elIdx) => (
+                              <div key={elIdx} className="py-2 first:pt-0 last:pb-0">
+                                <p className="text-sm font-medium text-slate-900">{el.name}</p>
+                                <p className="text-xs text-slate-600 mt-0.5">{el.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                  </>
+                )}
               </div>
             </div>
+          </section>
 
-            <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl text-xs text-indigo-200 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-400 shrink-0" />
-              <span>
-                Profil guru mata pelajaran Anda telah otomatis diselaraskan dengan {adoptedSuccessModal.subject} ({adoptedSuccessModal.phase}). Anda dapat langsung menyusun modul ajar dan perangkat pembelajaran lainnya!
-              </span>
+          {/* Bagian 3: Tombol Sinkronisasi Otomatis ke Menu Profil Guru & Parameter Kurikulum */}
+          <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-base font-semibold text-slate-900">
+                  3. Sinkronkan Otomatis ke Aplikasi
+                </h2>
+                <p className="text-sm text-slate-600 max-w-3xl">
+                  Terapkan hasil analisis file CP{' '}
+                  <span className="font-semibold text-slate-900">{docName || analysisDraft.docName}</span>{' '}
+                  secara otomatis ke <span className="font-semibold text-slate-900">Menu Profil Guru</span>{' '}
+                  ({activeSubjectInspection?.subject || analysisDraft.primarySubject} ·{' '}
+                  {getSchoolLevelDisplay(selectedLevelGroup).shortLabel} · Kelas {selectedGrade} /{' '}
+                  {selectedPhase}) dan <span className="font-semibold text-slate-900">Menu Parameter Kurikulum</span>{' '}
+                  ({totalUniqueSubjects} mata pelajaran di {activeLevelCount} tingkat sekolah).
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSyncToApp}
+                disabled={isSyncing}
+                className="h-11 px-6 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold inline-flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors"
+              >
+                <FileCheck className="w-4 h-4" />
+                {isSyncing
+                  ? 'Menyinkronkan...'
+                  : 'Sinkronkan Otomatis ke Profil Guru & Parameter Kurikulum'}
+              </button>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800">
-              <button
-                onClick={() => {
-                  setAdoptedSuccessModal(null);
-                  if (onNavigate) onNavigate('ai_modul_ajar');
-                }}
-                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition flex items-center gap-1.5"
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Buka RPM / Modul Ajar</span>
-              </button>
-              <button
-                onClick={() => setAdoptedSuccessModal(null)}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
+            {syncSuccessInfo && (
+              <div className="p-4 rounded-lg border border-emerald-200 bg-emerald-50 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5 text-sm">
+                    <p className="font-semibold text-emerald-950">
+                      Sinkronisasi Berhasil Disimpan
+                    </p>
+                    <p className="text-xs text-emerald-800 tabular-nums">
+                      Dokumen &ldquo;{syncSuccessInfo.docName}&rdquo; · {syncSuccessInfo.totalSubjects} mata
+                      pelajaran lintas {syncSuccessInfo.levelCount} tingkat sekolah tersinkron ke Parameter
+                      Kurikulum · Profil Guru diperbarui ke {syncSuccessInfo.profileSubject} (
+                      {getSchoolLevelDisplay(syncSuccessInfo.profileLevel).shortLabel} · Kelas{' '}
+                      {syncSuccessInfo.profileGrade} / {syncSuccessInfo.profilePhase}).
+                    </p>
+                  </div>
+                </div>
+
+                {onNavigate && (
+                  <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('profil_guru_mapel')}
+                      className="h-10 px-4 rounded-lg bg-white border border-emerald-300 hover:bg-emerald-100 text-emerald-900 text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors"
+                    >
+                      Buka Menu Profil Guru
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('parameter_kurikulum')}
+                      className="h-10 px-4 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors"
+                    >
+                      Buka Parameter Kurikulum
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        </>
       )}
-
-      <AgamaIslamCPUploadModal
-        isOpen={showAgamaIslamCPModal}
-        onClose={() => setShowAgamaIslamCPModal(false)}
-        initialSubject={masterCP.subject}
-        initialLevel={masterCP.level}
-        initialGrade={masterCP.grade}
-        initialPhase={masterCP.phase}
-        initialJpPerWeek={masterCP.jpPerWeek}
-        onSyncedComplete={(synced) => {
-          setMasterCP(synced);
-          setSyncedNotice(`CP Khusus ${synced.subject} berhasil diunggah & disinkronkan ke seluruh perangkat ajar!`);
-          setTimeout(() => setSyncedNotice(null), 4000);
-        }}
-        onNavigate={onNavigate}
-      />
     </div>
   );
 };
+
+export default UploadCPMasterView;

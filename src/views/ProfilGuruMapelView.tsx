@@ -55,7 +55,7 @@ import {
 } from '../types';
 import { StorageService, INITIAL_CP_DISTRIBUTIONS } from '../lib/storage';
 import { ExportService } from '../lib/exportUtils';
-import { SUBJECT_MATERIAL_PRESETS, SubjectPreset, getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
+import { SUBJECT_MATERIAL_PRESETS, type SubjectPreset, getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
 import { handleNumberInputFocus, parseNumberInput } from '../lib/inputUtils';
 import { UniversalFileParser } from '../lib/universalFileParser';
 import {
@@ -210,10 +210,12 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
 
     window.addEventListener('curriculum-parameters-synced', handleSyncEvent);
     window.addEventListener('master-cp-updated', handleSyncEvent);
+    window.addEventListener('school-profile-updated', handleSyncEvent);
 
     return () => {
       window.removeEventListener('curriculum-parameters-synced', handleSyncEvent);
       window.removeEventListener('master-cp-updated', handleSyncEvent);
+      window.removeEventListener('school-profile-updated', handleSyncEvent);
     };
   }, []);
 
@@ -246,6 +248,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
       setLevel(activeMaster.level);
       setGrade(activeMaster.grade);
       setPhase(activeMaster.phase);
+      if (activeMaster.academicYear) setAcademicYear(activeMaster.academicYear);
       setTotalHoursPerYear(activeMaster.totalHoursPerYear);
       setJpPerWeek(activeMaster.jpPerWeek);
       if (activeMaster.timeAllocationPerWeek) {
@@ -319,19 +322,34 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     setSubject(newSub);
     const targetGrade = Number(grade) || (level === 'SD' ? 4 : level === 'SMP' ? 7 : 10);
     const targetLvl = (level || 'SMA') as 'SMA' | 'SMP' | 'SD' | 'SMK';
+    const masterMatch = StorageService.findMasterCPEntry(newSub, targetLvl, targetGrade);
+    const hasMasterMaterials =
+      masterMatch &&
+      Number(masterMatch.grade) === targetGrade &&
+      ((masterMatch.materialsSem1?.length || 0) > 0 || (masterMatch.materialsSem2?.length || 0) > 0);
     const preset = getSubjectPresetByGrade(newSub, targetLvl, targetGrade);
 
-    setPhase(preset.phase);
-    setCpText(preset.cpSummary);
-    setTotalHoursPerYear(preset.totalHoursPerYear);
-    const calculatedJp = Math.round(preset.totalHoursPerYear / 36) || 3;
+    const resolvedPhase = hasMasterMaterials ? masterMatch!.phase || preset.phase : preset.phase;
+    const resolvedCp = hasMasterMaterials ? masterMatch!.cpText || preset.cpSummary : preset.cpSummary;
+    const resolvedHours = hasMasterMaterials
+      ? masterMatch!.totalHoursPerYear || preset.totalHoursPerYear
+      : preset.totalHoursPerYear;
+    const calculatedJp = hasMasterMaterials
+      ? masterMatch!.jpPerWeek || Math.round(resolvedHours / 36) || 3
+      : Math.round(resolvedHours / 36) || 3;
+
+    setPhase(resolvedPhase);
+    setCpText(resolvedCp);
+    setTotalHoursPerYear(resolvedHours);
     setJpPerWeek(calculatedJp);
 
-    const sem1WithIds: CPMaterialItem[] = preset.materialsSem1.map((m, idx) => ({
+    const rawSem1 = hasMasterMaterials ? masterMatch!.materialsSem1 : preset.materialsSem1;
+    const rawSem2 = hasMasterMaterials ? masterMatch!.materialsSem2 : preset.materialsSem2;
+    const sem1WithIds: CPMaterialItem[] = rawSem1.map((m, idx) => ({
       ...m,
       id: `mat-1-${Date.now()}-${idx}`,
     }));
-    const sem2WithIds: CPMaterialItem[] = preset.materialsSem2.map((m, idx) => ({
+    const sem2WithIds: CPMaterialItem[] = rawSem2.map((m, idx) => ({
       ...m,
       id: `mat-2-${Date.now()}-${idx}`,
     }));
@@ -344,24 +362,38 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
       setShowAgamaIslamCPModal(true);
     }
 
-    showNotif(`Mata Pelajaran "${newSub}" dipilih. Lingkup materi Bab & CP otomatis disesuaikan untuk Kelas ${targetGrade} (${preset.phase})!`);
+    showNotif(`Mata Pelajaran "${newSub}" dipilih. Lingkup materi Bab & CP otomatis disesuaikan untuk Kelas ${targetGrade} (${resolvedPhase})!`);
   };
 
   // Automatically update phase & materials when grade changes
   const handleGradeChange = (newGrade: number) => {
     setGrade(newGrade);
     const targetLvl = (level || 'SMA') as 'SMA' | 'SMP' | 'SD' | 'SMK';
+    const masterMatch = StorageService.findMasterCPEntry(subject || 'Fisika', targetLvl, newGrade);
+    const hasMasterMaterials =
+      masterMatch &&
+      Number(masterMatch.grade) === newGrade &&
+      ((masterMatch.materialsSem1?.length || 0) > 0 || (masterMatch.materialsSem2?.length || 0) > 0);
     const preset = getSubjectPresetByGrade(subject || 'Fisika', targetLvl, newGrade);
-    setPhase(preset.phase);
-    setCpText(preset.cpSummary);
-    setTotalHoursPerYear(preset.totalHoursPerYear);
-    setJpPerWeek(Math.round(preset.totalHoursPerYear / 36) || 3);
 
-    const sem1WithIds: CPMaterialItem[] = preset.materialsSem1.map((m, idx) => ({
+    const resolvedPhase = hasMasterMaterials ? masterMatch!.phase || preset.phase : preset.phase;
+    const resolvedCp = hasMasterMaterials ? masterMatch!.cpText || preset.cpSummary : preset.cpSummary;
+    const resolvedHours = hasMasterMaterials
+      ? masterMatch!.totalHoursPerYear || preset.totalHoursPerYear
+      : preset.totalHoursPerYear;
+
+    setPhase(resolvedPhase);
+    setCpText(resolvedCp);
+    setTotalHoursPerYear(resolvedHours);
+    setJpPerWeek(hasMasterMaterials ? masterMatch!.jpPerWeek || Math.round(resolvedHours / 36) || 3 : Math.round(resolvedHours / 36) || 3);
+
+    const rawSem1 = hasMasterMaterials ? masterMatch!.materialsSem1 : preset.materialsSem1;
+    const rawSem2 = hasMasterMaterials ? masterMatch!.materialsSem2 : preset.materialsSem2;
+    const sem1WithIds: CPMaterialItem[] = rawSem1.map((m, idx) => ({
       ...m,
       id: `mat-1-${Date.now()}-${idx}`,
     }));
-    const sem2WithIds: CPMaterialItem[] = preset.materialsSem2.map((m, idx) => ({
+    const sem2WithIds: CPMaterialItem[] = rawSem2.map((m, idx) => ({
       ...m,
       id: `mat-2-${Date.now()}-${idx}`,
     }));
@@ -370,7 +402,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     setMaterialsSem2(sem2WithIds);
     setTotalTPCount(sem1WithIds.length + sem2WithIds.length);
 
-    showNotif(`Kelas ${newGrade} dipilih. Lingkup materi Bab & CP otomatis disesuaikan untuk ${subject} (${preset.phase})!`);
+    showNotif(`Kelas ${newGrade} dipilih. Lingkup materi Bab & CP otomatis disesuaikan untuk ${subject} (${resolvedPhase})!`);
   };
 
   const handleLevelChange = (newLvl: SchoolLevel) => {
@@ -470,15 +502,23 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
 
     setGrade(targetGrade);
     const targetLvl = (level || 'SMA') as 'SMA' | 'SMP' | 'SD' | 'SMK';
+    const masterMatch = StorageService.findMasterCPEntry(subject || 'Fisika', targetLvl, targetGrade);
+    const hasMasterMaterials =
+      masterMatch &&
+      Number(masterMatch.grade) === targetGrade &&
+      ((masterMatch.materialsSem1?.length || 0) > 0 || (masterMatch.materialsSem2?.length || 0) > 0);
     const preset = getSubjectPresetByGrade(subject || 'Fisika', targetLvl, targetGrade);
-    setCpText(preset.cpSummary);
-    setTotalHoursPerYear(preset.totalHoursPerYear);
 
-    const sem1WithIds: CPMaterialItem[] = preset.materialsSem1.map((m, idx) => ({
+    setCpText(hasMasterMaterials ? masterMatch!.cpText || preset.cpSummary : preset.cpSummary);
+    setTotalHoursPerYear(hasMasterMaterials ? masterMatch!.totalHoursPerYear || preset.totalHoursPerYear : preset.totalHoursPerYear);
+
+    const rawSem1 = hasMasterMaterials ? masterMatch!.materialsSem1 : preset.materialsSem1;
+    const rawSem2 = hasMasterMaterials ? masterMatch!.materialsSem2 : preset.materialsSem2;
+    const sem1WithIds: CPMaterialItem[] = rawSem1.map((m, idx) => ({
       ...m,
       id: `mat-1-${Date.now()}-${idx}`,
     }));
-    const sem2WithIds: CPMaterialItem[] = preset.materialsSem2.map((m, idx) => ({
+    const sem2WithIds: CPMaterialItem[] = rawSem2.map((m, idx) => ({
       ...m,
       id: `mat-2-${Date.now()}-${idx}`,
     }));
@@ -759,15 +799,19 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
   };
 
   // Apply Selected Preset
-  const handleApplyPreset = (presetSubject: string) => {
-    const preset = SUBJECT_MATERIAL_PRESETS.find(
-      (p) => p.subject.toLowerCase() === presetSubject.toLowerCase()
-    );
+  const handleApplyPreset = (presetOrSub: SubjectPreset | string) => {
+    let preset: SubjectPreset | undefined;
+    if (typeof presetOrSub === 'string') {
+      preset = getSubjectPresetByGrade(presetOrSub, level, Number(grade), phase);
+    } else {
+      preset = presetOrSub;
+    }
 
     if (!preset) {
       // Fallback generator
-      setSubject(presetSubject);
-      showNotif(`Mata Pelajaran diubah menjadi ${presetSubject}.`);
+      const subName = typeof presetOrSub === 'string' ? presetOrSub : presetOrSub.subject;
+      setSubject(subName);
+      showNotif(`Mata Pelajaran diubah menjadi ${subName}.`);
       setIsPresetModalOpen(false);
       return;
     }
@@ -800,7 +844,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     if (isAgamaIslamSubject(preset.subject)) {
       setShowAgamaIslamCPModal(true);
     }
-    showNotif(`Template standar BSKAP untuk ${preset.subject} (${preset.phase}) berhasil diterapkan!`);
+    showNotif(`Template standar BSKAP untuk ${preset.subject} (Kelas ${preset.grade} / ${preset.phase}) berhasil diterapkan!`);
   };
 
   // FULL AI CP ANALYSIS WITH REAL-TIME PROGRESS (0% -> 100%) & AUTO SYNCHRONIZATION
@@ -836,9 +880,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     let newSem1 = [...materialsSem1];
     let newSem2 = [...materialsSem2];
 
-    const preset = SUBJECT_MATERIAL_PRESETS.find(
-      (p) => p.subject.toLowerCase() === subject.toLowerCase()
-    );
+    const preset = getSubjectPresetByGrade(subject, level, Number(grade), phase);
 
     if (newSem1.length === 0 && newSem2.length === 0) {
       if (preset) {
@@ -2346,7 +2388,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
                     {p.materialsSem1.length + p.materialsSem2.length} Unit Materi
                   </span>
                   <button
-                    onClick={() => handleApplyPreset(p.subject)}
+                    onClick={() => handleApplyPreset(p)}
                     className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1"
                   >
                     <span>Terapkan</span>
@@ -2670,7 +2712,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
               {SUBJECT_MATERIAL_PRESETS.map((preset, idx) => (
                 <div
                   key={idx}
-                  onClick={() => handleApplyPreset(preset.subject)}
+                  onClick={() => handleApplyPreset(preset)}
                   className="p-3.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200 hover:border-blue-300 rounded-xl cursor-pointer transition flex items-center justify-between group"
                 >
                   <div>

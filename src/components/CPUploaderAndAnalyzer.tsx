@@ -58,10 +58,12 @@ import {
   analyzeCPTextHeuristic,
   detectLevelPhaseGradeFromText,
   getSchoolLevelDisplay,
+  getSchoolLevelGroup,
   KNOWN_SUBJECT_PATTERNS,
   mergeAnalyzedSubjects,
   normalizeSchoolLevel,
   resolvePhaseByLevelAndGrade,
+  TIERED_SCHOOL_LEVEL_CARDS,
 } from '../lib/curriculumLevels';
 import { getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
 
@@ -709,21 +711,36 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
 
       let analyzedSubjects: CPSubjectEntry[] = Array.isArray(resData.analyzedSubjects) && resData.analyzedSubjects.length > 0
         ? resData.analyzedSubjects.map((entry: any, idx: number) => {
-            const entryLvl = normalizeSchoolLevel(entry.level || resolvedLevel, entry.subject);
+            const entrySub = (entry.subject || resolvedSubject).trim();
+            const entryLvl = normalizeSchoolLevel(entry.level || resolvedLevel, entrySub);
             const entryGrd = Number(entry.grade) || resolvedGrade;
             const entryPhs = entry.phase || resolvePhaseByLevelAndGrade(entryLvl, entryGrd);
-            const eSem1 = normalizeMaterials(entry.materialsSem1?.length ? entry.materialsSem1 : sem1Items, 1, entryGrd, 1);
-            const eSem2 = normalizeMaterials(entry.materialsSem2?.length ? entry.materialsSem2 : sem2Items, 2, entryGrd, eSem1.length + 1);
+            const matchesPrimary = entrySub.toLowerCase() === resolvedSubject.toLowerCase() && entryLvl === resolvedLevel;
+            const fallbackPreset = !entry.materialsSem1?.length || !entry.materialsSem2?.length
+              ? getSubjectPresetByGrade(entrySub, entryLvl, entryGrd, entryPhs)
+              : null;
+            const rawS1 = entry.materialsSem1?.length
+              ? entry.materialsSem1
+              : matchesPrimary && sem1Items.length > 0
+              ? sem1Items
+              : (fallbackPreset?.materialsSem1 || []);
+            const rawS2 = entry.materialsSem2?.length
+              ? entry.materialsSem2
+              : matchesPrimary && sem2Items.length > 0
+              ? sem2Items
+              : (fallbackPreset?.materialsSem2 || []);
+            const eSem1 = normalizeMaterials(rawS1, 1, entryGrd, 1);
+            const eSem2 = normalizeMaterials(rawS2, 2, entryGrd, eSem1.length + 1);
             return {
               id: entry.id || `cp-sub-${Date.now()}-${idx + 1}`,
-              subject: entry.subject || resolvedSubject,
+              subject: entrySub,
               level: entryLvl,
               subLevelLabel: entry.subLevelLabel || getSchoolLevelDisplay(entryLvl, entryGrd).subLabel,
               grade: entryGrd,
               phase: entryPhs,
               jpPerWeek: Number(entry.jpPerWeek) || resolvedJp,
               totalHoursPerYear: Number(entry.totalHoursPerYear) || resolvedHours,
-              cpText: entry.cpText || `Capaian Pembelajaran ${entry.subject || resolvedSubject} ${entryLvl} (${entryPhs})`,
+              cpText: entry.cpText || `Capaian Pembelajaran ${entrySub} ${entryLvl} (${entryPhs})`,
               elements: entry.elements || resData.elements,
               materialsSem1: eSem1,
               materialsSem2: eSem2,
@@ -794,7 +811,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
 
             let extraApiSubjects: CPSubjectEntry[] = [];
             // For PDFs/images or files with little extracted text, invoke /api/ai/analyze-cp-file so multi-file Folders analyze binary PDFs completely
-            if (!extraText && extraBase64) {
+            if ((!extraText || extraText.trim().length < 200) && extraBase64) {
               try {
                 const extraRes = await fetch('/api/ai/analyze-cp-file', {
                   method: 'POST',
@@ -2258,15 +2275,39 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                     Dokumen: <span className="text-indigo-300 font-semibold">{masterData.fileName}</span> • Total Alokasi: <span className="text-emerald-400 font-bold">{masterData.totalHoursPerYear} JP/Tahun ({masterData.jpPerWeek} JP/Minggu)</span>
                   </p>
                   {masterData.analyzedSubjects && masterData.analyzedSubjects.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {masterData.analyzedSubjects.map((subItem, idx) => (
-                        <span
-                          key={`${subItem.subject}-${idx}`}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-200 font-semibold"
-                        >
-                          {subItem.subject} • Sem 1: {subItem.materialsSem1?.length || 0} Bab • Sem 2: {subItem.materialsSem2?.length || 0} Bab
-                        </span>
-                      ))}
+                    <div className="mt-2.5 space-y-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        {TIERED_SCHOOL_LEVEL_CARDS.map((card) => {
+                          const subsInTier = Array.from(
+                            new Map(
+                              (masterData.analyzedSubjects || [])
+                                .filter((s) => getSchoolLevelGroup(s.level) === card.group)
+                                .map((s) => [s.subject.trim().toLowerCase(), s])
+                            ).values()
+                          );
+                          return (
+                            <div
+                              key={card.group}
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-between gap-1"
+                            >
+                              <span className="text-[10px] font-bold text-slate-300 truncate">{card.aliases}</span>
+                              <span className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded ${subsInTier.length > 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-700 text-slate-400'}`}>
+                                {subsInTier.length} Mapel
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                        {masterData.analyzedSubjects.map((subItem, idx) => (
+                          <span
+                            key={`${subItem.subject}-${subItem.level}-${idx}`}
+                            className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-200 font-semibold"
+                          >
+                            [{getSchoolLevelGroup(subItem.level)}] {subItem.subject} • Sem 1: {subItem.materialsSem1?.length || 0} Bab • Sem 2: {subItem.materialsSem2?.length || 0} Bab
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

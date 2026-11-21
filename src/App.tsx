@@ -90,10 +90,13 @@ export default function App() {
     applyThemeToDOM(normalizedTheme);
   }, [theme]);
 
-  // Dual Cloud Auto-Sync Runner (Penyimpanan Permanen)
+  // Dual Cloud Auto-Sync Runner & Admin CP BSKAP 046 Catalog Hydration
   useEffect(() => {
     // Inisialisasi sinkronisasi otomatis dual cloud (Supabase & GitHub)
     CloudAutoSyncService.init();
+    // Sinkronisasi daftar CP BSKAP 046 & pengaturan admin dari server agar semua jenjang terisi otomatis
+    StorageService.fetchAdminSettingsFromServer();
+    StorageService.fetchAdminCPCatalogFromServer();
   }, []);
 
   // Sync notifications and token quota periodically & on storage changes

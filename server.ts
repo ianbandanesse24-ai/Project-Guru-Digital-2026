@@ -5,17 +5,22 @@ import zlib from 'zlib';
 import dotenv from 'dotenv';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import { generateExpertCurriculumDocument, generateFullCurriculumBundle, GenerateCurriculumParams } from './src/lib/curriculumEngine';
 import {
   analyzeCPTextHeuristic,
+  buildLevelRecapFromSubjects,
+  buildPhaseDirectoryByLevel,
+  extractCPDocumentInsights,
   getSchoolLevelDisplay,
   mergeAnalyzedSubjects,
   normalizeSchoolLevel,
   resolvePhaseByLevelAndGrade,
 } from './src/lib/curriculumLevels';
 import { getSubjectPresetByGrade } from './src/lib/subjectMaterialPresets';
+import type { CPCoverageReport, CPDocumentInsights } from './src/types';
 
 dotenv.config();
 
@@ -51,12 +56,10 @@ function extractBasicTextFromPdfBuffer(buffer: Buffer): string {
       }
     };
 
-    // Scan FlateDecode streams first
+    // Scan FlateDecode streams across the entire PDF without truncation
     const streamRegex = /stream[\r\n]+([\s\S]*?)[\r\n]*endstream/g;
     let streamMatch: RegExpExecArray | null;
-    let streamCount = 0;
-    while ((streamMatch = streamRegex.exec(rawLatin)) !== null && streamCount < 150) {
-      streamCount++;
+    while ((streamMatch = streamRegex.exec(rawLatin)) !== null) {
       const streamBytes = Buffer.from(streamMatch[1], 'latin1');
       let inflatedStr = '';
       try {
@@ -73,10 +76,82 @@ function extractBasicTextFromPdfBuffer(buffer: Buffer): string {
       }
     }
 
-    return chunks.join(' ').replace(/\s+/g, ' ').trim();
+    return chunks.join('\n').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   } catch {
     return '';
   }
+}
+
+async function extractFullTextAndMetaFromPdfBuffer(buffer: Buffer): Promise<{ text: string; totalPages: number }> {
+  let detectedPages = 0;
+  try {
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(buffer),
+      verbosity: 0,
+      useSystemFonts: true,
+    });
+    const pdfDoc = await loadingTask.promise;
+    detectedPages = pdfDoc.numPages || 0;
+    const pageTexts: string[] = [];
+
+    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+      const page = await pdfDoc.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const items = (textContent.items || []) as Array<{
+        str?: string;
+        transform?: number[];
+        hasEOL?: boolean;
+      }>;
+
+      // Group items into visual lines using Y-coordinate so headings stay cleanly on their own lines
+      const linesMap: Array<{ y: number; tokens: Array<{ x: number; str: string }> }> = [];
+      for (const item of items) {
+        const str = (item.str || '').replace(/\s+/g, ' ');
+        if (!str.trim()) continue;
+        const y = Array.isArray(item.transform) ? Math.round(item.transform[5] * 10) / 10 : 0;
+        const x = Array.isArray(item.transform) ? item.transform[4] : 0;
+
+        let targetLine = linesMap.find((l) => Math.abs(l.y - y) <= 3);
+        if (!targetLine) {
+          targetLine = { y, tokens: [] };
+          linesMap.push(targetLine);
+        }
+        targetLine.tokens.push({ x, str });
+      }
+
+      // Sort top-to-bottom (higher Y first in PDF coordinates), then left-to-right (lower X first)
+      linesMap.sort((a, b) => b.y - a.y);
+      const reconstructedLines = linesMap
+        .map((line) =>
+          line.tokens
+            .sort((a, b) => a.x - b.x)
+            .map((t) => t.str.trim())
+            .filter(Boolean)
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+        )
+        .filter(Boolean);
+
+      if (reconstructedLines.length > 0) {
+        pageTexts.push(`--- [Halaman ${pageNum}] ---\n${reconstructedLines.join('\n')}`);
+      }
+    }
+
+    const fullText = pageTexts.join('\n').trim();
+    if (fullText.length >= 20) {
+      return { text: fullText, totalPages: detectedPages };
+    }
+  } catch (err) {
+    console.warn('pdfjs-dist extraction warning, falling back to basic PDF stream parser:', (err as Error)?.message || err);
+  }
+
+  return { text: extractBasicTextFromPdfBuffer(buffer), totalPages: detectedPages };
+}
+
+async function extractFullTextFromPdfBuffer(buffer: Buffer): Promise<string> {
+  const res = await extractFullTextAndMetaFromPdfBuffer(buffer);
+  return res.text;
 }
 
 const app = express();
@@ -103,8 +178,8 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Runtime & Environment Gemini API Key management
 let customRuntimeApiKey: string | null = null;
@@ -690,6 +765,91 @@ app.post('/api/admin/settings', (req, res) => {
     return res.status(400).json({ success: false, error: 'Data pengaturan tidak valid.' });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+const ADMIN_CP_CATALOG_FILE = path.join(process.cwd(), '.data', 'admin-cp-catalog.json');
+let persistedAdminCPCatalog: {
+  catalog: any[];
+  activeMasterCP: any | null;
+  updatedAt: string;
+} = {
+  catalog: [],
+  activeMasterCP: null,
+  updatedAt: '',
+};
+
+function loadPersistedAdminCPCatalog() {
+  try {
+    if (fs.existsSync(ADMIN_CP_CATALOG_FILE)) {
+      const raw = fs.readFileSync(ADMIN_CP_CATALOG_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        persistedAdminCPCatalog = {
+          catalog: Array.isArray(parsed.catalog) ? parsed.catalog : [],
+          activeMasterCP: parsed.activeMasterCP || null,
+          updatedAt: parsed.updatedAt || '',
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load persisted admin CP catalog:', err);
+  }
+}
+
+function savePersistedAdminCPCatalog(data: { catalog: any[]; activeMasterCP: any | null; updatedAt: string }) {
+  try {
+    const dir = path.dirname(ADMIN_CP_CATALOG_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(ADMIN_CP_CATALOG_FILE, JSON.stringify(data), 'utf-8');
+  } catch (err) {
+    console.warn('Could not save persisted admin CP catalog:', err);
+  }
+}
+
+loadPersistedAdminCPCatalog();
+
+app.get('/api/admin/cp-catalog', (req, res) => {
+  res.json({
+    success: true,
+    catalog: persistedAdminCPCatalog.catalog || [],
+    activeMasterCP: persistedAdminCPCatalog.activeMasterCP || null,
+    updatedAt: persistedAdminCPCatalog.updatedAt || '',
+  });
+});
+
+app.post('/api/admin/cp-catalog', (req, res) => {
+  try {
+    const { catalog, activeMasterCP, updatedAt } = req.body || {};
+    persistedAdminCPCatalog = {
+      catalog: Array.isArray(catalog) ? catalog : persistedAdminCPCatalog.catalog,
+      activeMasterCP: activeMasterCP !== undefined ? activeMasterCP : persistedAdminCPCatalog.activeMasterCP,
+      updatedAt: updatedAt || new Date().toISOString(),
+    };
+    savePersistedAdminCPCatalog(persistedAdminCPCatalog);
+    res.json({
+      success: true,
+      count: persistedAdminCPCatalog.catalog.length,
+      updatedAt: persistedAdminCPCatalog.updatedAt,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/admin/cp-catalog', (req, res) => {
+  try {
+    persistedAdminCPCatalog = {
+      catalog: [],
+      activeMasterCP: null,
+      updatedAt: new Date().toISOString(),
+    };
+    savePersistedAdminCPCatalog(persistedAdminCPCatalog);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -1330,7 +1490,7 @@ app.post('/api/ai/parse-uploaded-file', async (req, res) => {
             if (headers && headers.length > 0) {
               sMd += '| ' + headers.map((h: any) => String(h || '').trim() || '-').join(' | ') + ' |\n';
               sMd += '| ' + headers.map(() => ':---').join(' | ') + ' |\n';
-              for (let i = 1; i < Math.min(rawData.length, 100); i++) {
+              for (let i = 1; i < Math.min(rawData.length, 2000); i++) {
                 const row = rawData[i];
                 sMd += '| ' + headers.map((_: any, colIdx: number) => String(row[colIdx] || '').replace(/\|/g, '\\|').trim()).join(' | ') + ' |\n';
               }
@@ -1346,7 +1506,7 @@ app.post('/api/ai/parse-uploaded-file', async (req, res) => {
       if (fileBase64 && !extractedText) {
         const cleanBase64 = fileBase64.replace(/^data:.*?;base64,/, '');
         const buffer = Buffer.from(cleanBase64, 'base64');
-        const parsedPdfText = extractBasicTextFromPdfBuffer(buffer);
+        const parsedPdfText = await extractFullTextFromPdfBuffer(buffer);
         if (parsedPdfText && parsedPdfText.length >= 30) {
           extractedText = parsedPdfText;
         }
@@ -1435,7 +1595,7 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
             if (headers && headers.length > 0) {
               sMd += '| ' + headers.map((h: any) => String(h || '').trim() || '-').join(' | ') + ' |\n';
               sMd += '| ' + headers.map(() => ':---').join(' | ') + ' |\n';
-              for (let i = 1; i < Math.min(rawData.length, 100); i++) {
+              for (let i = 1; i < rawData.length; i++) {
                 const row = rawData[i];
                 sMd += '| ' + headers.map((_: any, colIdx: number) => String(row[colIdx] || '').replace(/\|/g, '\\|').trim()).join(' | ') + ' |\n';
               }
@@ -1449,7 +1609,8 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
       }
     }
 
-    // 3. Handle PDF file or Image (pass inlineData to Gemini + attempt basic PDF text extraction fallback)
+    let totalPdfPages = 0;
+    // 3. Handle PDF file or Image (pass inlineData to Gemini + full PDF text extraction via pdfjs-dist)
     if (fileBase64 && (safeFileName.endsWith('.pdf') || safeMime.includes('pdf'))) {
       try {
         const cleanBase64 = fileBase64.replace(/^data:.*?;base64,/, '');
@@ -1459,12 +1620,11 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
             mimeType: 'application/pdf',
           },
         };
-        if (!extractedText) {
-          const buffer = Buffer.from(cleanBase64, 'base64');
-          const parsedPdf = extractBasicTextFromPdfBuffer(buffer);
-          if (parsedPdf && parsedPdf.length >= 30) {
-            extractedText = parsedPdf;
-          }
+        const buffer = Buffer.from(cleanBase64, 'base64');
+        const parsedMeta = await extractFullTextAndMetaFromPdfBuffer(buffer);
+        totalPdfPages = parsedMeta.totalPages;
+        if (!extractedText && parsedMeta.text && parsedMeta.text.length >= 30) {
+          extractedText = parsedMeta.text;
         }
       } catch (pdfErr) {
         console.warn('PDF base64 preparation warning:', (pdfErr as Error)?.message || pdfErr);
@@ -1506,181 +1666,174 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
     const sem1TPCount = Math.ceil(tpCount / 2);
     const sem2TPCount = tpCount - sem1TPCount;
 
+    const AI_CHUNK_SIZE = 180000;
+    const MAX_AI_CHUNKS = 8;
+    const textChunks: string[] = [];
+    if (extractedText.trim()) {
+      for (let offset = 0; offset < extractedText.length && textChunks.length < MAX_AI_CHUNKS; offset += AI_CHUNK_SIZE) {
+        textChunks.push(extractedText.slice(offset, offset + AI_CHUNK_SIZE));
+      }
+    }
+    const totalChunksNeeded = extractedText.trim() ? Math.ceil(extractedText.length / AI_CHUNK_SIZE) : 1;
+    let aiAnalyzedCharacters = 0;
+    let chunksProcessed = 0;
+
     if (ai) {
-      try {
-        const deepAnalysisPrompt = `
-        Anda adalah Dewan Pakar Pengembang Kurikulum Nasional Kemendikdasmen RI dan Spesialis Analis Capaian Pembelajaran (CP) berdasarkan Keputusan Kepala BSKAP No. 046/H/KR/2025 dengan Pendekatan Deep Learning (Mindful, Meaningful, Joyful Learning).
+      const chunksToRun = textChunks.length > 0 ? textChunks : [''];
+      for (let chunkIdx = 0; chunkIdx < chunksToRun.length; chunkIdx++) {
+        const chunkText = chunksToRun[chunkIdx];
+        try {
+          const deepAnalysisPrompt = `
+          Anda adalah Kurikulum & Data Extraction Engineer spesialis Kurikulum Merdeka (Kepka BSKAP No. 046/H/KR/2025). Tugas Anda adalah mengekstrak secara mendalam daftar mata pelajaran, jumlah mata pelajaran per jenjang/lampiran, serta ruang lingkup materi/kompetensi per Fase dan Kelas khusus untuk tingkat SD/MI/Paket A, SMP/MTs/Paket B, SMA/MA/Paket C, dan SMK/MAK. Jangan sertakan audit perangkat ajar atau informasi di luar katalog mata pelajaran dan ruang lingkup materinya.
 
-        TUGAS UTAMA:
-        Lakukan ANALISIS OTOMATIS SECARA MENDALAM, TELITI, DAN SISTEMATIS terhadap dokumen/teks Capaian Pembelajaran (CP) resmi sesuai Keputusan Kepala BSKAP No. 046/H/KR/2025 untuk dijadikan ACUAN UTAMA (MASTER REFERENCE) yang tersinkronisasi otomatis ke seluruh perangkat ajar (Modul Ajar/RPM, TP, ATP, PROTA, PROSEM, KKTP, LKPD, Rubrik). Kompetensi dan lingkup materi WAJIB disusun berdasarkan FASE PERKEMBANGAN (Fase A s.d. F) secara spesifik per kelas, bukan disamaratakan antar kelas atau jenjang!
+          ATURAN KETAT (ANTI-HALUSINASI & ANTI-PANGKAS):
+          1. SUMBER TUNGGAL: Gunakan HANYA informasi yang tertulis eksplisit di potongan teks CP di bawah ini. DILARANG mengarang mata pelajaran, fase, atau ruang lingkup materi yang tidak tercantum.
+          2. JANGAN MERINGKAS BERLEBIHAN: Setiap ruang lingkup materi harus memuat kata kunci konsep, objek kajian, elemen, dan batasan ruang lingkup (misalnya rentang bilangan, jenis teks, topik sains/sosial, atau subelemen) sesuai bunyi CP.
+          3. CATAT PENGECUALIAN & CATATAN KHUSUS: Jika suatu mapel tidak memiliki CP pada fase tertentu (misal Bahasa Inggris mulai Fase B; IPAS Fase B/C; Informatika di Fase D/E/F; IPA/IPS terpadu vs terpisah; SMK Program 4 Tahun Kelas XIII), tulis eksplisit pada "specialNotes".
+          4. SERTAKAN REFERENSI LOKASI: Cantumkan nomor Lampiran (mis. Lampiran II / III) dan halaman PDF dari penanda "--- [Halaman X] ---" pada field "locationRef" (contoh: "Lampiran II · Hal. 45–52").
+          5. KELENGKAPAN SEKUENSIAL: Ini adalah bagian ke-${chunkIdx + 1} dari total ${totalChunksNeeded} bagian dokumen (total ${extractedText.length.toLocaleString('id-ID')} karakter). Ekstrak seluruh mata pelajaran yang terbaca di bagian ini secara berurutan (SD -> SMP -> SMA -> SMK) tanpa memangkas satu mapel pun, dan JANGAN menebak bagian yang belum muncul di potongan ini.
 
-        INFORMASI DOKUMEN & PRE-DETEKSI (Analisis & Koreksi Berdasarkan Isi Teks Dokumen):
-        - Nama File: "${fileName || 'Capaian Pembelajaran'}"
-        - Perkiraan Awal: Mapel ${subject}, Jenjang ${level} (${phase} - Kelas ${grade}), Alokasi ${totalHours} JP/Tahun (${jpPerWeek} JP/Minggu)
-        ${customPrompt ? `- Catatan Khusus Pengguna: ${customPrompt}` : ''}
+          INFORMASI DOKUMEN:
+          - Nama File: "${fileName || 'Capaian Pembelajaran'}"
+          ${customPrompt ? `- Catatan Khusus: ${customPrompt}` : ''}
 
-        ${extractedText ? `KONTEN TEKS DOKUMEN CP RESMI:\n---\n${extractedText.substring(0, 100000)}\n---` : '(Dokumen terlampir via format PDF inline)'}
+          ${chunkText ? `KONTEN TEKS DOKUMEN CP (BAGIAN ${chunkIdx + 1}/${totalChunksNeeded}):\n---\n${chunkText}\n---` : '(Dokumen terlampir via format PDF/gambar inline)'}
 
-        ATURAN BAKU KEPUTUSAN KEPALA BSKAP NO. 046/H/KR/2025 (STRUKTUR FASE PERKEMBANGAN):
-        1. Kompetensi dan lingkup materi disesuaikan ketat dengan fase perkembangan (bukan disamaratakan):
-        2. Jenjang Sekolah Dasar (SD / MI / Paket A):
-           • Fase A: Kelas 1 – 2 SD
-           • Fase B: Kelas 3 – 4 SD
-           • Fase C: Kelas 5 – 6 SD
-        3. Jenjang Sekolah Menengah Pertama (SMP / MTs / Paket B):
-           • Fase D: Kelas 7 – 9 SMP
-        4. Jenjang Sekolah Menengah Atas (SMA / MA / Paket C):
-           • Fase E: Kelas 10 SMA / MA / Paket C
-           • Fase F: Kelas 11 – 12 SMA / MA / Paket C
-        5. Jenjang Sekolah Menengah Kejuruan (SMK / MAK):
-           • Fase E: Kelas 10 SMK / MAK
-           • Fase F: Kelas 11 – 12 SMK/MAK (program 3 tahun) & Kelas 11 – 13 SMK/MAK (program 4 tahun)
+          INSTRUKSI EKSTRAKSI PRESISI:
+          1. Daftarkan HANYA mata pelajaran yang benar-benar muncul dalam teks di atas pada array "analyzedSubjects", dipisahkan presisi per jenjang (SD / SMP / SMA / SMK), fase (Fase A–F), dan kelas (1–13).
+          2. Pisahkan "categoryTag": "Umum/Wajib", "Pilihan/Tingkat Lanjut", atau "Kejuruan/Konsentrasi" sesuai kelompok mapel dalam dokumen.
+          3. Untuk setiap entri pada "materialsSem1" & "materialsSem2", gunakan format "Bab X: <Judul Ruang Lingkup Materi Spesifik dari Teks CP>" yang memuat kata kunci konsep & batasan lingkup asli dokumen (DILARANG mengarang judul generik seperti "Konsep Dasar 1" atau "Unit 1").
+          4. Cantumkan "elements" sesuai elemen CP resmi lengkap dengan "description", "essentialMaterials" (objek kajian/konsep kunci), dan "competencies".
 
-        INSTRUKSI ANALISIS MENDALAM WAJIB:
-        1. DETEKSI OTOMATIS METADATA, TINGKAT SEKOLAH & SEMUA MATA PELAJARAN CP:
-           - Identifikasi Tingkat Sekolah secara akurat ("SD", "SMP", "SMA", atau "SMK") beserta subLevelLabel-nya (misal: "SD / MI / Paket A", "SMP / MTs / Paket B", "SMA / MA / Paket C", "SMK / MAK (Program 3 Tahun)", atau "SMK / MAK (Program 4 Tahun)").
-           - Tentukan Fase Capaian (Fase A, B, C, D, E, atau F) dan Kelas (1 - 13) sesuai aturan baku di atas.
-           - WAJIB deteksi dan daftarkan SEMUA Mata Pelajaran (Subject) lintas jenjang yang tercantum dalam dokumen CP pada array "analyzedSubjects" (mencakup seluruh jenjang SD, SMP, SMA, maupun SMK yang ada pada dokumen — pisahkan entri SMA vs SMK vs SMP vs SD secara presisi). Lengkapi masing-masing dengan level, phase, grade, materialsSem1, dan materialsSem2.
-
-        2. DEKOMPOSISI ELEMEN CP & KOMPETENSI ESENSIAL:
-           - Identifikasi setiap elemen CP resmi (misal: "Pemahaman Konsep/Sains", "Keterampilan Proses", dll.).
-           - Tuliskan deskripsi capaian, kompetensi esensial dengan Kata Kerja Operasional (KKO) HOTS (C4-C6), dan materi esensial.
-
-        3. PERUMUSAN TUJUAN PEMBELAJARAN (TP) BERBASIS DEEP LEARNING:
-           - Rumuskan TP operasional lengkap (komponen ABCD: Audience, Behavior, Condition, Degree).
-           - Integrasikan 6 Dimensi Karakter (6C: Character, Citizenship, Critical Thinking, Creativity, Collaboration, Communication) & 3 Pilar Deep Learning.
-
-        4. ANALISIS MATERI AJAR, BAB & RUANG LINGKUP MATERI YANG TEPAT SESUAI CP (KRITIS!):
-           - Ekstrak secara langsung topik materi ajar / konsep esensial / ruang lingkup materi yang BENAR-BENAR TERTULIS dalam teks/PDF dokumen CP yang dianalisis!
-           - DILARANG keras menggunakan judul generik atau mengarang materi di luar CP (contoh YANG DILARANG: "Bab 1: Lingkup Materi 1", "Bab 1: Konsep Dasar", "Unit 1").
-           - WAJIB menamai setiap item di "materialsSem1" & "materialsSem2" dengan format "Bab X: <Judul Lingkup Materi Spesifik dari Teks CP>" (misal: "Bab 1: Besaran Fisis, Pengukuran & Angka Penting", "Bab 2: Energi Terbarukan & Efisiensi Konversi").
-           - Urutkan Bab secara progresif: konsep dasar/prasyarat di Semester 1 (Ganjil) dan penerapan/analisis lanjut/proyek di Semester 2 (Genap), khusus untuk Kelas ${grade} (${phase}).
-           - Dalam "tpName" dan "deepLearningMethod", jabarkan sub-materi ajar yang diturunkan persis dari rumusan CP elemen terkait.
-           - Cantumkan juga "extractedCpText" berisi transkrip/ringkasan teks CP asli dari dokumen yang dibaca (terutama jika sumbernya PDF/gambar).
-
-        5. MATRIKS KKTP & ASESMEN TERPADU:
-           - Berikan panduan interval ketuntasan dan rubrik deskriptif ketercapaian tujuan pembelajaran.
-
-        FORMAT OUTPUT:
-        Kembalikan JSON MURNI VALID (tanpa teks pengantar di luar JSON, boleh diapit \`\`\`json ... \`\`\`) dengan struktur:
-        {
-          "identifiedMetadata": {
-            "title": "Judul resmi dokumen CP",
-            "subject": "Nama Mata Pelajaran Utama Terdeteksi",
-            "level": "SD | SMP | SMA | SMK",
-            "subLevelLabel": "SD / MI / Paket A | SMP / MTs / Paket B | SMA / MA / Paket C | SMK / MAK Program 3/4 Tahun",
-            "phase": "Fase A | Fase B | Fase C | Fase D | Fase E | Fase F",
-            "grade": 10,
-            "totalHoursPerYear": 108,
-            "jpPerWeek": 3
-          },
-          "extractedCpText": "Teks inti/kutipan utuh Capaian Pembelajaran resmi yang terdeteksi dari dokumen",
-          "analyzedSubjects": [
-            {
-              "subject": "Nama Mata Pelajaran",
-              "level": "SD | SMP | SMA | SMK",
-              "subLevelLabel": "Keterangan Jenjang & Program",
-              "phase": "Fase A..F",
-              "grade": 10,
-              "jpPerWeek": 3,
-              "totalHoursPerYear": 108,
-              "materialsSem1": [
-                {
-                  "orderNumber": 1,
-                  "tpCode": "TP.10.1.1",
-                  "tpName": "Rumusan TP operasional ABCD berdasarkan materi CP",
-                  "essentialMaterial": "Bab 1: Judul Materi Ajar / Lingkup Materi Spesifik dari CP",
-                  "elementName": "Elemen CP Terkait",
-                  "allocatedHours": 18,
-                  "assessmentStrategy": "Tes Formatif & Kinerja 6C",
-                  "deepLearningMethod": "Sub-materi & Strategi Mindful, Meaningful, Joyful"
-                }
-              ],
-              "materialsSem2": [
-                {
-                  "orderNumber": 2,
-                  "tpCode": "TP.10.2.1",
-                  "tpName": "Rumusan TP operasional ABCD berdasarkan materi CP",
-                  "essentialMaterial": "Bab 2: Judul Materi Ajar / Lingkup Materi Spesifik Semester 2 dari CP",
-                  "elementName": "Elemen CP Terkait",
-                  "allocatedHours": 18,
-                  "assessmentStrategy": "Penilaian Proyek Sumatif",
-                  "deepLearningMethod": "Sub-materi & Strategi Mindful, Meaningful, Joyful"
-                }
-              ]
-            }
-          ],
-          "executiveSummary": "Ringkasan analisis mendalam tingkat sekolah, mata pelajaran, materi ajar spesifik sesuai CP, integrasi 3 pilar Deep Learning (Mindful, Meaningful, Joyful), dan penguatan 6C.",
-          "elements": [
-            {
-              "name": "Nama Elemen CP Resmi",
-              "description": "Deskripsi capaian elemen pembelajaran sesuai dokumen CP",
-              "competencies": ["Kompetensi KKO HOTS 1", "Kompetensi KKO HOTS 2"],
-              "essentialMaterials": ["Topik / Materi Esensial Spesifik 1", "Topik / Materi Esensial Spesifik 2"]
-            }
-          ],
-          "materialsSem1": [
-            {
-              "orderNumber": 1,
-              "tpCode": "TP.10.1.1",
-              "tpName": "Rumusan TP operasional ABCD & HOTS (C4-C6)",
-              "essentialMaterial": "Bab 1: Judul Bab / Lingkup Materi Spesifik Semester 1 sesuai CP",
-              "elementName": "Nama Elemen CP",
-              "allocatedHours": 18,
-              "assessmentStrategy": "Bentuk Asesmen Formatif & Kinerja 6C",
-              "deepLearningMethod": "Mindful: ..., Meaningful: ..., Joyful: ..."
-            }
-          ],
-          "materialsSem2": [
-            {
-              "orderNumber": 4,
-              "tpCode": "TP.10.2.1",
-              "tpName": "Rumusan TP operasional ABCD & HOTS (C4-C6)",
-              "essentialMaterial": "Bab 4: Judul Bab / Lingkup Materi Spesifik Semester 2 sesuai CP",
-              "elementName": "Nama Elemen CP",
-              "allocatedHours": 18,
-              "assessmentStrategy": "Bentuk Asesmen Formatif & Sumatif Proyek Rekayasa",
-              "deepLearningMethod": "Mindful: ..., Meaningful: ..., Joyful: ..."
-            }
-          ],
-          "kktpSummary": "Panduan interval nilai ketuntasan (0-40% Perlu Bimbingan, 41-65% Remedial, 66-85% Tuntas, 86-100% Pengayaan) dan rubrik deskriptif.",
-          "fullMarkdownReport": "# LAPORAN HASIL ANALISIS MENDALAM CAPAIAN PEMBELAJARAN (CP) MASTER\\n\\n..."
-        }
-        `;
-
-        const contentPayload: any = pdfInlinePart
-          ? [pdfInlinePart, deepAnalysisPrompt]
-          : deepAnalysisPrompt;
-
-        const responseText = await generateWithAiResilience(
-          ai,
-          contentPayload,
+          FORMAT OUTPUT JSON MURNI VALID:
           {
-            systemInstruction: 'Anda adalah Analis & Kurator Kurikulum Nasional Kemendikdasmen RI yang sangat teliti, presisi, selalu mengekstrak materi ajar/Bab/lingkup materi secara akurat langsung dari isi dokumen CP dalam format JSON valid.',
-            temperature: 0.25,
-          },
-          'gemini-3.8-flash'
-        );
+            "identifiedMetadata": {
+              "title": "Judul resmi dokumen CP",
+              "subject": "Nama Mata Pelajaran Utama Terdeteksi",
+              "level": "SD | SMP | SMA | SMK",
+              "subLevelLabel": "SD / MI / Paket A | SMP / MTs / Paket B | SMA / MA / Paket C | SMK / MAK Program 3/4 Tahun",
+              "phase": "Fase A | Fase B | Fase C | Fase D | Fase E | Fase F",
+              "grade": 10,
+              "totalHoursPerYear": 108,
+              "jpPerWeek": 3
+            },
+            "extractedCpText": "Ringkasan kutipan CP autentik dari teks",
+            "analyzedSubjects": [
+              {
+                "subject": "Nama Mata Pelajaran",
+                "level": "SD | SMP | SMA | SMK",
+                "subLevelLabel": "Keterangan Jenjang & Program",
+                "phase": "Fase A..F",
+                "grade": 10,
+                "categoryTag": "Umum/Wajib | Pilihan/Tingkat Lanjut | Kejuruan/Konsentrasi",
+                "locationRef": "Lampiran ... · Hal. X–Y",
+                "specialNotes": "Catatan pengecualian fase atau integrasi mapel jika ada di dokumen",
+                "jpPerWeek": 3,
+                "totalHoursPerYear": 108,
+                "elements": [
+                  {
+                    "name": "Nama Elemen",
+                    "description": "Ringkasan fokus capaian elemen dari dokumen",
+                    "essentialMaterials": ["Kata kunci konsep / objek kajian / batasan lingkup sesuai CP"],
+                    "competencies": ["Kompetensi utama dari CP"]
+                  }
+                ],
+                "materialsSem1": [
+                  {
+                    "orderNumber": 1,
+                    "tpCode": "TP.10.1.1",
+                    "tpName": "Rumusan TP operasional berdasarkan teks CP",
+                    "essentialMaterial": "Bab 1: Ruang Lingkup Materi Spesifik (Konsep & Batasan dari CP)",
+                    "elementName": "Elemen CP Terkait",
+                    "allocatedHours": 18,
+                    "assessmentStrategy": "Tes Formatif & Kinerja",
+                    "deepLearningMethod": "Sub-materi & objek kajian rinci dari CP"
+                  }
+                ],
+                "materialsSem2": [
+                  {
+                    "orderNumber": 2,
+                    "tpCode": "TP.10.2.1",
+                    "tpName": "Rumusan TP operasional berdasarkan teks CP",
+                    "essentialMaterial": "Bab 2: Ruang Lingkup Materi Spesifik Semester 2 dari CP",
+                    "elementName": "Elemen CP Terkait",
+                    "allocatedHours": 18,
+                    "assessmentStrategy": "Penilaian Sumatif",
+                    "deepLearningMethod": "Sub-materi & objek kajian rinci dari CP"
+                  }
+                ]
+              }
+            ],
+            "executiveSummary": "Ringkasan akurat berbasis isi dokumen CP yang terbaca.",
+            "documentInsights": {
+              "diktumSummary": "Ringkasan ketentuan umum diktum penetapan (KESATU, KEDUA, dst.) bila terbaca di bagian ini beserta [Hal. X]",
+              "legalBasis": ["Undang-Undang / PP / Permendikbudristek / Permendikdasmen dasar hukum bila terbaca"],
+              "revokedRegulations": ["Nomor aturan sebelumnya yang dicabut bila terbaca"],
+              "lampiranMap": [{ "lampiran": "LAMPIRAN I..V", "title": "Judul/cakupan lampiran", "pageRange": "Hal. X–Y" }],
+              "deepLearningAndDimensions": "Penjelasan paradigma pembelajaran mendalam & 8 Dimensi Profil Lulusan sesuai teks dokumen",
+              "phaseContinuityNotes": "Kesinambungan Fase Fondasi hingga Fase A–F & perbedaan pendekatan antarjenjang"
+            },
+            "elements": [
+              {
+                "name": "Nama Elemen CP Resmi",
+                "description": "Deskripsi capaian elemen sesuai dokumen CP",
+                "competencies": ["Kompetensi KKO HOTS"],
+                "essentialMaterials": ["Topik / Materi Esensial Spesifik dari CP"]
+              }
+            ],
+            "materialsSem1": [],
+            "materialsSem2": [],
+            "kktpSummary": "Panduan interval nilai ketuntasan."
+          }
+          `;
 
-        if (responseText) {
-          let jsonCandidate = responseText;
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            jsonCandidate = jsonMatch[0];
+          const contentPayload: any =
+            chunkIdx === 0 && pdfInlinePart && chunkText.length < 180000
+              ? [pdfInlinePart, deepAnalysisPrompt]
+              : deepAnalysisPrompt;
+
+          const responseText = await generateWithAiResilience(
+            ai,
+            contentPayload,
+            {
+              systemInstruction:
+                'Anda adalah Analis Kurikulum Nasional Indonesia yang sangat ketat anti-halusinasi: gunakan HANYA isi dokumen CP yang diberikan dan keluarkan JSON valid.',
+              temperature: 0.2,
+            },
+            'gemini-3.8-flash'
+          );
+
+          if (responseText) {
+            chunksProcessed += 1;
+            aiAnalyzedCharacters += chunkText.length;
+            let jsonCandidate = responseText;
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              jsonCandidate = jsonMatch[0];
+            }
+            try {
+              const parsedChunk = JSON.parse(jsonCandidate);
+              if (!analysisResult) {
+                analysisResult = parsedChunk;
+              } else {
+                const prevSubs = Array.isArray(analysisResult.analyzedSubjects) ? analysisResult.analyzedSubjects : [];
+                const nextSubs = Array.isArray(parsedChunk.analyzedSubjects) ? parsedChunk.analyzedSubjects : [];
+                analysisResult.analyzedSubjects = [...prevSubs, ...nextSubs];
+              }
+            } catch (e) {
+              console.warn('Could not parse JSON directly from Gemini CP analysis:', (e as Error)?.message);
+              summaryMarkdown = summaryMarkdown || responseText;
+            }
           }
-          try {
-            analysisResult = JSON.parse(jsonCandidate);
-          } catch (e) {
-            console.warn('Could not parse JSON directly from Gemini CP analysis:', (e as Error)?.message);
-            summaryMarkdown = responseText;
-          }
+        } catch (err) {
+          console.warn(`AI CP Analysis chunk ${chunkIdx + 1} error:`, (err as Error)?.message || err);
         }
-      } catch (err) {
-        console.warn('AI CP Analysis error:', (err as Error)?.message || err);
       }
     }
 
-    // Prepare intelligent CP-grounded fallback using shared heuristic + official presets
+    const strictDocMode = extractedText.trim().length >= 120;
+
+    // Prepare intelligent CP-grounded fallback using shared heuristic (strict document-only when text exists)
     if (!analysisResult) {
       const heuristic = analyzeCPTextHeuristic({
         fileName: fileName || `Capaian Pembelajaran ${subject}`,
@@ -1691,7 +1844,10 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
         phaseHint: phase,
         totalHoursHint: totalHours,
         jpPerWeekHint: jpPerWeek,
-        getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+        strictDocumentOnly: strictDocMode,
+        getFallbackPreset: strictDocMode
+          ? undefined
+          : (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
       });
 
       const mdElements = (heuristic.elements || [])
@@ -1737,24 +1893,56 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
         phaseHint: resolvedAiPhase,
         totalHoursHint: Number(aiMeta.totalHoursPerYear) || totalHours,
         jpPerWeekHint: Number(aiMeta.jpPerWeek) || jpPerWeek,
-        getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+        strictDocumentOnly: strictDocMode,
+        getFallbackPreset: strictDocMode
+          ? undefined
+          : (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
       });
 
+      const lowerFullText = effectiveRawText.toLowerCase();
       const normalizedAiSubjects = Array.isArray(analysisResult.analyzedSubjects)
-        ? analysisResult.analyzedSubjects.map((entry: any) => {
-            const eLvl = normalizeSchoolLevel(entry?.level || resolvedAiLevel, entry?.subject);
-            const eGrd = Number(entry?.grade) || resolvedAiGrade;
-            const ePhs = entry?.phase || resolvePhaseByLevelAndGrade(eLvl, eGrd);
-            return {
-              ...entry,
-              level: eLvl,
-              grade: eGrd,
-              phase: ePhs,
-              subLevelLabel: entry?.subLevelLabel || getSchoolLevelDisplay(eLvl, eGrd).subLabel,
-              jpPerWeek: Number(entry?.jpPerWeek) || jpPerWeek,
-              totalHoursPerYear: Number(entry?.totalHoursPerYear) || totalHours,
-            };
-          })
+        ? analysisResult.analyzedSubjects
+            .filter((entry: any) => {
+              const sName = (entry?.subject || '').trim();
+              if (!sName || sName.toLowerCase() === 'mata pelajaran teridentifikasi') return false;
+              // If full document text is present (>= 300 chars), ensure the AI subject actually appears in the document text
+              if (effectiveRawText.length >= 300) {
+                const probe = sName.toLowerCase().replace(/\s*\([^)]*\)\s*/g, '').trim();
+                const words = probe.split(/\s+/).filter((w) => w.length >= 4);
+                const appears =
+                  lowerFullText.includes(probe) ||
+                  (words.length > 0 && words.every((w) => lowerFullText.includes(w)));
+                if (!appears) return false;
+              }
+              return true;
+            })
+            .map((entry: any) => {
+              const rawGrd = Number(entry?.grade) || resolvedAiGrade;
+              const rawPhs = String(entry?.phase || '');
+              const eLvl = normalizeSchoolLevel(
+                entry?.level || resolvedAiLevel,
+                `${entry?.subject || ''} ${rawPhs} ${rawGrd ? `Kelas ${rawGrd}` : ''}`
+              );
+              const eGrd = rawGrd;
+              const ePhs = rawPhs || resolvePhaseByLevelAndGrade(eLvl, eGrd);
+              return {
+                ...entry,
+                level: eLvl,
+                grade: eGrd,
+                phase: ePhs,
+                subLevelLabel: entry?.subLevelLabel || getSchoolLevelDisplay(eLvl, eGrd).subLabel,
+                categoryTag:
+                  entry?.categoryTag === 'Pilihan/Tingkat Lanjut' ||
+                  entry?.categoryTag === 'Kejuruan/Konsentrasi' ||
+                  entry?.categoryTag === 'Umum/Wajib'
+                    ? entry.categoryTag
+                    : undefined,
+                locationRef: typeof entry?.locationRef === 'string' && entry.locationRef.trim() ? entry.locationRef.trim() : undefined,
+                specialNotes: typeof entry?.specialNotes === 'string' && entry.specialNotes.trim() ? entry.specialNotes.trim() : undefined,
+                jpPerWeek: Number(entry?.jpPerWeek) || jpPerWeek,
+                totalHoursPerYear: Number(entry?.totalHoursPerYear) || totalHours,
+              };
+            })
         : [];
 
       analysisResult.analyzedSubjects = mergeAnalyzedSubjects(
@@ -1763,11 +1951,75 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
       );
     }
 
+    const finalSubjects = Array.isArray(analysisResult.analyzedSubjects) ? analysisResult.analyzedSubjects : [];
+    const levelRecap = buildLevelRecapFromSubjects(finalSubjects, effectiveRawText || extractedText);
+    const phaseDirectory = buildPhaseDirectoryByLevel(finalSubjects, effectiveRawText || extractedText);
+    const totalChars = extractedText.length;
+    const isFullyAi = totalChars > 0 ? aiAnalyzedCharacters >= totalChars : chunksProcessed > 0;
+    const readSectionsSummary = levelRecap
+      .filter((r) => r.uniqueSubjectCount > 0)
+      .map((r) => `${r.label}: ${r.uniqueSubjectCount} mapel (${r.phasesCovered.join(', ')})`);
+
+    const coverageReport: CPCoverageReport = {
+      totalCharacters: totalChars,
+      aiAnalyzedCharacters: Math.min(totalChars, aiAnalyzedCharacters),
+      totalPdfPages: totalPdfPages || undefined,
+      chunksProcessed,
+      totalChunksNeeded,
+      isFullyAnalyzedByAI: isFullyAi,
+      isFullyScannedStructurally: true,
+      readSectionsSummary,
+      unreadOrTruncatedNotice:
+        totalChars > AI_CHUNK_SIZE * MAX_AI_CHUNKS && !isFullyAi
+          ? `Dokumen berkapasitas besar (${totalChars.toLocaleString('id-ID')} karakter${totalPdfPages ? `, ${totalPdfPages} halaman` : ''}). AI menganalisis mendalam ${Math.min(totalChars, aiAnalyzedCharacters).toLocaleString('id-ID')} karakter (${chunksProcessed}/${totalChunksNeeded} bagian), sedangkan pemindai struktural membaca 100% seluruh dokumen.`
+          : !ai && totalChars > 0
+            ? 'Pemindai struktural membaca 100% teks dokumen secara langsung (mode offline/tanpa AI).'
+            : undefined,
+    };
+
+    const heuristicInsights = extractCPDocumentInsights(
+      effectiveRawText || extractedText,
+      finalSubjects,
+      coverageReport
+    );
+    const aiIns = (analysisResult.documentInsights || {}) as Partial<CPDocumentInsights>;
+    const documentInsights: CPDocumentInsights = {
+      diktumSummary:
+        typeof aiIns.diktumSummary === 'string' && aiIns.diktumSummary.trim()
+          ? aiIns.diktumSummary.trim()
+          : heuristicInsights.diktumSummary,
+      legalBasis:
+        Array.isArray(aiIns.legalBasis) && aiIns.legalBasis.length > 0
+          ? aiIns.legalBasis.map(String)
+          : heuristicInsights.legalBasis,
+      revokedRegulations:
+        Array.isArray(aiIns.revokedRegulations) && aiIns.revokedRegulations.length > 0
+          ? aiIns.revokedRegulations.map(String)
+          : heuristicInsights.revokedRegulations,
+      lampiranMap:
+        Array.isArray(aiIns.lampiranMap) && aiIns.lampiranMap.length >= (heuristicInsights.lampiranMap?.length || 0)
+          ? aiIns.lampiranMap
+          : heuristicInsights.lampiranMap,
+      deepLearningAndDimensions:
+        typeof aiIns.deepLearningAndDimensions === 'string' && aiIns.deepLearningAndDimensions.trim()
+          ? aiIns.deepLearningAndDimensions.trim()
+          : heuristicInsights.deepLearningAndDimensions,
+      phaseContinuityNotes:
+        typeof aiIns.phaseContinuityNotes === 'string' && aiIns.phaseContinuityNotes.trim()
+          ? aiIns.phaseContinuityNotes.trim()
+          : heuristicInsights.phaseContinuityNotes,
+      countingMethodology: heuristicInsights.countingMethodology,
+    };
+
     const markdownOutput = analysisResult.fullMarkdownReport || summaryMarkdown || analysisResult.executiveSummary;
 
     res.json({
       success: true,
       data: analysisResult,
+      coverageReport,
+      documentInsights,
+      levelRecap,
+      phaseDirectory,
       summary: markdownOutput,
       analysis: markdownOutput,
       content: markdownOutput,

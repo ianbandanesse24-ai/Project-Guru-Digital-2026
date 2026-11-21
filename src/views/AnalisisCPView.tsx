@@ -393,9 +393,9 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
     try {
       const parsed = await UniversalFileParser.parseFile(file);
       if (parsed.extractedText) {
-        const sliced = parsed.extractedText.slice(0, 65000);
-        setCpText(sliced);
-        await handleAnalyzeCPToMaterials(sliced, file.name);
+        const fullText = parsed.extractedText;
+        setCpText(fullText.slice(0, 120000));
+        await handleAnalyzeCPToMaterials(fullText, file.name);
       } else {
         setSaveToast(`Berkas "${file.name}" terbaca sebagai dokumen biner. Klik "Analisis CP" atau tempel teks CP untuk mengekstrak Bab.`);
         setTimeout(() => setSaveToast(null), 4000);

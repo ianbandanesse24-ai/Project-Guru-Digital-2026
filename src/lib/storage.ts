@@ -1290,6 +1290,22 @@ export class StorageService {
       saveToStorage(this.getUserScopedKey(KEYS.CP_DISTRIBUTIONS, targetUserId), []);
       saveToStorage(this.getUserScopedKey(KEYS.CP_REFS, targetUserId), INITIAL_CP_REFERENCES);
       saveToStorage(this.getUserScopedKey(KEYS.KALENDER_PENDIDIKAN, targetUserId), DEFAULT_KALENDER_PENDIDIKAN);
+
+      const actingUser = this.getUsers().find((u) => u.id === targetUserId) || this.getCurrentUser();
+      if (actingUser?.role === 'admin') {
+        saveToStorage(KEYS.MASTER_CP_CATALOG, []);
+        this.saveAdminSettings({
+          adminUploadedCPs: [],
+          updatedBy: actingUser.name || DEFAULT_ADMIN.name,
+        });
+        this.clearAdminCPCatalogOnServer();
+        try {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('master-cp-catalog-updated'));
+            window.dispatchEvent(new CustomEvent('admin-cp-updated', { detail: [] }));
+          }
+        } catch {}
+      }
       clearedCategories.push('Kurikulum (Analisis CP, Distribusi CP & Kaldik)');
     }
 
@@ -1601,8 +1617,22 @@ export class StorageService {
     const totSem1 = normSem1.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0);
     const totSem2 = normSem2.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0);
 
+    const compactCpText = (masterData.cpText || '').slice(0, 120000);
+    const compactReport = (masterData.fullMarkdownReport || '').slice(0, 30000);
+    const compactAnalyzedSubjects = Array.isArray(masterData.analyzedSubjects)
+      ? masterData.analyzedSubjects.map((sub) => ({
+          ...sub,
+          cpText: (sub.cpText || '').slice(0, 4000),
+        }))
+      : undefined;
+
+    const { fileBase64: _dropBase64, ...restMasterData } = masterData as ActiveMasterCPData & { fileBase64?: string };
+
     const normalizedMasterData: ActiveMasterCPData = {
-      ...masterData,
+      ...restMasterData,
+      cpText: compactCpText,
+      fullMarkdownReport: compactReport || undefined,
+      analyzedSubjects: compactAnalyzedSubjects,
       jpPerWeek: effectiveJpPerWeek,
       materialsSem1: normSem1,
       materialsSem2: normSem2,
@@ -1629,7 +1659,7 @@ export class StorageService {
       totalTPCount: (normSem1.length) + (normSem2.length),
       jpPerWeek: effectiveJpPerWeek,
       timeAllocationPerWeek: masterData.timeAllocationPerWeek,
-      cpText: masterData.cpText,
+      cpText: compactCpText.slice(0, 12000),
       elements: masterData.elements?.map(e => ({ name: e.name, description: e.description })),
       materialsSem1: normSem1,
       materialsSem2: normSem2,
@@ -1670,14 +1700,14 @@ export class StorageService {
       uploadedAt: masterData.uploadedAt || new Date().toISOString().substring(0, 16),
       uploadedBy: masterData.teacherName || 'Admin Master',
       fileName: masterData.fileName,
-      cpText: masterData.cpText,
+      cpText: compactCpText.slice(0, 12000),
       elements: (masterData.elements || []).map(e => ({
         name: e.name,
         description: e.description,
         competencies: e.competencies || ['Pemahaman Konsep', 'Keterampilan Proses', 'Nalar Kritis 6C'],
         essentialMaterials: e.essentialMaterials || [masterData.subject],
       })),
-      rawText: masterData.fullMarkdownReport || masterData.cpText,
+      rawText: (compactReport || compactCpText).slice(0, 12000),
       aiAnalysisSummary: masterData.executiveSummary,
     };
     this.saveCPReferences([cpRef], userId);
@@ -1751,12 +1781,20 @@ export class StorageService {
       }
     } catch {}
 
-    // Also index analyzed subjects into Master CP Catalog in a single batch save for cross-level Parameter Kurikulum lookup
+    // Also index analyzed subjects into Master CP Catalog in a single compact batch save for cross-level Parameter Kurikulum lookup
+    let latestCatalogSnapshot: ActiveMasterCPData[] | null = null;
     try {
+      const {
+        analyzedSubjects: _omitSubs,
+        fullMarkdownReport: _omitReport,
+        cpText: _omitFullCp,
+        ...catalogBase
+      } = normalizedMasterData;
+
       const entriesToIndex: ActiveMasterCPData[] =
         normalizedMasterData.analyzedSubjects && normalizedMasterData.analyzedSubjects.length > 0
           ? normalizedMasterData.analyzedSubjects.map((entry, idx) => ({
-              ...normalizedMasterData,
+              ...catalogBase,
               id: entry.id || `${normalizedMasterData.id}-sub-${getSchoolLevelGroup(entry.level)}-${idx + 1}`,
               subject: entry.subject,
               level: entry.level,
@@ -1765,14 +1803,20 @@ export class StorageService {
               phase: entry.phase,
               jpPerWeek: entry.jpPerWeek || normalizedMasterData.jpPerWeek,
               totalHoursPerYear: entry.totalHoursPerYear || normalizedMasterData.totalHoursPerYear,
-              cpText: entry.cpText || normalizedMasterData.cpText,
+              cpText: (entry.cpText || compactCpText).slice(0, 4000),
               elements: entry.elements || normalizedMasterData.elements,
               materialsSem1: entry.materialsSem1?.length ? entry.materialsSem1 : normalizedMasterData.materialsSem1,
               materialsSem2: entry.materialsSem2?.length ? entry.materialsSem2 : normalizedMasterData.materialsSem2,
               updatedAt: new Date().toISOString(),
             }))
           : normalizedMasterData.subject
-          ? [{ ...normalizedMasterData, updatedAt: new Date().toISOString() }]
+          ? [
+              {
+                ...catalogBase,
+                cpText: compactCpText.slice(0, 4000),
+                updatedAt: new Date().toISOString(),
+              },
+            ]
           : [];
 
       if (entriesToIndex.length > 0) {
@@ -1794,6 +1838,18 @@ export class StorageService {
           }
         });
         this.saveMasterCPCatalog(catalog);
+        latestCatalogSnapshot = catalog;
+      }
+    } catch {}
+
+    // Persist Admin CP Catalog & Active Master CP to backend so Guru sessions automatically inherit all Admin CP BSKAP 046 subjects
+    try {
+      const currentUser = this.getCurrentUser();
+      if (!skipReverseSync && (currentUser?.role === 'admin' || normalizedMasterData.uploadedByRole === 'admin')) {
+        const adminCatalog = (latestCatalogSnapshot || this.getMasterCPCatalog()).filter(
+          (c) => c.uploadedByRole === 'admin' || currentUser?.role === 'admin'
+        );
+        this.syncAdminCPCatalogToServer(adminCatalog, normalizedMasterData);
       }
     } catch {}
 
@@ -1857,78 +1913,176 @@ export class StorageService {
   }
 
   /**
-   * Mengambil daftar Mata Pelajaran & Bab/Lingkup Materi Sem 1 & 2 dari CP Master
-   * yang sesuai dengan Tingkat Sekolah yang dipilih (SD/MI/Paket A, SMP/MTs/Paket B, SMA/SMK/MA/MAK/Paket C)
+   * Mengambil daftar Mata Pelajaran & Bab/Lingkup Materi Sem 1 & 2 dari CP Master (diutamakan CP BSKAP 046 yang diupload Admin)
+   * yang sesuai dengan Tingkat Sekolah yang dipilih (SD/MI/Paket A, SMP/MTs/Paket B, SMA/MA/Paket C, SMK/MAK)
    */
   static getSubjectsFromMasterCPByLevel(level: SchoolLevel | string, userId?: string): CPSubjectEntry[] {
-    const result: CPSubjectEntry[] = [];
-    const seen = new Map<string, number>();
+    const collectWithFilter = (mode: 'admin-only' | 'non-admin'): CPSubjectEntry[] => {
+      const result: CPSubjectEntry[] = [];
+      const seen = new Map<string, number>();
 
-    const addEntry = (entry: CPSubjectEntry) => {
-      const cleanSub = (entry.subject || '').trim();
-      if (
-        !cleanSub ||
-        cleanSub.toLowerCase() === 'mata pelajaran teridentifikasi' ||
-        !isSameSchoolLevelGroup(entry.level, level) ||
-        !isSubjectAllowedForLevel(cleanSub, level)
-      ) {
-        return;
-      }
-      const key = cleanSub.toLowerCase();
-      const existingIdx = seen.get(key);
-      if (existingIdx !== undefined) {
-        // Prefer exact level match or entry with materials
-        const existing = result[existingIdx];
-        const existingHasMat = (existing.materialsSem1?.length || 0) + (existing.materialsSem2?.length || 0) > 0;
-        const incomingHasMat = (entry.materialsSem1?.length || 0) + (entry.materialsSem2?.length || 0) > 0;
-        const incomingExactLvl = entry.level === level;
-        const existingExactLvl = existing.level === level;
-        if ((!existingHasMat && incomingHasMat) || (!existingExactLvl && incomingExactLvl)) {
-          result[existingIdx] = entry;
+      const addEntry = (entry: CPSubjectEntry) => {
+        const cleanSub = (entry.subject || '').trim();
+        const lowerSub = cleanSub.toLowerCase();
+        if (
+          !cleanSub ||
+          lowerSub === 'mata pelajaran teridentifikasi' ||
+          lowerSub === 'mata pelajaran umum' ||
+          lowerSub === 'cp bskap 046' ||
+          !isSameSchoolLevelGroup(entry.level, level) ||
+          !isSubjectAllowedForLevel(cleanSub, level)
+        ) {
+          return;
         }
-        return;
+        const existingIdx = seen.get(lowerSub);
+        if (existingIdx !== undefined) {
+          const existing = result[existingIdx];
+          const existingHasMat = (existing.materialsSem1?.length || 0) + (existing.materialsSem2?.length || 0) > 0;
+          const incomingHasMat = (entry.materialsSem1?.length || 0) + (entry.materialsSem2?.length || 0) > 0;
+          const incomingExactLvl = entry.level === level;
+          const existingExactLvl = existing.level === level;
+          if ((!existingHasMat && incomingHasMat) || (!existingExactLvl && incomingExactLvl)) {
+            result[existingIdx] = entry;
+          }
+          return;
+        }
+        seen.set(lowerSub, result.length);
+        result.push(entry);
+      };
+
+      const harvestFromRawCPText = (sourceDoc: ActiveMasterCPData) => {
+        if (!sourceDoc.cpText || sourceDoc.cpText.trim().length < 40) return;
+        const targetGroup = getSchoolLevelGroup(level);
+        const levelSections = splitCPTextBySchoolLevel(sourceDoc.cpText);
+        const targetSectionText = levelSections.get(targetGroup);
+
+        if (!isSameSchoolLevelGroup(sourceDoc.level, level) && !targetSectionText) return;
+
+        const effectiveText = targetSectionText || sourceDoc.cpText;
+        const detectedNames = extractSubjectsFromCPText(effectiveText, level);
+        const hasMissing = detectedNames.some((name) => !seen.has(name.trim().toLowerCase()));
+        if (!hasMissing) return;
+
+        const heuristic = analyzeCPTextHeuristic({
+          fileName: sourceDoc.fileName,
+          rawText: effectiveText,
+          levelHint: (targetSectionText ? targetGroup : sourceDoc.level) as SchoolLevel,
+          gradeHint: targetSectionText ? undefined : sourceDoc.grade,
+          phaseHint: targetSectionText ? undefined : sourceDoc.phase,
+          totalHoursHint: sourceDoc.totalHoursPerYear,
+          jpPerWeekHint: sourceDoc.jpPerWeek,
+          getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+        });
+        heuristic.analyzedSubjects.forEach((hEntry) => addEntry(hEntry));
+      };
+
+      const collectFromMasterDoc = (doc: ActiveMasterCPData | null) => {
+        if (!doc) return;
+        if (Array.isArray(doc.analyzedSubjects)) {
+          doc.analyzedSubjects.forEach((subEntry) => addEntry(subEntry));
+        }
+        if (doc.subject) {
+          addEntry({
+            id: doc.id,
+            subject: doc.subject,
+            level: doc.level,
+            subLevelLabel: doc.subLevelLabel || getSchoolLevelDisplay(doc.level, doc.grade).subLabel,
+            grade: doc.grade,
+            phase: doc.phase,
+            jpPerWeek: doc.jpPerWeek,
+            totalHoursPerYear: doc.totalHoursPerYear,
+            cpText: doc.cpText,
+            elements: doc.elements,
+            materialsSem1: doc.materialsSem1 || [],
+            materialsSem2: doc.materialsSem2 || [],
+          });
+        }
+        harvestFromRawCPText(doc);
+      };
+
+      const catalog = this.getMasterCPCatalog();
+
+      if (mode === 'admin-only') {
+        try {
+          const adminIds = Array.from(
+            new Set([
+              DEFAULT_ADMIN.id,
+              ...this.getUsers()
+                .filter((u) => u.role === 'admin')
+                .map((u) => u.id),
+            ])
+          );
+          adminIds.forEach((adminId) => {
+            collectFromMasterDoc(this.getActiveMasterCP(adminId));
+          });
+        } catch {}
+
+        catalog
+          .filter((item) => item.uploadedByRole === 'admin')
+          .forEach((item) => collectFromMasterDoc(item));
+
+        const adminCPs = this.getAdminUploadedCPs();
+        adminCPs.forEach((item) => {
+          if (item.subject && item.level && isSameSchoolLevelGroup(item.level, level) && isSubjectAllowedForLevel(item.subject, level)) {
+            addEntry({
+              id: item.id,
+              subject: item.subject,
+              level: item.level,
+              grade: item.grade || (item.level === 'SD' ? 4 : item.level === 'SMP' ? 7 : 10),
+              phase: item.phase || resolvePhaseByLevelAndGrade(item.level, item.grade),
+              materialsSem1: [],
+              materialsSem2: [],
+            });
+          }
+        });
+      } else {
+        collectFromMasterDoc(this.getActiveMasterCP(userId));
+        catalog
+          .filter((item) => item.uploadedByRole !== 'admin')
+          .forEach((item) => collectFromMasterDoc(item));
       }
-      seen.set(key, result.length);
-      result.push(entry);
+
+      return result;
     };
 
-    const harvestFromRawCPText = (sourceDoc: ActiveMasterCPData) => {
-      if (!sourceDoc.cpText || sourceDoc.cpText.trim().length < 40) return;
-      const targetGroup = getSchoolLevelGroup(level);
-      const levelSections = splitCPTextBySchoolLevel(sourceDoc.cpText);
-      const targetSectionText = levelSections.get(targetGroup);
+    const adminSubjects = collectWithFilter('admin-only');
+    if (adminSubjects.length > 0) {
+      return adminSubjects;
+    }
+    return collectWithFilter('non-admin');
+  }
 
-      if (!isSameSchoolLevelGroup(sourceDoc.level, level) && !targetSectionText) return;
+  static findMasterCPEntry(
+    subject: string,
+    level: SchoolLevel | string,
+    grade?: number | string,
+    userId?: string
+  ): CPSubjectEntry | null {
+    const normSub = (subject || '').trim().toLowerCase();
+    if (!normSub) return null;
 
-      const effectiveText = targetSectionText || sourceDoc.cpText;
-      const detectedNames = extractSubjectsFromCPText(effectiveText, level);
-      const hasMissing = detectedNames.some((name) => !seen.has(name.trim().toLowerCase()));
-      if (!hasMissing) return;
-
-      const heuristic = analyzeCPTextHeuristic({
-        fileName: sourceDoc.fileName,
-        rawText: effectiveText,
-        levelHint: (targetSectionText ? targetGroup : sourceDoc.level) as SchoolLevel,
-        gradeHint: targetSectionText ? undefined : sourceDoc.grade,
-        phaseHint: targetSectionText ? undefined : sourceDoc.phase,
-        totalHoursHint: sourceDoc.totalHoursPerYear,
-        jpPerWeekHint: sourceDoc.jpPerWeek,
-        getFallbackPreset: (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
-      });
-      heuristic.analyzedSubjects.forEach((hEntry) => addEntry(hEntry));
-    };
-
-    const collectFromMasterDoc = (doc: ActiveMasterCPData | null) => {
+    const allCandidates: CPSubjectEntry[] = [];
+    const pushFromDoc = (doc: ActiveMasterCPData | null) => {
       if (!doc) return;
       if (Array.isArray(doc.analyzedSubjects)) {
-        doc.analyzedSubjects.forEach((subEntry) => addEntry(subEntry));
+        doc.analyzedSubjects.forEach((e) => {
+          if (
+            (e.subject || '').trim().toLowerCase() === normSub &&
+            isSameSchoolLevelGroup(e.level, level)
+          ) {
+            allCandidates.push(e);
+          }
+        });
       }
-      if (doc.subject) {
-        addEntry({
+      if (
+        (doc.subject || '').trim().toLowerCase() === normSub &&
+        isSameSchoolLevelGroup(doc.level, level)
+      ) {
+        allCandidates.push({
           id: doc.id,
           subject: doc.subject,
           level: doc.level,
-          subLevelLabel: doc.subLevelLabel || getSchoolLevelDisplay(doc.level, doc.grade).subLabel,
+          subLevelLabel: doc.subLevelLabel,
           grade: doc.grade,
           phase: doc.phase,
           jpPerWeek: doc.jpPerWeek,
@@ -1939,13 +2093,8 @@ export class StorageService {
           materialsSem2: doc.materialsSem2 || [],
         });
       }
-      harvestFromRawCPText(doc);
     };
 
-    // 1. From current user's Active Master CP (primary & analyzedSubjects)
-    collectFromMasterDoc(this.getActiveMasterCP(userId));
-
-    // 2. From ALL Admin accounts' Active Master CPs so Guru users always inherit full Admin-analyzed CP subjects across SD, SMP, SMA, SMK
     try {
       const adminIds = Array.from(
         new Set([
@@ -1955,64 +2104,29 @@ export class StorageService {
             .map((u) => u.id),
         ])
       );
-      adminIds.forEach((adminId) => {
-        if (adminId !== userId) {
-          collectFromMasterDoc(this.getActiveMasterCP(adminId));
-        }
-      });
+      adminIds.forEach((adminId) => pushFromDoc(this.getActiveMasterCP(adminId)));
     } catch {}
+    pushFromDoc(this.getActiveMasterCP(userId));
+    this.getMasterCPCatalog().forEach((item) => pushFromDoc(item));
 
-    // 3. From Global Master CP Catalog (Admin & Guru uploads across all school levels)
-    const catalog = this.getMasterCPCatalog();
-    catalog.forEach((item) => collectFromMasterDoc(item));
-
-    // 4. From Admin Uploaded CP metadata list (if uploaded prior to full analysis)
-    const adminCPs = this.getAdminUploadedCPs();
-    adminCPs.forEach((item) => {
-      if (item.subject && item.level && isSameSchoolLevelGroup(item.level, level) && isSubjectAllowedForLevel(item.subject, level)) {
-        addEntry({
-          id: item.id,
-          subject: item.subject,
-          level: item.level,
-          grade: item.grade || (item.level === 'SD' ? 4 : item.level === 'SMP' ? 7 : 10),
-          phase: item.phase || resolvePhaseByLevelAndGrade(item.level, item.grade),
-          materialsSem1: [],
-          materialsSem2: [],
-        });
-      }
-    });
-
-    return result;
-  }
-
-  static findMasterCPEntry(
-    subject: string,
-    level: SchoolLevel | string,
-    grade?: number | string,
-    userId?: string
-  ): CPSubjectEntry | null {
-    const entries = this.getSubjectsFromMasterCPByLevel(level, userId);
-    const normSub = (subject || '').trim().toLowerCase();
-    if (!normSub) return null;
-
-    if (grade !== undefined) {
-      const exactWithGrade = entries.find(
+    if (grade !== undefined && grade !== null && grade !== '') {
+      const exactWithMaterials = allCandidates.find(
         (e) =>
-          e.subject.trim().toLowerCase() === normSub &&
           Number(e.grade) === Number(grade) &&
           ((e.materialsSem1?.length || 0) > 0 || (e.materialsSem2?.length || 0) > 0)
       );
-      if (exactWithGrade) return exactWithGrade;
+      if (exactWithMaterials) return exactWithMaterials;
+      const exactNoMaterials = allCandidates.find((e) => Number(e.grade) === Number(grade));
+      if (exactNoMaterials) return exactNoMaterials;
+      return null;
     }
 
-    const withMaterials = entries.find(
-      (e) =>
-        e.subject.trim().toLowerCase() === normSub &&
-        ((e.materialsSem1?.length || 0) > 0 || (e.materialsSem2?.length || 0) > 0)
+    const withMaterials = allCandidates.find(
+      (e) => (e.materialsSem1?.length || 0) > 0 || (e.materialsSem2?.length || 0) > 0
     );
     if (withMaterials) return withMaterials;
 
-    return entries.find((e) => e.subject.trim().toLowerCase() === normSub) || null;
+    return allCandidates[0] || null;
   }
 
   static addClass(cls: Omit<ClassRoom, 'id'>, userId?: string): ClassRoom {
@@ -2489,6 +2603,7 @@ export class StorageService {
 
   static removeAdminUploadedCP(id: string): AdminUploadedCPItem[] {
     const currentSettings = this.getAdminSettings();
+    const removedItem = (currentSettings.adminUploadedCPs || []).find((item) => item.id === id);
     const filtered = (currentSettings.adminUploadedCPs || [])
       .filter((item) => item.id !== id)
       .sort((a, b) => (Number(a.no) || 0) - (Number(b.no) || 0))
@@ -2502,6 +2617,26 @@ export class StorageService {
       updatedBy: this.getCurrentUser()?.name || DEFAULT_ADMIN.name,
     });
 
+    // Keep Master CP Catalog & server CP Catalog synchronized with deleted item
+    try {
+      const removedFile = (removedItem?.fileName || '').trim().toLowerCase();
+      const updatedCatalog = this.getMasterCPCatalog().filter((c) => {
+        if (c.uploadedByRole !== 'admin') return true;
+        if (c.id === id) return false;
+        if (removedFile && (c.fileName || '').trim().toLowerCase() === removedFile) return false;
+        return true;
+      });
+      this.saveMasterCPCatalog(updatedCatalog);
+
+      const remainingAdminCatalog = updatedCatalog.filter((c) => c.uploadedByRole === 'admin');
+      if (remainingAdminCatalog.length === 0 && filtered.length === 0) {
+        saveToStorage(this.getUserScopedKey(KEYS.ACTIVE_MASTER_CP, DEFAULT_ADMIN.id), null);
+        this.clearAdminCPCatalogOnServer();
+      } else {
+        this.syncAdminCPCatalogToServer(remainingAdminCatalog, undefined);
+      }
+    } catch {}
+
     try {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('admin-cp-updated', { detail: filtered }));
@@ -2509,6 +2644,91 @@ export class StorageService {
     } catch {}
 
     return filtered;
+  }
+
+  static syncAdminCPCatalogToServer(
+    catalog: ActiveMasterCPData[],
+    activeMasterCP?: ActiveMasterCPData | null
+  ): void {
+    try {
+      if (typeof window === 'undefined' || !window.fetch) return;
+      const compactCatalog = (catalog || []).map((item) => ({
+        ...item,
+        cpText: (item.cpText || '').slice(0, 4000),
+      }));
+      let compactActive: ActiveMasterCPData | null | undefined = undefined;
+      if (activeMasterCP !== undefined) {
+        compactActive = activeMasterCP
+          ? {
+              ...activeMasterCP,
+              cpText: (activeMasterCP.cpText || '').slice(0, 80000),
+              fullMarkdownReport: (activeMasterCP.fullMarkdownReport || '').slice(0, 20000) || undefined,
+              analyzedSubjects: activeMasterCP.analyzedSubjects?.map((s) => ({
+                ...s,
+                cpText: (s.cpText || '').slice(0, 4000),
+              })),
+            }
+          : null;
+      }
+
+      fetch('/api/admin/cp-catalog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          catalog: compactCatalog,
+          ...(compactActive !== undefined ? { activeMasterCP: compactActive } : {}),
+          updatedAt: new Date().toISOString(),
+        }),
+      }).catch(() => {});
+    } catch {}
+  }
+
+  static clearAdminCPCatalogOnServer(): void {
+    try {
+      if (typeof window === 'undefined' || !window.fetch) return;
+      fetch('/api/admin/cp-catalog', { method: 'DELETE' }).catch(() => {});
+    } catch {}
+  }
+
+  static async fetchAdminCPCatalogFromServer(): Promise<{
+    catalog: ActiveMasterCPData[];
+    activeMasterCP: ActiveMasterCPData | null;
+  } | null> {
+    try {
+      if (typeof window === 'undefined' || !window.fetch) return null;
+      const res = await fetch('/api/admin/cp-catalog');
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data?.success) return null;
+
+      const serverCatalog: ActiveMasterCPData[] = Array.isArray(data.catalog) ? data.catalog : [];
+      const serverActive: ActiveMasterCPData | null = data.activeMasterCP || null;
+      const hasServerTimestamp = Boolean(data.updatedAt);
+
+      if (serverActive) {
+        saveToStorage(this.getUserScopedKey(KEYS.ACTIVE_MASTER_CP, DEFAULT_ADMIN.id), serverActive);
+      } else if (hasServerTimestamp && serverCatalog.length === 0) {
+        saveToStorage(this.getUserScopedKey(KEYS.ACTIVE_MASTER_CP, DEFAULT_ADMIN.id), null);
+      }
+
+      if (hasServerTimestamp || serverCatalog.length > 0) {
+        const localNonAdmin = this.getMasterCPCatalog().filter((c) => c.uploadedByRole !== 'admin');
+        const mergedCatalog = [...serverCatalog, ...localNonAdmin];
+        saveToStorage(KEYS.MASTER_CP_CATALOG, mergedCatalog);
+      }
+
+      try {
+        window.dispatchEvent(new Event('master-cp-catalog-updated'));
+        window.dispatchEvent(new CustomEvent('admin-cp-updated', { detail: serverCatalog }));
+        if (serverActive) {
+          window.dispatchEvent(new CustomEvent('master-cp-updated', { detail: serverActive }));
+        }
+      } catch {}
+
+      return { catalog: serverCatalog, activeMasterCP: serverActive };
+    } catch {
+      return null;
+    }
   }
 
   static async fetchAdminSettingsFromServer(): Promise<AdminSystemSettings | null> {

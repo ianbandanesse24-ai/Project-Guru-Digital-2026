@@ -92,6 +92,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
   const [activeMasterCP, setActiveMasterCP] = useState<ActiveMasterCPData | null>(() => StorageService.getActiveMasterCP());
   const [schoolProfile, setSchoolProfile] = useState<SchoolProfile>(() => StorageService.getSchoolProfile());
   const [allPlans, setAllPlans] = useState<CPDistributionPlan[]>(() => StorageService.getCPDistributions());
+  const [catalogVersion, setCatalogVersion] = useState<number>(0);
 
   const initialProf = StorageService.getSchoolProfile();
   const initialMaster = StorageService.getActiveMasterCP();
@@ -388,13 +389,19 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
       }, 50);
     };
 
+    const bumpCatalogAndSync = () => {
+      setCatalogVersion((v) => v + 1);
+      updateUserData();
+    };
+
     const unsubscribe = addStorageListener(() => {
+      setCatalogVersion((v) => v + 1);
       updateUserData();
     });
 
     window.addEventListener('master-cp-updated', handleCPEvent);
-    window.addEventListener('master-cp-catalog-updated', updateUserData);
-    window.addEventListener('admin-cp-updated', updateUserData);
+    window.addEventListener('master-cp-catalog-updated', bumpCatalogAndSync);
+    window.addEventListener('admin-cp-updated', bumpCatalogAndSync);
     window.addEventListener('school-profile-updated', handleCPEvent);
     window.addEventListener('curriculum-parameters-synced', handleCPEvent);
     window.addEventListener('curriculum-materials-changed', handleCPEvent);
@@ -403,8 +410,8 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
     return () => {
       unsubscribe();
       window.removeEventListener('master-cp-updated', handleCPEvent);
-      window.removeEventListener('master-cp-catalog-updated', updateUserData);
-      window.removeEventListener('admin-cp-updated', updateUserData);
+      window.removeEventListener('master-cp-catalog-updated', bumpCatalogAndSync);
+      window.removeEventListener('admin-cp-updated', bumpCatalogAndSync);
       window.removeEventListener('school-profile-updated', handleCPEvent);
       window.removeEventListener('curriculum-parameters-synced', handleCPEvent);
       window.removeEventListener('curriculum-materials-changed', handleCPEvent);
@@ -670,7 +677,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
       }
     });
     return merged;
-  }, [level, activeMasterCP, allPlans]);
+  }, [level, activeMasterCP, allPlans, catalogVersion]);
 
   const currentLevelShortLabel = useMemo(() => getSchoolLevelDisplay(level, grade).shortLabel, [level, grade]);
 

@@ -47,7 +47,7 @@ import {
 } from '../types';
 import { StorageService, INITIAL_CP_DISTRIBUTIONS } from '../lib/storage';
 import { ExportService } from '../lib/exportUtils';
-import { SUBJECT_MATERIAL_PRESETS, SubjectPreset, getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
+import { SUBJECT_MATERIAL_PRESETS, type SubjectPreset, getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
 import { CustomFormatSelector, CustomFormatConfig } from '../components/CustomFormatSelector';
 import { CPUploaderAndAnalyzer } from '../components/CPUploaderAndAnalyzer';
 import { generateExpertCurriculumDocument } from '../lib/curriculumEngine';
