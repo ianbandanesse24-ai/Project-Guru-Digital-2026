@@ -122,7 +122,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
       iconColor: 'text-amber-600',
       items: [
         { id: 'welcome_sync', label: 'Ucapan Selamat Datang', icon: Sparkles, iconColor: 'text-amber-600', badge: 'Halo' },
-        { id: 'saran', label: 'Kotak Saran & Masukan', icon: MessageSquare, iconColor: 'text-pink-600' },
       ],
     },
   ];

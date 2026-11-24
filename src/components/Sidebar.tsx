@@ -318,14 +318,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: 'Auto-Sync',
       desc: 'Dual Cloud & Git Backup',
     },
-    {
-      id: 'saran',
-      label: 'Kotak Saran & Masukan',
-      icon: MessageSquareHeart,
-      iconColor: 'text-pink-600',
-      iconBg: 'bg-pink-50 border-pink-200/70',
-      desc: 'Kritik, Masukan & Saran Fitur',
-    },
   ];
 
   // Filter items by search query
