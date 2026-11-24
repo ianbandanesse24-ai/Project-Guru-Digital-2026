@@ -161,7 +161,7 @@ export class GitHubSyncService {
 ---
 
 ## 🏫 Profil Satuan Pendidikan
-- **Nama Sekolah:** ${profile?.schoolName || 'SMA / SMK / MA / SMP / SD'}
+- **Nama Sekolah:** ${profile?.schoolName || 'SMA / MA / SMP / SD'}
 - **NPSN:** ${profile?.npsn || '-'}
 - **Kepala Sekolah:** ${profile?.headmasterName || '-'} (NIP: ${profile?.headmasterNip || '-'})
 - **Guru Pengampu:** ${profile?.teacherName || '-'} (NIP: ${profile?.teacherNip || '-'})

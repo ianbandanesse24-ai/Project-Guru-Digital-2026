@@ -120,12 +120,14 @@ export function normalizeSchoolLevel(level?: string, textHint?: string): SchoolL
   const combined = `${exact} ${hintUpper}`;
 
   // Strong phase/grade cues in Indonesian BSKAP 046 take precedence over generic defaults
-  if (/\bSMK\b|\bMAK\b|KEJURUAN|PROGRAM\s*4\s*TAHUN|\bKELAS\s*(?:13|XIII)\b/.test(combined)) return 'SMK';
   if (/\bFASE\s*D\b/.test(combined)) return 'SMP';
   if (/\bFASE\s*[ABC]\b/.test(combined)) return 'SD';
 
-  if (exact === 'SD' || exact === 'SMP' || exact === 'SMA' || exact === 'SMK') {
+  if (exact === 'SD' || exact === 'SMP' || exact === 'SMA') {
     return exact as SchoolLevel;
+  }
+  if (exact === 'SMK') {
+    return 'SMA';
   }
   if (/\bSMP\b|\bMTS\b|PAKET\s*B/.test(combined)) return 'SMP';
   if (/\bSD\b|\bMI\b|PAKET\s*A/.test(combined)) return 'SD';
@@ -146,7 +148,7 @@ export function resolvePhaseByLevelAndGrade(level?: string, grade?: number | str
     return 'Fase D';
   }
   if (g === 10) return 'Fase E';
-  if (g >= 11 && g <= 13) return 'Fase F';
+  if (g >= 11 && g <= 12) return 'Fase F';
   return 'Fase E';
 }
 
@@ -169,14 +171,6 @@ export function getGradeOptionsByLevel(
       { grade: 7, phase: 'Fase D', label: 'Kelas 7 (Fase D - SMP/MTs/Paket B)' },
       { grade: 8, phase: 'Fase D', label: 'Kelas 8 (Fase D - SMP/MTs/Paket B)' },
       { grade: 9, phase: 'Fase D', label: 'Kelas 9 (Fase D - SMP/MTs/Paket B)' },
-    ];
-  }
-  if (norm === 'SMK') {
-    return [
-      { grade: 10, phase: 'Fase E', label: 'Kelas 10 (Fase E - SMK/MAK)' },
-      { grade: 11, phase: 'Fase F', label: 'Kelas 11 (Fase F - SMK/MAK Program 3 & 4 Tahun)' },
-      { grade: 12, phase: 'Fase F', label: 'Kelas 12 (Fase F - SMK/MAK Program 3 & 4 Tahun)' },
-      { grade: 13, phase: 'Fase F', label: 'Kelas 13 (Fase F - SMK/MAK Program 4 Tahun)' },
     ];
   }
   return [
@@ -203,19 +197,6 @@ export function getSchoolLevelDisplay(level?: string, grade?: number | string) {
       shortLabel: 'SMP / MTs / Paket B',
       fullLabel: 'Jenjang Sekolah Menengah Pertama (SMP / MTs / Paket B)',
       subLabel: 'Fase D (Kelas 7–9)',
-    };
-  }
-  if (norm === 'SMK') {
-    return {
-      group: 'SMK' as SchoolLevelGroup,
-      shortLabel: 'SMK / MAK',
-      fullLabel: 'Jenjang Sekolah Menengah Kejuruan (SMK / MAK)',
-      subLabel:
-        numGrade === 13
-          ? 'Fase F (Kelas 11–13 SMK/MAK Program 4 Tahun)'
-          : numGrade >= 11
-          ? 'Fase F (Kelas 11–12 SMK/MAK Program 3/4 Tahun)'
-          : 'Fase E (Kelas 10 SMK/MAK)',
     };
   }
   return {
@@ -310,25 +291,6 @@ export const SUBJECTS_BY_LEVEL_GROUP: Record<SchoolLevelGroup, string[]> = {
     'Prakarya & Kewirausahaan: Rekayasa',
     'Pendidikan Digital',
   ],
-  SMK: [
-    'Pendidikan Agama & Budi Pekerti',
-    'Pendidikan Pancasila',
-    'Bahasa Indonesia',
-    'Matematika',
-    'Bahasa Inggris',
-    'Informatika',
-    'Koding dan Kecerdasan Artifisial',
-    'Projek IPAS (SMK)',
-    'Sejarah (SMK/MAK)',
-    'PJOK',
-    'Seni Budaya',
-    'Dasar-Dasar Program Keahlian (SMK)',
-    'Konsentrasi Keahlian (SMK)',
-    'Kreativitas, Inovasi, dan Kewirausahaan (SMK)',
-    'Projek Kreatif dan Kewirausahaan (PKK SMK)',
-    'Praktik Kerja Lapangan (PKL SMK)',
-    'Mata Pelajaran Pilihan Kejuruan (SMK)',
-  ],
 };
 
 export function getDefaultSubjectsByLevel(level?: string): string[] {
@@ -339,13 +301,6 @@ export function inferPrimaryLevelFromSubject(subject?: string): SchoolLevel | nu
   const s = (subject || '').trim().toLowerCase();
   if (!s) return null;
 
-  if (
-    /\(smk\)|\(mak\)|^dasar[\s-]+dasar\b|^konsentrasi\s+keahlian\b|projek\s+ipas|projek\s+kreatif\s+dan\s+kewirausahaan|kreativitas,\s*inovasi,\s*(?:dan|&)\s*kewirausahaan|\bpkk\b|\bpkl\b|praktik\s+kerja\s+lapangan|pilihan\s+(?:kejuruan|smk)|kimia\s+(?:analisis|industri|tekstil)|\bsejarah\s*\(?smk|\b(?:produksi\s+film|produksi\s+dan\s+siaran|teknik\s+(?:otomotif|komputer|jaringan|mesin|ketenagalistrikan|elektronika|pengelasan|kendaraan\s+ringan|sepeda\s+motor|audio\s+video|konstruksi|geomatika|energi)|desain\s+komunikasi\s+visual|rekayasa\s+perangkat\s+lunak|pengembangan\s+perangkat\s+lunak|akuntansi\s+(?:dan|&)\s+keuangan|manajemen\s+perkantoran|bisnis\s+(?:digital|ritel)|perhotelan|kuliner|tata\s+(?:busana|boga|kecantikan)|asisten\s+keperawatan|layanan\s+kesehatan|agribisnis|nautika|teknika\s+kapal)\b/i.test(
-      s
-    )
-  ) {
-    return 'SMK';
-  }
   if (
     s === 'ipas' ||
     s === 'ilmu pengetahuan alam dan sosial' ||
@@ -364,7 +319,7 @@ export function inferPrimaryLevelFromSubject(subject?: string): SchoolLevel | nu
     return 'SMP';
   }
   if (
-    /\(sma\)|\(paket\s*c\)|\bfisika\b|\bkimia\b(?!\s+(?:analisis|industri|tekstil)|.*dasar)|\bbiologi\b|\bgeografi\b|\bekonomi\b|\bsosiologi\b|\bantropologi\b|tingkat\s+lanjut|\bbahasa\s+(?:arab|jepang|jerman|korea|mandarin|prancis|perancis)\b|\bprakarya\s*(?:&|dan)\s*kewirausahaan\b|\bpkwu\b/i.test(
+    /\(sma\)|\(paket\s*c\)|\bfisika\b|\bkimia\b|\bbiologi\b|\bgeografi\b|\bekonomi\b|\bsosiologi\b|\bantropologi\b|tingkat\s+lanjut|\bbahasa\s+(?:arab|jepang|jerman|korea|mandarin|prancis|perancis)\b|\bprakarya\s*(?:&|dan)\s*kewirausahaan\b|\bpkwu\b/i.test(
       s
     )
   ) {
@@ -397,16 +352,6 @@ export function inferDefaultPhaseAndGradeForSubject(
   if (grp === 'SMP') {
     return { phase: 'Fase D', grade: 7 };
   }
-  if (grp === 'SMK') {
-    if (
-      /konsentrasi\s+keahlian|kreativitas,\s*inovasi|projek\s+kreatif|\bpkk\b|praktik\s+kerja|\bpkl\b|pilihan\s+(?:kejuruan|smk)|kimia\s+(?:analisis|industri|tekstil)|produksi\s+dan\s+siaran|produksi\s+film/i.test(
-        s
-      )
-    ) {
-      return { phase: 'Fase F', grade: 11 };
-    }
-    return { phase: 'Fase E', grade: 10 };
-  }
   // SMA
   if (
     /\bfisika\b|\bkimia\b|\bbiologi\b|\bgeografi\b|\bekonomi\b|\bsosiologi\b|\bantropologi\b|tingkat\s+lanjut|\bprakarya\s*(?:&|dan)\s*kewirausahaan\b|\bpkwu\b|\bbahasa\s+(?:arab|jepang|jerman|korea|mandarin|prancis|perancis)\b/i.test(
@@ -423,15 +368,15 @@ export function isSubjectAllowedForLevel(subject: string, targetLevel: SchoolLev
   const s = (subject || '').trim().toLowerCase();
   if (!s) return false;
 
-  const isSmkChemistryConcentration = /\bkimia\s+(?:analisis|industri|tekstil)\b/i.test(s);
-  const isSmkOnlyName =
-    isSmkChemistryConcentration ||
+  const isExcludedVocationalName =
+    /\bkimia\s+(?:analisis|industri|tekstil)\b/i.test(s) ||
     /\(smk\)|\(mak\)|^dasar[\s-]+dasar\b|konsentrasi\s+keahlian|projek\s+ipas|projek\s+kreatif\s+dan\s+kewirausahaan|kreativitas,\s*inovasi,\s*(?:dan|&)\s*kewirausahaan|\bpkk\b|\bpkl\b|praktik\s+kerja\s+lapangan|pilihan\s+(?:kejuruan|smk)/i.test(
       s
     );
+  if (isExcludedVocationalName) return false;
+
   const isSmaOnlyName =
-    !isSmkOnlyName &&
-    /\(sma\)|\(paket\s*c\)|\bfisika\b|\bkimia\b(?!.*dasar)|\bbiologi\b|\bgeografi\b|\bekonomi\b|\bsosiologi\b|\bantropologi\b|tingkat\s+lanjut|\bbahasa\s+(?:jerman|perancis|prancis|arab|jepang|korea|mandarin)\b|\bprakarya\s*(?:&|dan)\s*kewirausahaan\b|\bpkwu\b/i.test(
+    /\(sma\)|\(paket\s*c\)|\bfisika\b|\bkimia\b|\bbiologi\b|\bgeografi\b|\bekonomi\b|\bsosiologi\b|\bantropologi\b|tingkat\s+lanjut|\bbahasa\s+(?:jerman|perancis|prancis|arab|jepang|korea|mandarin)\b|\bprakarya\s*(?:&|dan)\s*kewirausahaan\b|\bpkwu\b/i.test(
       s
     );
   const isSdOnlyIpas =
@@ -446,38 +391,34 @@ export function isSubjectAllowedForLevel(subject: string, targetLevel: SchoolLev
     s === 'ilmu pengetahuan sosial' ||
     s === 'ilmu pengetahuan alam (ipa)' ||
     s === 'ilmu pengetahuan sosial (ips)';
-  const isSecondarySejarah = /^sejarah(?:\s+tingkat\s+lanjut|\s*\(?smk(?:\/mak)?\)?)?$/i.test(s);
+  const isSecondarySejarah = /^sejarah(?:\s+tingkat\s+lanjut)?$/i.test(s);
   // In Kepka BSKAP 046, Prakarya (Budi Daya/Kerajinan/Pengolahan/Rekayasa) spans SMP (Fase D) AND SMA (Fase E)
   const isPrakaryaAspect = /^prakarya(?:\s*[:\-–]\s*(?:budi\s*daya|kerajinan|pengolahan|rekayasa))?$/i.test(s);
 
   if (grp === 'SMA') {
-    if (isSmkOnlyName || isSdOnlyIpas) return false;
-    return true;
-  }
-  if (grp === 'SMK') {
-    if (isSmaOnlyName || isSdOnlyIpas || isSmpOrSmaIpaIps || isPrakaryaAspect) return false;
+    if (isSdOnlyIpas) return false;
     return true;
   }
   if (grp === 'SD') {
-    if (isSmkOnlyName || isSmaOnlyName || isSmpOrSmaIpaIps || isSecondarySejarah || isPrakaryaAspect) return false;
+    if (isSmaOnlyName || isSmpOrSmaIpaIps || isSecondarySejarah || isPrakaryaAspect) return false;
     return true;
   }
   if (grp === 'SMP') {
-    if (isSmkOnlyName || isSmaOnlyName || isSdOnlyIpas || isSecondarySejarah) return false;
+    if (isSmaOnlyName || isSdOnlyIpas || isSecondarySejarah) return false;
     return true;
   }
   return true;
 }
 
 export const KNOWN_SUBJECT_PATTERNS: Array<{ pattern: RegExp; canonical: string; preferredGroup?: SchoolLevelGroup }> = [
-  { pattern: /\bpendidikan\s+agama\s+islam(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b|\bpai\b/i, canonical: 'Pendidikan Agama Islam & Budi Pekerti' },
-  { pattern: /\bpendidikan\s+agama\s+kristen(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b/i, canonical: 'Pendidikan Agama Kristen & Budi Pekerti' },
-  { pattern: /\bpendidikan\s+agama\s+katolik(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b/i, canonical: 'Pendidikan Agama Katolik & Budi Pekerti' },
-  { pattern: /\bpendidikan\s+agama\s+hindu(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b/i, canonical: 'Pendidikan Agama Hindu & Budi Pekerti' },
-  { pattern: /\bpendidikan\s+agama\s+buddha(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b/i, canonical: 'Pendidikan Agama Buddha & Budi Pekerti' },
-  { pattern: /\bpendidikan\s+agama\s+khonghucu(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b/i, canonical: 'Pendidikan Agama Khonghucu & Budi Pekerti' },
-  { pattern: /\bpendidikan\s+kepercayaan\b/i, canonical: 'Pendidikan Kepercayaan Terhadap Tuhan YME' },
-  { pattern: /\bpendidikan\s+agama(?!\s+(?:islam|kristen|katolik|hindu|buddha|budha|khonghucu|konghucu))(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b|\bpabp\b/i, canonical: 'Pendidikan Agama & Budi Pekerti' },
+  { pattern: /\b(?:pendidikan\s+)?agama\s+islam(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b|\bpai\b/i, canonical: 'Pendidikan Agama Islam & Budi Pekerti' },
+  { pattern: /\b(?:pendidikan\s+)?agama\s+kristen(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b/i, canonical: 'Pendidikan Agama Kristen & Budi Pekerti' },
+  { pattern: /\b(?:pendidikan\s+)?agama\s+katolik(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b/i, canonical: 'Pendidikan Agama Katolik & Budi Pekerti' },
+  { pattern: /\b(?:pendidikan\s+)?agama\s+hindu(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b/i, canonical: 'Pendidikan Agama Hindu & Budi Pekerti' },
+  { pattern: /\b(?:pendidikan\s+)?agama\s+buddha(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b/i, canonical: 'Pendidikan Agama Buddha & Budi Pekerti' },
+  { pattern: /\b(?:pendidikan\s+)?agama\s+khonghucu(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b/i, canonical: 'Pendidikan Agama Khonghucu & Budi Pekerti' },
+  { pattern: /\b(?:pendidikan\s+)?kepercayaan(?:\s+terhadap\s+tuhan\s+yme)?\b/i, canonical: 'Pendidikan Kepercayaan Terhadap Tuhan YME' },
+  { pattern: /\b(?:pendidikan\s+)?agama(?!\s+(?:islam|kristen|katolik|hindu|buddha|budha|khonghucu|konghucu))(?:\s+(?:dan|&)\s+budi\s+pekerti)?\b|\bpabp\b/i, canonical: 'Pendidikan Agama & Budi Pekerti' },
   { pattern: /\bpendidikan\s+pancasila\b|\bppkn\b/i, canonical: 'Pendidikan Pancasila' },
   { pattern: /\bbahasa\s+indonesia\s+tingkat\s+lanjut\b/i, canonical: 'Bahasa Indonesia Tingkat Lanjut', preferredGroup: 'SMA' },
   { pattern: /\bbahasa\s+indonesia\b/i, canonical: 'Bahasa Indonesia' },
@@ -492,21 +433,16 @@ export const KNOWN_SUBJECT_PATTERNS: Array<{ pattern: RegExp; canonical: string;
   { pattern: /\bbahasa\s+daerah\b|\bmuatan\s+lokal\b/i, canonical: 'Muatan Lokal / Bahasa Daerah' },
   { pattern: /\bmatematika\s+tingkat\s+lanjut\b/i, canonical: 'Matematika Tingkat Lanjut', preferredGroup: 'SMA' },
   { pattern: /\bmatematika\b/i, canonical: 'Matematika' },
-  { pattern: /\bprojek\s+(?:ilmu\s+pengetahuan\s+alam\s+dan\s+sosial|ipas)\b|\bipas\s*\(?smk\)?/i, canonical: 'Projek IPAS (SMK)', preferredGroup: 'SMK' },
   { pattern: /(?<!projek\s)(?:\bipas\b|ilmu\s+pengetahuan\s+alam\s+dan\s+sosial)/i, canonical: 'IPAS', preferredGroup: 'SD' },
   { pattern: /\b(?:ilmu\s+pengetahuan\s+alam(?!\s+dan\s+sosial)|(?<!projek\s)ipa(?=\s*(?:\(|$|\n|:|-|dan\s+ips|fase|kelas|smp|mts)))\b/i, canonical: 'IPA', preferredGroup: 'SMP' },
   { pattern: /\b(?:ilmu\s+pengetahuan\s+sosial|ips(?=\s*(?:\(|$|\n|:|-|fase|kelas|smp|mts)))\b/i, canonical: 'IPS', preferredGroup: 'SMP' },
   { pattern: /\bfisika\b/i, canonical: 'Fisika', preferredGroup: 'SMA' },
-  { pattern: /\bkimia\s+analisis\b/i, canonical: 'Kimia Analisis (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bkimia\s+industri\b/i, canonical: 'Kimia Industri (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bkimia\s+tekstil\b/i, canonical: 'Kimia Tekstil (SMK)', preferredGroup: 'SMK' },
   { pattern: /\bkimia\b(?!\s+(?:analisis|industri|tekstil))/i, canonical: 'Kimia', preferredGroup: 'SMA' },
   { pattern: /\bbiologi\b/i, canonical: 'Biologi', preferredGroup: 'SMA' },
   { pattern: /\bkoding\s+dan\s+kecerdasan\s+artifisial\b|\bkecerdasan\s+artifisial\b/i, canonical: 'Koding dan Kecerdasan Artifisial' },
   { pattern: /\binformatika\b/i, canonical: 'Informatika' },
-  { pattern: /\bsejarah\s+smk(?:\/mak)?\b/i, canonical: 'Sejarah (SMK/MAK)', preferredGroup: 'SMK' },
   { pattern: /\bsejarah\s+tingkat\s+lanjut\b/i, canonical: 'Sejarah Tingkat Lanjut', preferredGroup: 'SMA' },
-  { pattern: /\bsejarah\b/i, canonical: 'Sejarah', preferredGroup: 'SMA' },
+  { pattern: /\bsejarah\b(?!\s+smk)/i, canonical: 'Sejarah', preferredGroup: 'SMA' },
   { pattern: /\bgeografi\b/i, canonical: 'Geografi', preferredGroup: 'SMA' },
   { pattern: /\bekonomi\b/i, canonical: 'Ekonomi', preferredGroup: 'SMA' },
   { pattern: /\bsosiologi\b/i, canonical: 'Sosiologi', preferredGroup: 'SMA' },
@@ -532,44 +468,17 @@ export const KNOWN_SUBJECT_PATTERNS: Array<{ pattern: RegExp; canonical: string;
   // Pendidikan Kesetaraan (Paket A / B / C - BSKAP 046): avoid false-matching "keterampilan proses"
   { pattern: /\bmata\s+pelajaran\s+pemberdayaan\b|^pemberdayaan$/i, canonical: 'Pemberdayaan' },
   { pattern: /\bmata\s+pelajaran\s+keterampilan\b|^(?:[ivxlcdm]+\.\s*)?(?:capaian\s+pembelajaran\s+)?keterampilan$/i, canonical: 'Keterampilan' },
-  // SMK BSKAP 046 umum & kejuruan
-  { pattern: /\bkreativitas,\s*inovasi,\s*(?:dan|&)\s*kewirausahaan\b/i, canonical: 'Kreativitas, Inovasi, dan Kewirausahaan (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bprojek\s+kreatif\s+dan\s+kewirausahaan\b|\bpkk\s*(?:smk|mak)?\b/i, canonical: 'Projek Kreatif dan Kewirausahaan (PKK SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bpraktik\s+kerja\s+lapangan\b|\bpkl\s*(?:smk|mak)?\b/i, canonical: 'Praktik Kerja Lapangan (PKL SMK)', preferredGroup: 'SMK' },
   { pattern: /\bpendidikan\s+digital\b/i, canonical: 'Pendidikan Digital', preferredGroup: 'SMA' },
-  { pattern: /\bdasar[\s-]+dasar\s+teknik\s+jaringan\s+komputer/i, canonical: 'Dasar-Dasar Teknik Jaringan Komputer & Telekomunikasi (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+pengembangan\s+perangkat\s+lunak/i, canonical: 'Dasar-Dasar Pengembangan Perangkat Lunak & Gim (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+teknik\s+otomotif\b/i, canonical: 'Dasar-Dasar Teknik Otomotif (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+teknik\s+mesin\b/i, canonical: 'Dasar-Dasar Teknik Mesin (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+teknik\s+ketenagalistrikan\b/i, canonical: 'Dasar-Dasar Teknik Ketenagalistrikan (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+teknik\s+elektronika\b/i, canonical: 'Dasar-Dasar Teknik Elektronika (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+desain\s+komunikasi\s+visual\b|\bdkv\b/i, canonical: 'Dasar-Dasar Desain Komunikasi Visual (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+akuntansi\b/i, canonical: 'Dasar-Dasar Akuntansi & Keuangan Lembaga (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+manajemen\s+perkantoran\b/i, canonical: 'Dasar-Dasar Manajemen Perkantoran & Layanan Bisnis (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+pemasaran\b/i, canonical: 'Dasar-Dasar Pemasaran (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+perhotelan\b/i, canonical: 'Dasar-Dasar Perhotelan (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+kuliner\b/i, canonical: 'Dasar-Dasar Kuliner (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+busana\b/i, canonical: 'Dasar-Dasar Busana (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+layanan\s+kesehatan\b/i, canonical: 'Dasar-Dasar Layanan Kesehatan (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+agribisnis\b/i, canonical: 'Dasar-Dasar Agribisnis (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bkonsentrasi\s+keahlian\b/i, canonical: 'Konsentrasi Keahlian (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bmata\s+pelajaran\s+pilihan\s+(?:kejuruan|smk(?:\/mak)?)\b/i, canonical: 'Mata Pelajaran Pilihan Kejuruan (SMK)', preferredGroup: 'SMK' },
-  { pattern: /\bdasar[\s-]+dasar\s+(?:program\s+)?keahlian\b/i, canonical: 'Dasar-Dasar Program Keahlian (SMK)', preferredGroup: 'SMK' },
 ];
 
 function stripLevelAnnotations(text: string): string {
   const raw = (text || '').trim();
-  // Preserve explicit SMK Sejarah indicator before removing SMK/MAK level annotations
-  const hasSmkSejarah = /\bsejarah\s*\(?smk(?:\/mak)?\)?/i.test(raw);
   const cleaned = raw
     .replace(/\((?:[^)]*(?:sd|mi|smp|mts|sma|ma|smk|mak|paket\s*[abc]|fase\s*[a-f]|kelas\s*\d+|program\s*\d+\s*tahun)[^)]*)\)/gi, ' ')
     .replace(/\b(?:untuk\s+)?(?:jenjang|tingkat)?\s*(?:sma|smk|ma|mak|smp|mts|sd|mi|paket\s*[abc]|fase\s*[a-f]|kelas\s*\d+(?:\s*[-–]\s*\d+)?|kurikulum\s+merdeka)\b.*/i, '')
     .replace(/[()]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
-  if (hasSmkSejarah && /^sejarah$/i.test(cleaned)) {
-    return 'Sejarah SMK/MAK';
-  }
   return cleaned;
 }
 
@@ -580,7 +489,7 @@ const CP_PREFIX_REGEX =
   /^(?:#{1,4}\s*|(?:[IVXLCDM]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Z])(?:[\.\)]\s*|\s+))?/;
 
 const STANDALONE_CP_HEADER_REGEX =
-  /^(?:#{1,4}\s*|(?:[IVXLCDM]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Z])(?:[\.\)]\s*|\s+))?capaian\s+pembelajaran(?:\s+mata\s+pelajaran)?\s*[:\-–]?$/i;
+  /^(?:#{1,4}\s*|(?:[IVXLCDMivxlcdm]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Za-z](?:\.\d+)*)(?:[\.\)]\s*|\s+))?capaian\s+pembelajaran(?:\s+mata\s+pelajaran)?\s*[:\-–]?$/i;
 
 function isPossibleHeadingContinuationLine(nextTrimmed: string): boolean {
   if (!nextTrimmed || nextTrimmed.length > 90) return false;
@@ -602,7 +511,7 @@ function tryJoinWrappedCPHeading(lines: string[], index: number): {
   const first = (lines[index] || '').replace(/\s+/g, ' ').trim();
   const isCPLikeLine =
     STANDALONE_CP_HEADER_REGEX.test(first) ||
-    /^(?:#{1,4}\s*|(?:[IVXLCDM]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Z])(?:[\.\)]\s*|\s+))?capaian\s+pembelajaran\b/i.test(
+    /^(?:#{1,4}\s*|(?:[IVXLCDMivxlcdm]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Za-z](?:\.\d+)*)(?:[\.\)]\s*|\s+))?capaian\s+pembelajaran\b/i.test(
       first
     );
   if (!isCPLikeLine || first.length > 135) {
@@ -621,7 +530,7 @@ function tryJoinWrappedCPHeading(lines: string[], index: number): {
   return { headingLine: combined, consumedLines: consumed };
 }
 
-function formatCustomSubjectTitle(rawCandidate: string, inSmkConcentrationSection: boolean = false): string {
+function formatCustomSubjectTitle(rawCandidate: string): string {
   const clean = (rawCandidate || '').replace(/\s+/g, ' ').replace(/[:\-–.]+$/, '').trim();
   if (!clean) return '';
   const titled = /^[A-Z0-9\s,&:/().-]+$/.test(clean)
@@ -634,31 +543,36 @@ function formatCustomSubjectTitle(rawCandidate: string, inSmkConcentrationSectio
         .replace(/\bIpa\b/g, 'IPA')
         .replace(/\bIps\b/g, 'IPS')
         .replace(/\bPjok\b/g, 'PJOK')
-        .replace(/\bSmk\/mak\b/gi, 'SMK/MAK')
-        .replace(/\bSmk\b/g, 'SMK')
-        .replace(/\bMak\b/g, 'MAK')
-        .replace(/\bPkl\b/g, 'PKL')
-        .replace(/\bPkk\b/g, 'PKK')
-        .replace(/\bDkv\b/g, 'DKV')
-        .replace(/\bTkj\b/g, 'TKJ')
-        .replace(/\bRpl\b/g, 'RPL')
-        .replace(/\bPplg\b/g, 'PPLG')
-        .replace(/\bTjkt\b/g, 'TJKT')
-        .replace(/\bCad\b/g, 'CAD')
-        .replace(/\bCnc\b/g, 'CNC')
-        .replace(/\bK3lh\b/g, 'K3LH')
     : clean;
 
-  if (inSmkConcentrationSection && !/\(smk\)|\(mak\)/i.test(titled)) {
-    return `${titled} (SMK)`;
-  }
   return titled;
+}
+
+export function normalizeCanonicalSubjectName(name: string): string {
+  if (!name) return '';
+  const trimmed = name.replace(/\s+/g, ' ').trim();
+  const known = KNOWN_SUBJECT_PATTERNS.find((p) => p.pattern.test(trimmed));
+  if (known) return known.canonical;
+  return formatCustomSubjectTitle(trimmed);
+}
+
+export function isSameSubjectName(a?: string, b?: string): boolean {
+  if (!a || !b) return false;
+  const normA = (a || '').trim().toLowerCase().replace(/&/g, 'dan').replace(/[:\-–.,]/g, ' ').replace(/\s+/g, ' ');
+  const normB = (b || '').trim().toLowerCase().replace(/&/g, 'dan').replace(/[:\-–.,]/g, ' ').replace(/\s+/g, ' ');
+  if (normA === normB) return true;
+  const canA = normalizeCanonicalSubjectName(a).toLowerCase().replace(/&/g, 'dan').replace(/\s+/g, ' ');
+  const canB = normalizeCanonicalSubjectName(b).toLowerCase().replace(/&/g, 'dan').replace(/\s+/g, ' ');
+  if (canA && canB && canA === canB) return true;
+  const stripPendA = normA.replace(/^pendidikan\s+/, '').trim();
+  const stripPendB = normB.replace(/^pendidikan\s+/, '').trim();
+  if (stripPendA === stripPendB) return true;
+  return false;
 }
 
 /**
  * Extracts explicit subject headings declared inside CP text WITHOUT filtering by a preset level.
- * Ideal for discovering the true subject (e.g. "CAPAIAN PEMBELAJARAN BIOLOGI" -> ["Biologi"])
- * before reconciling school level / phase / grade.
+ * Skips Lampiran I (PAUD), Lampiran III (SMK/MAK), and Lampiran V (Pendidikan Khusus) so only SD/SMP/SMA are collected.
  */
 export function extractAllHeadedSubjectsFromText(sourceText: string): string[] {
   const found: string[] = [];
@@ -671,35 +585,31 @@ export function extractAllHeadedSubjectsFromText(sourceText: string): string[] {
   };
 
   const lines = (sourceText || '').split(/\r?\n/);
-  const headSample = (sourceText || '').slice(0, 6000);
-  const startsAsLampiranII =
-    /LAMPIRAN\s+II\b|CAPAIAN\s+PEMBELAJARAN\s+UNTUK\s+SD\/MI/i.test(headSample);
-  let inSmkLampiran = startsAsLampiranII
-    ? false
-    : /LAMPIRAN\s+III\b|CAPAIAN\s+PEMBELAJARAN\s+PADA\s+SMK\/MAK/i.test(headSample) ||
-      /\b(?:program\s+keahlian|konsentrasi\s+keahlian|dasar[\s-]+dasar\s+teknik)\b/i.test(headSample);
+  let inSkippedLampiran = false;
 
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].replace(/\s+/g, ' ').trim();
     if (!trimmed) continue;
-    if (/^LAMPIRAN\s+III\b|^CAPAIAN\s+PEMBELAJARAN\s+PADA\s+SMK\/MAK/i.test(trimmed)) {
-      inSmkLampiran = true;
-    } else if (/^LAMPIRAN\s+(?:I|II|IV|V)\b|^CAPAIAN\s+PEMBELAJARAN\s+UNTUK\s+SD\/MI/i.test(trimmed)) {
-      inSmkLampiran = false;
+    if (
+      /^LAMPIRAN\s+(?:I|III|V)\b(?!\s*I)/i.test(trimmed) ||
+      /^CAPAIAN\s+PEMBELAJARAN\s+PADA\s+(?:SMK\/MAK|PENDIDIKAN\s+(?:ANAK\s+USIA\s+DINI|KHUSUS))/i.test(trimmed)
+    ) {
+      inSkippedLampiran = true;
+      continue;
+    } else if (/^LAMPIRAN\s+(?:II|IV)\b|^CAPAIAN\s+PEMBELAJARAN\s+UNTUK\s+SD\/MI/i.test(trimmed)) {
+      inSkippedLampiran = false;
     }
+    if (inSkippedLampiran) continue;
 
     const { headingLine, consumedLines } = tryJoinWrappedCPHeading(lines, i);
-    const isSmkKonsentrasiHeading =
-      /^V\.\d+\.?\s+CAPAIAN\s+PEMBELAJARAN\s+DASAR[\s-]+DASAR\b/i.test(headingLine) ||
-      (inSmkLampiran && /^V(?:I)?\.\d+\.?\s+CAPAIAN\s+PEMBELAJARAN\b/i.test(headingLine));
 
-    const isCpExplicitLine = /^(?:#{1,4}\s*|(?:[IVXLCDM]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Z])(?:[\.\)]\s*|\s+))?(?:Capaian\s+Pembelajaran|CAPAIAN\s+PEMBELAJARAN|Mata\s+Pelajaran\s*[:\-–]|MATA\s+PELAJARAN\s*[:\-–])/.test(
+    const isCpExplicitLine = /^(?:#{1,4}\s*|(?:[IVXLCDMivxlcdm]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Za-z](?:\.\d+)*)(?:[\.\)]\s*|\s+))?(?:capaian\s+pembelajaran|mata\s+pelajaran\s*[:\-–])/i.test(
       trimmed
     );
 
     if (isCpExplicitLine) {
       const nextAfterHeading = (lines[i + consumedLines + 1] || '').replace(/\s+/g, ' ').trim();
-      const sub = extractSubjectHeadingFromLine(headingLine, isSmkKonsentrasiHeading, true, nextAfterHeading);
+      const sub = extractSubjectHeadingFromLine(headingLine, true, nextAfterHeading);
       if (sub) {
         push(sub);
         i += consumedLines;
@@ -711,10 +621,8 @@ export function extractAllHeadedSubjectsFromText(sourceText: string): string[] {
 
 /**
  * Extracts explicit subject headings declared inside CP documents (including 2-line BSKAP headings,
- * "CAPAIAN PEMBELAJARAN BIOLOGI", "II CAPAIAN PEMBELAJARAN PENDIDIKAN PANCASILA", "VI.126. CAPAIAN PEMBELAJARAN PRODUKSI FILM",
- * numbered headers, and SMK Dasar-Dasar/Konsentrasi headers).
- * Prioritizes explicit "CAPAIAN PEMBELAJARAN <SUBJECT>" headings when present so body prose words
- * (e.g. "keterampilan proses", "reaksi kimia", "pertumbuhan ekonomi", intro TOC bullets) never pollute subject lists.
+ * e.g. "I.1. CAPAIAN PEMBELAJARAN PENDIDIKAN AGAMA ISLAM DAN BUDI PEKERTI").
+ * Prioritizes explicit "CAPAIAN PEMBELAJARAN <SUBJECT>" headings when present so body prose words never pollute subject lists.
  */
 export function extractSubjectsFromCPText(
   sourceText: string,
@@ -735,7 +643,6 @@ export function extractSubjectsFromCPText(
   explicitHeaded.forEach(pushUnique);
 
   const lines = (sourceText || '').split(/\r?\n/);
-  const targetGrp = getSchoolLevelGroup(targetLevel);
   let skipIntroTocList = false;
 
   // Pass 2: Standalone/table/strict numbered headings ONLY if no explicit "CAPAIAN PEMBELAJARAN ..." heading exists
@@ -758,12 +665,9 @@ export function extractSubjectsFromCPText(
     }
 
     const { headingLine, consumedLines } = tryJoinWrappedCPHeading(lines, i);
-    const isSmkKonsentrasi =
-      targetGrp === 'SMK' &&
-      /^V(?:I)?\.\d+\.?\s+CAPAIAN\s+PEMBELAJARAN\b/i.test(headingLine);
 
     if (explicitHeaded.length === 0) {
-      const headingSub = extractSubjectHeadingFromLine(headingLine, isSmkKonsentrasi, false);
+      const headingSub = extractSubjectHeadingFromLine(headingLine, false);
       if (headingSub) {
         pushUnique(headingSub);
         i += consumedLines;
@@ -782,8 +686,6 @@ export function extractSubjectsFromCPText(
           const knownCell = KNOWN_SUBJECT_PATTERNS.find((p) => p.pattern.test(cleanCell));
           if (knownCell) {
             pushUnique(knownCell.canonical);
-          } else if (/^(?:dasar[\s-]+dasar|konsentrasi\s+keahlian)\s+/i.test(cleanCell)) {
-            pushUnique(cleanCell);
           }
         }
       }
@@ -804,14 +706,11 @@ export function extractSubjectsFromCPText(
 
 /**
  * Slices the raw CP text section relevant to a specific subject in CP documents
- * (trims unrelated preceding pages even for single-subject slices when an explicit CP header is present)
  */
 function sliceCPTextForSubject(rawText: string, subjectName: string, allSubjects: string[]): string {
   if (!rawText) return rawText;
   const lower = rawText.toLowerCase();
-  const baseSubjectName = subjectName
-    .replace(/\s*\(SMK(?:\/MAK)?\)\s*$/i, '')
-    .trim();
+  const baseSubjectName = subjectName.trim();
   const escapedSub = baseSubjectName
     .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     .replace(/\\&/g, '(?:&|dan)');
@@ -883,16 +782,32 @@ export function mergeAnalyzedSubjects(
     }
     const existingMatCount = (existing.materialsSem1?.length || 0) + (existing.materialsSem2?.length || 0);
     const incomingMatCount = (entry.materialsSem1?.length || 0) + (entry.materialsSem2?.length || 0);
+    const incomingIsDedicatedAgama = entry.slot === 'agama' && existing.slot !== 'agama';
     merged.set(key, {
       ...existing,
       ...entry,
+      slot: entry.slot || existing.slot,
+      sourceFileName: entry.sourceFileName || existing.sourceFileName,
+      docNumber: entry.docNumber || existing.docNumber,
       locationRef: existing.locationRef || entry.locationRef,
       categoryTag: existing.categoryTag || entry.categoryTag,
       specialNotes: existing.specialNotes || entry.specialNotes,
-      materialsSem1: existingMatCount >= incomingMatCount && existing.materialsSem1?.length ? existing.materialsSem1 : entry.materialsSem1,
-      materialsSem2: existingMatCount >= incomingMatCount && existing.materialsSem2?.length ? existing.materialsSem2 : entry.materialsSem2,
+      materialsSem1: incomingIsDedicatedAgama && entry.materialsSem1?.length
+        ? entry.materialsSem1
+        : existingMatCount >= incomingMatCount && existing.materialsSem1?.length
+        ? existing.materialsSem1
+        : entry.materialsSem1,
+      materialsSem2: incomingIsDedicatedAgama && entry.materialsSem2?.length
+        ? entry.materialsSem2
+        : existingMatCount >= incomingMatCount && existing.materialsSem2?.length
+        ? existing.materialsSem2
+        : entry.materialsSem2,
       elements: existing.elements?.length ? existing.elements : entry.elements,
-      cpText: (existing.cpText?.length || 0) >= (entry.cpText?.length || 0) ? existing.cpText : entry.cpText,
+      cpText: incomingIsDedicatedAgama && (entry.cpText?.length || 0) > 20
+        ? entry.cpText
+        : (existing.cpText?.length || 0) >= (entry.cpText?.length || 0)
+        ? existing.cpText
+        : entry.cpText,
     });
   };
 
@@ -904,18 +819,17 @@ export function mergeAnalyzedSubjects(
 function detectHeadingTargetsFromLine(trimmed: string): SchoolLevelGroup[] | null {
   if (!trimmed || trimmed.length > 320) return null;
   const startsWithFaseOrHeading =
-    /^(?:#{1,4}\s*|(?:[IVXLCDM]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Z])(?:[\.\)]\s*|\s+)|•\s*)?(?:jenjang|tingkat\s+sekolah|bagian|capaian\s+pembelajaran|sekolah|madrasah|program|untuk\s+(?:sd|smp|sma|smk)|pada\s+(?:akhir\s+fase|smk\/mak)|fase\s*[a-f]\b|(?:sd|smp|sma|smk)\s*\/\s*(?:mi|mts|ma|mak)|paket\s*[abc]\b)/i.test(
+    /^(?:#{1,4}\s*|(?:[IVXLCDM]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Z])(?:[\.\)]\s*|\s+)|•\s*)?(?:jenjang|tingkat\s+sekolah|bagian|capaian\s+pembelajaran|sekolah|madrasah|program|untuk\s+(?:sd|smp|sma)|pada\s+(?:akhir\s+fase)|fase\s*[a-f]\b|(?:sd|smp|sma)\s*\/\s*(?:mi|mts|ma)|paket\s*[abc]\b)/i.test(
       trimmed
     ) ||
-    /\((?:umumnya\s+untuk[^)]*(?:sd|mi|smp|mts|sma|ma|smk|mak)|sd|mi|smp|mts|sma|ma|smk|mak)[^)]*\)/i.test(trimmed);
+    /\((?:umumnya\s+untuk[^)]*(?:sd|mi|smp|mts|sma|ma)|sd|mi|smp|mts|sma|ma)[^)]*\)/i.test(trimmed);
 
   const isLongProse =
     trimmed.length > 140 &&
     !/^(?:#{1,4}\s*|\d+(?:\.\d+)*[\.\)]\s*|[A-Z][\.\)]\s*)?(?:pada\s+akhir\s+)?fase\s*[a-f]\b/i.test(trimmed);
   if (!startsWithFaseOrHeading || isLongProse) return null;
 
-  const hasSMK = /\b(?:smk|mak)\b|sekolah\s+menengah\s+kejuruan|program\s*(?:3|4)\s*tahun|\bkelas\s*(?:13|xiii)\b/i.test(trimmed);
-  const hasSMA = /\b(?:sma|ma)\b|paket\s*c\b|sekolah\s+menengah\s+atas/i.test(trimmed);
+  const hasSMA = /\b(?:sma|ma)\b|paket\s*c\b|sekolah\s+menengah\s+atas|\bfase\s*[ef]\b/i.test(trimmed);
   const hasSMP = /\b(?:smp|mts)\b|paket\s*b\b|sekolah\s+menengah\s+pertama|\bfase\s*d\b/i.test(trimmed);
   const hasSD = /\b(?:sd|mi)\b|paket\s*a\b|sekolah\s+dasar|\bfase\s*[abc]\b/i.test(trimmed);
 
@@ -923,33 +837,26 @@ function detectHeadingTargetsFromLine(trimmed: string): SchoolLevelGroup[] | nul
   if (hasSD) targets.push('SD');
   if (hasSMP) targets.push('SMP');
   if (hasSMA) targets.push('SMA');
-  if (hasSMK) targets.push('SMK');
 
-  if (targets.length === 0) {
-    // In BSKAP 046, Fase E & Fase F cover SMA/MA and/or SMK/MAK unless filtered by isSubjectAllowedForLevel
-    if (/\bfase\s*(?:e|f)\b/i.test(trimmed)) return ['SMA', 'SMK'];
-    return null;
-  }
-  return targets;
+  return targets.length > 0 ? targets : null;
 }
 
 function extractSubjectHeadingFromLine(
   trimmed: string,
-  inSmkConcentrationSection: boolean = false,
   requireExplicitHeader: boolean = false,
   nextLineText: string = ''
 ): string | null {
   const normLine = (trimmed || '').replace(/\s+/g, ' ').trim();
   if (!normLine || normLine.length > 210) return null;
 
-  const hasSectionCodePrefix = /^(?:#{1,4}\s*|(?:[IVXLCDM]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*)(?:[\.\)]\s*|\s+))/.test(
+  const hasSectionCodePrefix = /^(?:#{1,4}\s*|(?:[IVXLCDMivxlcdm]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Za-z](?:\.\d+)*)(?:[\.\)]\s*|\s+))/.test(
     normLine
   );
 
-  // Reject wrapped prose sentences like "Capaian Pembelajaran mata pelajaran Teknik Pemesinan\nmemuat kompetensi..."
+  // Reject wrapped prose sentences
   if (
     !hasSectionCodePrefix &&
-    !/CAPAIAN\s+PEMBELAJARAN/.test(normLine) &&
+    !/CAPAIAN\s+PEMBELAJARAN/i.test(normLine) &&
     nextLineText &&
     /^[a-z]/.test(nextLineText.trim())
   ) {
@@ -958,29 +865,26 @@ function extractSubjectHeadingFromLine(
 
   // Ignore non-subject structural lines, BSKAP decree titles, and lowercase prose sentences starting with "capaian pembelajaran..."
   if (
-    /^(?:[IVXLCDM]+\.?\s*)?capaian\s+pembelajaran\s+(?:pada\s+(?:pendidikan|jenjang|smk\/mak|paud)|untuk\s+(?:sd|mi|smp|mts|sma|ma|smk|mak|mata\s+pelajaran|pengembangan\b))/i.test(
+    /^(?:[IVXLCDMivxlcdm]+\.?\s*)?capaian\s+pembelajaran\s+(?:pada\s+(?:pendidikan|jenjang|smk\/mak|paud)|untuk\s+(?:sd|mi|smp|mts|sma|ma|smk|mak|mata\s+pelajaran\s*$|pengembangan\b))/i.test(
       normLine
     ) ||
-    /^(?:[A-Z]\.\s*)?capaian\s+pembelajaran\s*$/i.test(normLine) ||
-    /^capaian\s+pembelajaran\s+(?:merupakan|adalah|yang|pada\s+akhir|setiap|untuk\s+mata\s+pelajaran)/i.test(normLine)
+    /^(?:[A-Za-z]\.\s*)?capaian\s+pembelajaran\s*$/i.test(normLine) ||
+    /^capaian\s+pembelajaran\s+(?:merupakan|adalah|yang|pada\s+akhir|setiap|untuk\s+mata\s+pelajaran\s*$)/i.test(normLine)
   ) {
     return null;
   }
 
-  // Reject unnumbered lowercase prose clauses ("capaian pembelajaran mata pelajaran konsentrasi keahlian...")
-  if (!hasSectionCodePrefix && /^capaian\s+pembelajaran\b/.test(normLine)) {
+  if (!hasSectionCodePrefix && /^capaian\s+pembelajaran\s*$/i.test(normLine)) {
     return null;
   }
 
   const cpHeadingMatch = normLine.match(
-    /^(?:#{1,4}\s*|(?:[IVXLCDM]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Z])(?:[\.\)]\s*|\s+))?(?:capaian\s+pembelajaran\s+(?:mata\s+pelajaran\s+)?|mata\s+pelajaran\s*[:\-–]\s*)(.+)$/i
+    /^(?:#{1,4}\s*|(?:[IVXLCDMivxlcdm]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Za-z](?:\.\d+)*)(?:[\.\)]\s*|\s+))?(?:capaian\s+pembelajaran\s*(?:[:\-–]|untuk|pada)?\s*(?:mata\s+pelajaran\s*)?[:\-–]?\s*|mata\s+pelajaran\s*[:\-–]\s*)(.+)$/i
   );
   if (cpHeadingMatch && cpHeadingMatch[1]) {
     let rawCandidate = cpHeadingMatch[1].trim();
-    // Clean occasional doubled "CAPAIAN PEMBELAJARAN ..." PDF extraction artifact (e.g., PJOK p.280)
     rawCandidate = rawCandidate.replace(/\bCAPAIAN\s+PEMBELAJARAN\b.*$/i, '').trim();
     const candidate = stripLevelAnnotations(rawCandidate);
-    // Reject accidental prose clauses after "Capaian Pembelajaran"
     if (
       !rawCandidate ||
       !candidate ||
@@ -995,16 +899,9 @@ function extractSubjectHeadingFromLine(
       return null;
     }
     if (candidate.length >= 3 && !NON_SUBJECT_HEADING_REGEX.test(candidate)) {
-      if (inSmkConcentrationSection) {
-        const smkKnown = KNOWN_SUBJECT_PATTERNS.find(
-          (p) => p.preferredGroup === 'SMK' && p.pattern.test(candidate)
-        );
-        if (smkKnown) return smkKnown.canonical;
-        return formatCustomSubjectTitle(candidate, true);
-      }
       const known = KNOWN_SUBJECT_PATTERNS.find((p) => p.pattern.test(candidate));
       if (known) return known.canonical;
-      return formatCustomSubjectTitle(candidate, false);
+      return formatCustomSubjectTitle(candidate);
     }
   }
 
@@ -1023,35 +920,24 @@ function extractSubjectHeadingFromLine(
       cleanBody
     )
   ) {
-    if (/^(?:dasar[\s-]+dasar|konsentrasi\s+keahlian)\s+[a-z0-9]/i.test(cleanBody)) {
-      const knownSmk = KNOWN_SUBJECT_PATTERNS.find((p) => p.pattern.test(cleanBody));
-      return knownSmk ? knownSmk.canonical : formatCustomSubjectTitle(cleanBody, true);
-    }
-
     const known = KNOWN_SUBJECT_PATTERNS.find((p) => p.pattern.test(cleanBody));
     if (
       known &&
       (cleanBody.toLowerCase() === known.canonical.toLowerCase() || /^[A-Z0-9\s,&:/-]+$/.test(cleanBody))
     ) {
-      if (inSmkConcentrationSection && known.preferredGroup !== 'SMK') {
-        return formatCustomSubjectTitle(cleanBody, true);
-      }
       return known.canonical;
     }
 
     if (numberedHeading && /^[A-Z0-9\s,&:/-]+$/.test(cleanBody) && cleanBody.length >= 4) {
-      return formatCustomSubjectTitle(cleanBody, inSmkConcentrationSection);
+      return formatCustomSubjectTitle(cleanBody);
     }
   }
   return null;
 }
 
 /**
- * Splits a multi-level CP document into sections keyed by SchoolLevelGroup ('SD' | 'SMP' | 'SMA' | 'SMK').
- * Handles BOTH Level-First ("LAMPIRAN II ... JENJANG SD/SMP/SMA ... LAMPIRAN III ... SMK/MAK")
- * AND Subject-First / Phase-Inside BSKAP CP documents
- * ("CAPAIAN PEMBELAJARAN BIOLOGI" -> "Fase F (SMA)", or "CAPAIAN PEMBELAJARAN MATEMATIKA" -> "Fase A..F"),
- * including 2-line wrapped BSKAP headings, while isolating PAUD (Lampiran I) and Pendidikan Khusus (Lampiran V).
+ * Splits a multi-level CP document into sections keyed by SchoolLevelGroup ('SD' | 'SMP' | 'SMA').
+ * Skips Lampiran I (PAUD), Lampiran III (SMK/MAK), and Lampiran V (Pendidikan Khusus).
  */
 export function splitCPTextBySchoolLevel(rawText: string): Map<SchoolLevelGroup, string> {
   const result = new Map<SchoolLevelGroup, string>();
@@ -1063,7 +949,6 @@ export function splitCPTextBySchoolLevel(rawText: string): Map<SchoolLevelGroup,
     SD: [],
     SMP: [],
     SMA: [],
-    SMK: [],
   };
 
   let currentTargets: SchoolLevelGroup[] = [];
@@ -1072,12 +957,11 @@ export function splitCPTextBySchoolLevel(rawText: string): Map<SchoolLevelGroup,
   let pendingContextLines: string[] = [];
   let pendingSubjectPrePhaseLines: string[] = [];
   let skipNonRegularSection = false;
-  let currentLampiranMode: 'NONE' | 'I_PAUD' | 'II_GENERAL' | 'III_SMK' | 'IV_KESETARAAN' | 'V_PK' = 'NONE';
+  let currentLampiranMode: 'NONE' | 'I_PAUD' | 'II_GENERAL' | 'III_SKIP' | 'IV_KESETARAAN' | 'V_PK' = 'NONE';
   const lastInjectedHeader: Record<SchoolLevelGroup, string> = {
     SD: '',
     SMP: '',
     SMA: '',
-    SMK: '',
   };
 
   const flushPendingContextTo = (targets: SchoolLevelGroup[]) => {
@@ -1116,13 +1000,12 @@ export function splitCPTextBySchoolLevel(rawText: string): Map<SchoolLevelGroup,
       continue;
     }
     if (/^LAMPIRAN\s+III\b/i.test(trimmed) && trimmed.length <= 80) {
-      currentLampiranMode = 'III_SMK';
-      skipNonRegularSection = false;
-      activeSectionTargets = ['SMK'];
-      currentTargets = ['SMK'];
+      currentLampiranMode = 'III_SKIP';
+      skipNonRegularSection = true;
+      activeSectionTargets = [];
+      currentTargets = [];
       currentSubjectHeader = '';
       pendingSubjectPrePhaseLines = [];
-      pendingContextLines.push(trimmed);
       continue;
     }
     if (/^LAMPIRAN\s+IV\b/i.test(trimmed) && trimmed.length <= 80) {
@@ -1138,7 +1021,6 @@ export function splitCPTextBySchoolLevel(rawText: string): Map<SchoolLevelGroup,
       activeSectionTargets = [];
       continue;
     }
-    // Skip BSKAP decree cover/header block ("CAPAIAN PEMBELAJARAN PADA PENDIDIKAN / ANAK USIA DINI...") vs actual PAUD/PK sections
     if (
       /^(?:CAPAIAN\s+PEMBELAJARAN\s+PADA\s+PENDIDIKAN\s*$|ANAK\s+USIA\s+DINI,\s+JENJANG\s+PENDIDIKAN\s+DASAR|DAN\s+JENJANG\s+PENDIDIKAN\s+MENENGAH$)/i.test(
         trimmed
@@ -1163,42 +1045,40 @@ export function splitCPTextBySchoolLevel(rawText: string): Map<SchoolLevelGroup,
       continue;
     }
     if (/^CAPAIAN\s+PEMBELAJARAN\s+PADA\s+SMK\/MAK/i.test(trimmed)) {
-      currentLampiranMode = 'III_SMK';
-      skipNonRegularSection = false;
-      activeSectionTargets = ['SMK'];
-      currentTargets = ['SMK'];
+      currentLampiranMode = 'III_SKIP';
+      skipNonRegularSection = true;
+      activeSectionTargets = [];
+      currentTargets = [];
       currentSubjectHeader = '';
       pendingSubjectPrePhaseLines = [];
       continue;
     }
-    if (currentLampiranMode === 'NONE' && /^I\.1\.?\s+CAPAIAN\s+PEMBELAJARAN\b/i.test(trimmed)) {
+    if (
+      currentLampiranMode === 'NONE' &&
+      /^(?:(?:#{1,4}\s*|(?:[IVXLCDMivxlcdm]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Za-z](?:\.\d+)*)(?:[\.\)]\s*|\s+))?capaian\s+pembelajaran|lampiran\s+ii\b)/i.test(
+        trimmed
+      )
+    ) {
       currentLampiranMode = 'II_GENERAL';
       skipNonRegularSection = false;
       activeSectionTargets = ['SD', 'SMP', 'SMA'];
+    }
+
+    const { headingLine, consumedLines } = tryJoinWrappedCPHeading(lines, i);
+    if (/^V\.\d+\.?\s+CAPAIAN\s+PEMBELAJARAN\s+DASAR[\s-]+DASAR\b/i.test(headingLine)) {
+      currentLampiranMode = 'III_SKIP';
+      skipNonRegularSection = true;
+      currentTargets = [];
+      activeSectionTargets = [];
+      continue;
     }
 
     if (skipNonRegularSection) {
       continue;
     }
 
-    const { headingLine, consumedLines } = tryJoinWrappedCPHeading(lines, i);
-    const isExplicitSmkVOrVI =
-      /^V\.\d+\.?\s+CAPAIAN\s+PEMBELAJARAN\s+DASAR[\s-]+DASAR\b/i.test(headingLine) ||
-      ((currentLampiranMode === 'III_SMK' || currentLampiranMode === 'NONE') &&
-        /^VI\.\d+\.?\s+CAPAIAN\s+PEMBELAJARAN\b/i.test(headingLine));
-
-    if (isExplicitSmkVOrVI) {
-      currentLampiranMode = 'III_SMK';
-      activeSectionTargets = ['SMK'];
-    }
-
-    const isSmkKonsentrasiHeading =
-      isExplicitSmkVOrVI ||
-      (currentLampiranMode === 'III_SMK' &&
-        /^V(?:I)?\.\d+\.?\s+CAPAIAN\s+PEMBELAJARAN\b/i.test(headingLine));
-
     const nextAfterHeading = (lines[i + consumedLines + 1] || '').replace(/\s+/g, ' ').trim();
-    const detectedSub = extractSubjectHeadingFromLine(headingLine, isSmkKonsentrasiHeading, true, nextAfterHeading);
+    const detectedSub = extractSubjectHeadingFromLine(headingLine, true, nextAfterHeading);
 
     if (detectedSub) {
       currentSubjectHeader = detectedSub;
@@ -1210,33 +1090,29 @@ export function splitCPTextBySchoolLevel(rawText: string): Map<SchoolLevelGroup,
       if ((!lineTargets || lineTargets.length === 0) && lookaheadIdx < lines.length) {
         const nextTrimmed = lines[lookaheadIdx].replace(/\s+/g, ' ').trim();
         const nextLineTargets = detectHeadingTargetsFromLine(nextTrimmed);
-        if (nextLineTargets && nextLineTargets.length > 0 && !extractSubjectHeadingFromLine(nextTrimmed, false, true)) {
+        if (nextLineTargets && nextLineTargets.length > 0 && !extractSubjectHeadingFromLine(nextTrimmed, true)) {
           lineTargets = nextLineTargets;
         }
       }
 
-      if (currentLampiranMode === 'III_SMK') {
-        currentTargets = ['SMK'];
-      } else if (lineTargets && lineTargets.length > 0) {
-        currentTargets = currentLampiranMode === 'II_GENERAL' ? lineTargets.filter((g) => g !== 'SMK') : lineTargets;
-      } else if (inferPrimaryLevelFromSubject(currentSubjectHeader) === 'SMK') {
-        currentTargets = ['SMK'];
+      if (lineTargets && lineTargets.length > 0) {
+        currentTargets = lineTargets;
       } else if (activeSectionTargets.length > 0) {
         const matchingActive = activeSectionTargets.filter((g) =>
           isSubjectAllowedForLevel(currentSubjectHeader, g)
         );
         currentTargets = matchingActive.length > 0 ? matchingActive : activeSectionTargets;
       } else {
-        const inferred = inferPrimaryLevelFromSubject(currentSubjectHeader);
-        const allowedForSub = (['SD', 'SMP', 'SMA', 'SMK'] as SchoolLevelGroup[]).filter((g) =>
+        const allowedForSub = (['SD', 'SMP', 'SMA'] as SchoolLevelGroup[]).filter((g) =>
           isSubjectAllowedForLevel(currentSubjectHeader, g)
         );
+        const inferred = inferPrimaryLevelFromSubject(currentSubjectHeader);
         currentTargets =
-          allowedForSub.length === 1
+          allowedForSub.length > 0
             ? allowedForSub
             : inferred
               ? [getSchoolLevelGroup(inferred)]
-              : [];
+              : ['SD', 'SMP', 'SMA'];
       }
 
       const allowedTargets = currentTargets.filter((grp) =>
@@ -1245,12 +1121,7 @@ export function splitCPTextBySchoolLevel(rawText: string): Map<SchoolLevelGroup,
       if (allowedTargets.length > 0) {
         flushPendingContextTo(allowedTargets);
         allowedTargets.forEach((grp) => {
-          const lampTag =
-            currentLampiranMode === 'III_SMK'
-              ? 'LAMPIRAN III'
-              : currentLampiranMode === 'II_GENERAL'
-                ? 'LAMPIRAN II'
-                : '';
+          const lampTag = currentLampiranMode === 'II_GENERAL' ? 'LAMPIRAN II' : '';
           if (lampTag && buffers[grp].length === 0) {
             buffers[grp].push(lampTag);
           }
@@ -1268,16 +1139,11 @@ export function splitCPTextBySchoolLevel(rawText: string): Map<SchoolLevelGroup,
       /^(?:#{1,4}\s*|\d+(?:\.\d+)*[\.\)]\s*|[IVXLCDM]+[\.\)]\s*|[A-Z][\.\)]\s*)?(?:pada\s+akhir\s+)?fase\s*[a-f]\b/i.test(
         trimmed
       ) ||
-      /^(?:LAMPIRAN|CAPAIAN\s+PEMBELAJARAN\s+(?:UNTUK|PADA)|[IVXLCDM]+\.\s+(?:SD|SMP|SMA|SMK))/i.test(trimmed);
+      /^(?:LAMPIRAN|CAPAIAN\s+PEMBELAJARAN\s+(?:UNTUK|PADA)|[IVXLCDM]+\.\s+(?:SD|SMP|SMA))/i.test(trimmed);
 
-    // Keep Lampiran II/III context clean: do not let a pure "Pada akhir Fase E..." bleed out of active Lampiran II (SMA) into SMK
     const lineTargets =
       lineTargetsRaw && isStructuralPhaseOrLevelHeading
-        ? currentLampiranMode === 'II_GENERAL'
-          ? lineTargetsRaw.filter((g) => g !== 'SMK')
-          : currentLampiranMode === 'III_SMK'
-            ? (['SMK'] as SchoolLevelGroup[])
-            : lineTargetsRaw
+        ? lineTargetsRaw
         : null;
 
     if (lineTargets && lineTargets.length > 0) {
@@ -1286,7 +1152,7 @@ export function splitCPTextBySchoolLevel(rawText: string): Map<SchoolLevelGroup,
         /\bumumnya\s+untuk\s+kelas\b/i.test(trimmed);
       if (
         !isPureFaseSubheading &&
-        /^(?:LAMPIRAN|CAPAIAN\s+PEMBELAJARAN\s+(?:UNTUK|PADA)|[IVXLCDM]+\.\s+(?:SD|SMP|SMA|SMK))/i.test(trimmed)
+        /^(?:LAMPIRAN|CAPAIAN\s+PEMBELAJARAN\s+(?:UNTUK|PADA)|[IVXLCDM]+\.\s+(?:SD|SMP|SMA))/i.test(trimmed)
       ) {
         currentSubjectHeader = '';
         pendingSubjectPrePhaseLines = [];
@@ -1323,12 +1189,11 @@ export function splitCPTextBySchoolLevel(rawText: string): Map<SchoolLevelGroup,
         buffers[grp].push(line);
       });
     } else if (currentSubjectHeader) {
-      // Preserve Rasional / Karakteristik / Elemen Deskripsi lines before first Fase subheading
       pendingSubjectPrePhaseLines.push(line);
     }
   }
 
-  (['SD', 'SMP', 'SMA', 'SMK'] as SchoolLevelGroup[]).forEach((grp) => {
+  (['SD', 'SMP', 'SMA'] as SchoolLevelGroup[]).forEach((grp) => {
     const joined = buffers[grp].join('\n').trim();
     if (joined.length >= 40) {
       result.set(grp, joined);
@@ -1353,7 +1218,6 @@ function parseIndonesianGradeToken(token: string): number {
     X: 10,
     XI: 11,
     XII: 12,
-    XIII: 13,
   };
   if (romanMap[clean]) return romanMap[clean];
   const parsed = parseInt(clean, 10);
@@ -1380,30 +1244,14 @@ export function detectLevelPhaseGradeFromText(
   let phase: string = phaseHint || '';
   let grade: number = Number(gradeHint) || 0;
 
-  // Detect SMK/MAK program 4 tahun / Kelas 13 / SKKNI / Teaching Factory / Lampiran III section numbering
-  const hasGrade13 = /\bkelas\s*(?:13|xiii)\b|program\s*4\s*tahun/i.test(lower);
-  const hasSMK =
-    /\bsmk\b|\bmak\b|kejuruan|program\s*(?:3|4)\s*tahun|\bskkni\b|\bkkni\b|teaching\s+factory|kevokasian|dunia\s+kerja|dunia\s+industri|konsentrasi\s+keahlian|program\s+keahlian|^V(?:I)?\.\d+\.?\s+CAPAIAN\s+PEMBELAJARAN/im.test(
-      source
-    );
   const hasSMA = /\bsma\b|\bma\b|paket\s*c/i.test(lower);
   const hasSMP = /\bsmp\b|\bmts\b|paket\s*b/i.test(lower);
   const hasSD = /\bsd\b|\bmi\b|paket\s*a|sekolah\s+dasar/i.test(lower);
 
-  const hasExplicitTextLevel = hasSMK || hasSMA || hasSMP || hasSD || hasGrade13;
+  const hasExplicitTextLevel = hasSMA || hasSMP || hasSD;
 
-  if (hasSMK && !hasSMA) {
-    level = 'SMK';
-  } else if (hasSMA && !hasSMK) {
+  if (hasSMA) {
     level = 'SMA';
-  } else if (hasSMK && hasSMA) {
-    level = subjectInferredLevel === 'SMK' || subjectInferredLevel === 'SMA'
-      ? subjectInferredLevel
-      : levelHint === 'SMA'
-        ? 'SMA'
-        : 'SMK';
-  } else if (hasGrade13) {
-    level = 'SMK';
   } else if (hasSMP) {
     level = 'SMP';
   } else if (hasSD) {
@@ -1417,39 +1265,32 @@ export function detectLevelPhaseGradeFromText(
     source.match(/\bpada\s+fase\s*([A-F])\s*,\s*(?:materi|pembelajaran|peserta|murid)\b/i);
   const phaseMatch =
     explicitPhaseMatch ||
-    (/\bdasar[\s-]+dasar\b/i.test(subjectHint || '') ? null : source.match(/\bfase\s*([A-F])\b/i));
+    source.match(/\bfase\s*([A-F])\b/i);
   if (phaseMatch && phaseMatch[1]) {
     const pLetter = phaseMatch[1].toUpperCase();
     phase = `Fase ${pLetter}`;
     if (!hasExplicitTextLevel) {
       if (pLetter === 'A' || pLetter === 'B' || pLetter === 'C') level = 'SD';
       else if (pLetter === 'D') level = 'SMP';
-      else level = subjectInferredLevel || (hasGrade13 ? 'SMK' : levelHint === 'SMK' ? 'SMK' : 'SMA');
+      else level = subjectInferredLevel || 'SMA';
     }
   }
 
-  // Detect Grade explicitly (1 - 13 or Roman I - XIII)
-  const gradeMatch = source.match(/\bkelas\s*(1[0-3]|[1-9]|XIII|XII|XI|IX|VIII|VII|VI|IV|V|III|II|I)\b/i);
+  // Detect Grade explicitly (1 - 12 or Roman I - XII)
+  const gradeMatch = source.match(/\bkelas\s*(1[0-2]|[1-9]|XII|XI|X|IX|VIII|VII|VI|IV|V|III|II|I)\b/i);
   if (gradeMatch && gradeMatch[1]) {
     const parsedG = parseIndonesianGradeToken(gradeMatch[1]);
-    if (parsedG >= 1 && parsedG <= 13) {
+    if (parsedG >= 1 && parsedG <= 12) {
       grade = parsedG;
-      if (parsedG <= 6 && !hasSMP && !hasSMA && !hasSMK) level = 'SD';
-      else if (parsedG >= 7 && parsedG <= 9 && !hasSD && !hasSMA && !hasSMK) level = 'SMP';
-      else if (parsedG === 13) level = 'SMK';
+      if (parsedG <= 6 && !hasSMP && !hasSMA) level = 'SD';
+      else if (parsedG >= 7 && parsedG <= 9 && !hasSD && !hasSMA) level = 'SMP';
       else if (parsedG >= 10 && !hasSD && !hasSMP) {
-        level = subjectInferredLevel === 'SMK' || subjectInferredLevel === 'SMA'
-          ? subjectInferredLevel
-          : hasSMK && !hasSMA
-            ? 'SMK'
-            : levelHint === 'SMK' && hasSMK
-              ? 'SMK'
-              : 'SMA';
+        level = 'SMA';
       }
     }
   }
 
-  // If text has NO explicit level/phase/grade indicators and a specific subject dictates phase/grade (e.g., Biologi -> SMA Fase F Kelas 11)
+  // If text has NO explicit level/phase/grade indicators and a specific subject dictates phase/grade
   if (!hasExplicitTextLevel && !phaseMatch && !gradeMatch && subjectHint) {
     if (subjectInferredLevel) {
       level = subjectInferredLevel;
@@ -1462,13 +1303,13 @@ export function detectLevelPhaseGradeFromText(
   }
 
   // Reconcile missing grade or phase
-  if (!grade || grade < 1 || grade > 13) {
+  if (!grade || grade < 1 || grade > 12) {
     if (phase === 'Fase A') grade = 1;
     else if (phase === 'Fase B') grade = 4;
     else if (phase === 'Fase C') grade = 5;
     else if (phase === 'Fase D') grade = 7;
     else if (phase === 'Fase E') grade = 10;
-    else if (phase === 'Fase F') grade = hasGrade13 ? 13 : 11;
+    else if (phase === 'Fase F') grade = 11;
     else if (level === 'SD') grade = 4;
     else if (level === 'SMP') grade = 7;
     else grade = 10;
@@ -1476,15 +1317,13 @@ export function detectLevelPhaseGradeFromText(
 
   // Enforce BSKAP phase/grade -> school level consistency
   if (phase === 'Fase A' || phase === 'Fase B' || phase === 'Fase C' || (grade >= 1 && grade <= 6 && !phaseMatch)) {
-    if (!hasSMA && !hasSMK && !hasSMP) {
+    if (!hasSMA && !hasSMP) {
       level = 'SD';
     }
   } else if (phase === 'Fase D' || (grade >= 7 && grade <= 9 && !phaseMatch)) {
-    if (!hasSMA && !hasSMK && !hasSD) {
+    if (!hasSMA && !hasSD) {
       level = 'SMP';
     }
-  } else if (grade === 13) {
-    level = 'SMK';
   }
 
   // Ensure grade stays valid within finalized level
@@ -1492,7 +1331,7 @@ export function detectLevelPhaseGradeFromText(
     grade = phase === 'Fase A' ? 1 : phase === 'Fase C' ? 5 : 4;
   } else if (level === 'SMP' && (grade < 7 || grade > 9)) {
     grade = 7;
-  } else if ((level === 'SMA' || level === 'SMK') && (grade < 10 || grade > 13)) {
+  } else if (level === 'SMA' && (grade < 10 || grade > 12)) {
     const subDef = subjectHint ? inferDefaultPhaseAndGradeForSubject(subjectHint, level) : null;
     grade = subDef ? subDef.grade : phase === 'Fase F' ? 11 : 10;
   }
@@ -1734,7 +1573,7 @@ function extractTopicsFromCPProse(text: string): string[] {
     const semiSegments = scopeText.split(';');
     if (semiSegments.length >= 2) {
       for (const seg of semiSegments) {
-        if (/\b(?:mengaitkan|menerapkan|menganalisis|menjelaskan|menyimpulkan|membedakan|mengenali|mengklasifikasikan|memahami|mengevaluasi|merancang|menghitung|menyelesaikan|mengidentifikasi|mendeskripsikan)\b/i.test(seg)) {
+        if (/\b(?:mengaitkan|menerapkan|menganalisis|menjelaskan|menyimpulkan|membedakan|mengenali|mengenal|mengklasifikasikan|memahami|mengevaluasi|merancang|menghitung|menyelesaikan|mengidentifikasi|mendeskripsikan|mengamalkan|meneladani|membiasakan|mempraktikkan|menghafal|melafalkan|menyimak|menghayati)\b/i.test(seg)) {
           const strippedSeg = seg
             .replace(/^.*?\b(?:memiliki\s+kemampuan\s+sebagai\s+berikut\.?|pemahaman\s+\w+|keterampilan\s+proses)\s*/i, '')
             .replace(/^\d+(?:\.\d+)*\.?\s*/i, '')
@@ -1751,7 +1590,7 @@ function extractTopicsFromCPProse(text: string): string[] {
   // 3. Secondary: Verb + enumerated object if explicit scope cues yielded fewer than 4 topics
   if (collected.length < 4) {
     const verbCueRegex =
-      /(?:memahami|menganalisis|mengidentifikasi|menerapkan|menguasai|mengoperasikan|mengevaluasi|merancang|menjelaskan|mendeskripsikan|mengembangkan|mengolah|menyusun|menyajikan|memecahkan|mengaitkan|menyimpulkan|membedakan|mengklasifikasikan)\s+(?:konsep|prinsip|materi|topik|struktur|sistem|fenomena|teks|metode|prosedur|proses)?\s*([^.\n]{8,420})/gi;
+      /(?:memahami|menganalisis|mengidentifikasi|menerapkan|menguasai|mengoperasikan|mengevaluasi|merancang|menjelaskan|mendeskripsikan|mengembangkan|mengolah|menyusun|menyajikan|memecahkan|mengaitkan|menyimpulkan|membedakan|mengklasifikasikan|mengenal|mengenali|mengamalkan|meneladani|membiasakan|mempraktikkan|menghafal|melafalkan|menyimak|menghayati)\s+(?:konsep|prinsip|materi|topik|struktur|sistem|fenomena|teks|metode|prosedur|proses)?\s*([^.\n]{8,420})/gi;
     let verbMatch: RegExpExecArray | null;
     while ((verbMatch = verbCueRegex.exec(scopeText)) !== null) {
       const seg = verbMatch[1] || '';
@@ -2169,7 +2008,7 @@ export function extractMaterialsFromRawCPText(
 }
 
 /**
- * Full client-side / server-fallback CP document analyzer (detects school levels SD/SMP/SMA/SMK, Phase A-F, Grade 1-13,
+ * Full client-side / server-fallback CP document analyzer (detects school levels SD/SMP/SMA, Phase A-F, Grade 1-12,
  * multiple subjects if present, exact CP Elements, and Semester 1 & 2 Bab/Lingkup materi ajar grounded in raw CP text)
  */
 export function analyzeCPTextHeuristic(params: {
@@ -2240,7 +2079,7 @@ export function analyzeCPTextHeuristic(params: {
     candidatePrimaryForLevel
   );
 
-  // Detect all subjects mentioned in raw text / filename (respecting SMA vs SMK vs SMP vs SD separation)
+  // Detect all subjects mentioned in raw text / filename (respecting SMA vs SMP vs SD separation)
   const detectedSubjects = extractSubjectsFromCPText(combinedSource, meta.level);
   if (detectedSubjects.length === 0) {
     for (const s of rawHeadedSubjects) {
@@ -2274,14 +2113,14 @@ export function analyzeCPTextHeuristic(params: {
   } else {
     primarySubject =
       (cleanHint && cleanHint !== 'Mata Pelajaran Teridentifikasi' ? cleanHint : '') ||
-      (meta.level === 'SMK' ? 'Dasar-Dasar Program Keahlian (SMK)' : 'Pendidikan Pancasila');
+      'Pendidikan Pancasila';
   }
 
   const totalHours = Number(params.totalHoursHint) || (meta.level === 'SD' ? 144 : 108);
   const jpPerWeek = Number(params.jpPerWeekHint) || (meta.level === 'SD' ? 4 : 3);
 
   // O(N) linear single-pass subject slicer so multi-hundred-subject PDFs (e.g. 1,168p BSKAP 046) parse in milliseconds
-  const buildSubjectSectionMap = (rawSource: string, forceSmkContext: boolean): Map<string, string> => {
+  const buildSubjectSectionMap = (rawSource: string): Map<string, string> => {
     const map = new Map<string, string>();
     if (!rawSource) return map;
     const lines = rawSource.split(/\r?\n/);
@@ -2313,15 +2152,12 @@ export function analyzeCPTextHeuristic(params: {
         activeLampiranMarker = trimmed;
       }
       const { headingLine, consumedLines } = tryJoinWrappedCPHeading(lines, i);
-      const isCpExplicit = /^(?:#{1,4}\s*|(?:[IVXLCDM]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Z])(?:[\.\)]\s*|\s+))?(?:Capaian\s+Pembelajaran|CAPAIAN\s+PEMBELAJARAN|Mata\s+Pelajaran\s*[:\-–]|MATA\s+PELAJARAN\s*[:\-–])/.test(
+      const isCpExplicit = /^(?:#{1,4}\s*|(?:[IVXLCDMivxlcdm]{1,7}(?:\.\d+)*|\d+(?:\.\d+)*|[A-Za-z](?:\.\d+)*)(?:[\.\)]\s*|\s+))?(?:capaian\s+pembelajaran|mata\s+pelajaran\s*[:\-–])/i.test(
         trimmed
       );
       if (isCpExplicit) {
-        const isSmkHeading =
-          forceSmkContext &&
-          /^V(?:I)?\.\d+\.?\s+CAPAIAN\s+PEMBELAJARAN\b/i.test(headingLine);
         const nextAfterHeading = (lines[i + consumedLines + 1] || '').replace(/\s+/g, ' ').trim();
-        const det = extractSubjectHeadingFromLine(headingLine, isSmkHeading, true, nextAfterHeading);
+        const det = extractSubjectHeadingFromLine(headingLine, true, nextAfterHeading);
         if (det) {
           flush();
           currentSub = det;
@@ -2493,18 +2329,12 @@ export function analyzeCPTextHeuristic(params: {
     const subLowerForTag = subName.toLowerCase();
     let computedCategoryTag: CPSubjectEntry['categoryTag'] = 'Umum/Wajib';
     if (
-      /\bpilihan\s+(?:kejuruan|smk)|mata\s+pelajaran\s+pilihan\b|\bkoding\s+dan\s+kecerdasan\s+artifisial\b/i.test(subLowerForTag)
-    ) {
-      computedCategoryTag = 'Pilihan/Tingkat Lanjut';
-    } else if (
-      grpForTag === 'SMK' &&
-      /\b(?:dasar[\s-]+dasar|konsentrasi\s+keahlian|kreativitas,\s*inovasi|projek\s+kreatif|pkk|praktik\s+kerja|pkl|kejuruan|produksi\s+dan\s+siaran|produksi\s+film|kimia\s+(?:analisis|industri|tekstil)|\(smk\))\b/i.test(subLowerForTag) &&
-      !/projek\s+ipas|sejarah/i.test(subLowerForTag)
-    ) {
-      computedCategoryTag = 'Kejuruan/Konsentrasi';
-    } else if (
-      (grpForTag === 'SMA' && targetMeta.phase === 'Fase F' && !/pendidikan\s+agama|pancasila|bahasa\s+indonesia(?!\s+tingkat\s+lanjut)|matematika(?!\s+tingkat\s+lanjut)|bahasa\s+inggris(?!\s+tingkat\s+lanjut)|pjok|sejarah(?!\s+tingkat\s+lanjut)|seni/i.test(subLowerForTag)) ||
-      /\btingkat\s+lanjut\b/i.test(subLowerForTag)
+      /\b(?:mata\s+pelajaran\s+pilihan|tingkat\s+lanjut|koding\s+dan\s+kecerdasan\s+artifisial)\b/i.test(subLowerForTag) ||
+      (grpForTag === 'SMA' &&
+        targetMeta.phase === 'Fase F' &&
+        !/pendidikan\s+agama|pancasila|bahasa\s+indonesia(?!\s+tingkat\s+lanjut)|matematika(?!\s+tingkat\s+lanjut)|bahasa\s+inggris(?!\s+tingkat\s+lanjut)|pjok|sejarah(?!\s+tingkat\s+lanjut)|seni/i.test(
+          subLowerForTag
+        ))
     ) {
       computedCategoryTag = 'Pilihan/Tingkat Lanjut';
     }
@@ -2515,13 +2345,7 @@ export function analyzeCPTextHeuristic(params: {
     } else if (grpForTag === 'SD' && /bahasa\s+inggris/i.test(subLowerForTag)) {
       entryNotes.push('Dimulai pada Fase B (Kelas III–IV) ke Fase C.');
     } else if (/koding|kecerdasan\s+artifisial/i.test(subLowerForTag)) {
-      entryNotes.push(
-        grpForTag === 'SMK'
-          ? 'Mata pelajaran pilihan/vokasional Koding & KA SMK/MAK (Fase E & F).'
-          : 'Mata pelajaran pilihan Koding & Kecerdasan Artifisial dimulai Fase C (Kelas V–VI SD/MI).'
-      );
-    } else if (grpForTag === 'SMK' && /\bprogram\s*4\s*tahun\b|\bkelas\s*(?:13|xiii)\b|\bpkl\b|praktik\s+kerja/i.test(`${subjectRawText.slice(0, 1200)} ${subLowerForTag}`)) {
-      entryNotes.push('Mencakup SMK Program 3 Tahun / 4 Tahun (hingga Kelas XIII).');
+      entryNotes.push('Mata pelajaran pilihan Koding & Kecerdasan Artifisial dimulai Fase C (Kelas V–VI SD/MI).');
     }
 
     return {
@@ -2571,7 +2395,7 @@ export function analyzeCPTextHeuristic(params: {
       ) && !/^pada\s+akhir\s+fase\b/i.test(trimmed);
       const isPadaAkhirLine = /^pada\s+akhir\s+fase\s*[A-F]\b/i.test(trimmed);
 
-      const gradeMatch = trimmed.match(/^(?:[A-Z0-9]+[\.\)]\s*|#{1,4}\s*)?kelas\s*(1[0-3]|[1-9]|xiii|xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i)\b/i);
+      const gradeMatch = trimmed.match(/^(?:[A-Z0-9]+[\.\)]\s*|#{1,4}\s*)?kelas\s*(1[0-2]|[1-9]|xii|xi|x|ix|viii|vii|vi|v|iv|iii|ii|i)\b/i);
       const faseMatch = trimmed.match(/^(?:[A-Z0-9]+[\.\)]\s*|#{1,4}\s*)?(?:pada\s+akhir\s+)?fase\s*([A-F])\b/i);
       if (!gradeMatch && !faseMatch) return null;
 
@@ -2598,7 +2422,6 @@ export function analyzeCPTextHeuristic(params: {
       if (grp === 'SD' && (g < 1 || g > 6)) return null;
       if (grp === 'SMP' && (g < 7 || g > 9)) return null;
       if (grp === 'SMA' && (g < 10 || g > 12)) return null;
-      if (grp === 'SMK' && (g < 10 || g > 13)) return null;
 
       return { grade: g, phase: f || resolvePhaseByLevelAndGrade(defaultMeta.level, g), isNumberedPhaseHeading };
     };
@@ -2658,7 +2481,7 @@ export function analyzeCPTextHeuristic(params: {
   if (levelSections.size >= 2) {
     levelSections.forEach((secText, grp) => {
       const secLevel = grp as SchoolLevel;
-      const secSectionMap = buildSubjectSectionMap(secText, grp === 'SMK');
+      const secSectionMap = buildSubjectSectionMap(secText);
       const detectedSecMeta = detectLevelPhaseGradeFromText(secText.slice(0, 6000), secLevel);
       const secGrade =
         secLevel === 'SD' && (detectedSecMeta.grade < 1 || detectedSecMeta.grade > 6)
@@ -2667,9 +2490,7 @@ export function analyzeCPTextHeuristic(params: {
             ? 7
             : secLevel === 'SMA' && (detectedSecMeta.grade < 10 || detectedSecMeta.grade > 12)
               ? 10
-              : secLevel === 'SMK' && (detectedSecMeta.grade < 10 || detectedSecMeta.grade > 13)
-                ? 10
-                : detectedSecMeta.grade;
+              : detectedSecMeta.grade;
       const secMeta = {
         level: secLevel,
         subLevelLabel: getSchoolLevelDisplay(secLevel, secGrade).subLabel,
@@ -2684,7 +2505,7 @@ export function analyzeCPTextHeuristic(params: {
   } else if (levelSections.size === 1) {
     const [[onlyGrp, onlyText]] = Array.from(levelSections.entries());
     const secLevel = (onlyGrp || meta.level) as SchoolLevel;
-    const secSectionMap = buildSubjectSectionMap(onlyText, onlyGrp === 'SMK');
+    const secSectionMap = buildSubjectSectionMap(onlyText);
     const secSubjects = extractSubjectsFromCPText(`${params.fileName || ''}\n${onlyText}`, secLevel);
     const detectedSecMeta = detectLevelPhaseGradeFromText(onlyText.slice(0, 6000), secLevel, meta.grade, meta.phase, secSubjects[0] || primarySubject);
     const secMeta = {
@@ -2697,90 +2518,11 @@ export function analyzeCPTextHeuristic(params: {
       analyzedSubjects.push(...buildEntriesAcrossPhases(sub, secMeta, onlyText, targetList, secSectionMap));
     });
   } else {
-    const singleSectionMap = buildSubjectSectionMap(params.rawText || '', meta.level === 'SMK');
+    const singleSectionMap = buildSubjectSectionMap(params.rawText || '');
     const subjectListToAnalyze = detectedSubjects.length > 0 ? detectedSubjects : [primarySubject];
     subjectListToAnalyze.forEach((sub) => {
       analyzedSubjects.push(...buildEntriesAcrossPhases(sub, meta, params.rawText || '', subjectListToAnalyze, singleSectionMap));
     });
-  }
-
-  // Propagate SMK Irisan Fase (Lampiran III Bagian I. UMUM -> mengacu pada Lampiran II SMA Fase E & Fase F)
-  const smkSectionText = levelSections.get('SMK') || '';
-  const hasSmkGeneralReference =
-    smkSectionText.length > 0 &&
-    /I\.\s*UMUM[\s\S]{0,1200}mengacu\s+pada\s+lampiran\s+II/i.test(smkSectionText);
-  if (hasSmkGeneralReference) {
-    const irisanCanonicalSubjects = [
-      'Pendidikan Agama Islam & Budi Pekerti',
-      'Pendidikan Agama Kristen & Budi Pekerti',
-      'Pendidikan Agama Katolik & Budi Pekerti',
-      'Pendidikan Agama Hindu & Budi Pekerti',
-      'Pendidikan Agama Buddha & Budi Pekerti',
-      'Pendidikan Agama Khonghucu & Budi Pekerti',
-      'Pendidikan Pancasila',
-      'Bahasa Indonesia',
-      'Matematika',
-      'PJOK',
-      'Seni Musik',
-      'Seni Rupa',
-      'Seni Teater',
-      'Seni Tari',
-      'Bahasa Inggris',
-      'Informatika',
-    ];
-    const umBlockMatch = smkSectionText.match(/I\.\s*UMUM[\s\S]{0,1500}mengacu\s+pada\s+lampiran\s+II/i);
-    const umBlockLower = (umBlockMatch?.[0] || '').toLowerCase();
-
-    const smaEntriesBySub = new Map<string, CPSubjectEntry[]>();
-    analyzedSubjects.forEach((e) => {
-      if (isSameSchoolLevelGroup(e.level, 'SMA')) {
-        const key = e.subject.trim().toLowerCase();
-        if (!smaEntriesBySub.has(key)) smaEntriesBySub.set(key, []);
-        smaEntriesBySub.get(key)!.push(e);
-      }
-    });
-
-    const existingSmkKeys = new Set(
-      analyzedSubjects
-        .filter((e) => isSameSchoolLevelGroup(e.level, 'SMK'))
-        .map((e) => `${e.subject.trim().toLowerCase()}__${(e.phase || '').toLowerCase()}__${Number(e.grade) || 0}`)
-    );
-
-    const irisanClones: CPSubjectEntry[] = [];
-    irisanCanonicalSubjects.forEach((canon) => {
-      const smaList = smaEntriesBySub.get(canon.toLowerCase()) || [];
-      // Verify mention in I. UMUM block (fallback allow if pattern matches)
-      const mentioned =
-        umBlockLower.includes(canon.toLowerCase().replace(/\s*&.*$/, '')) ||
-        (canon === 'PJOK' && umBlockLower.includes('jasmani')) ||
-        smaList.length > 0;
-      if (!mentioned) return;
-
-      const phaseEFEntries = smaList.filter((e) => {
-        const ph = (e.phase || '').toUpperCase();
-        return ph.includes('FASE E') || ph.includes('FASE F');
-      });
-      phaseEFEntries.forEach((src) => {
-        const k = `${canon.toLowerCase()}__${(src.phase || '').toLowerCase()}__${Number(src.grade) || 0}`;
-        if (existingSmkKeys.has(k)) return;
-        existingSmkKeys.add(k);
-        irisanClones.push({
-          ...src,
-          id: src.id ? `${src.id}-smk-irisan` : `smk-irisan-${canon.toLowerCase().replace(/\s+/g, '-')}-${src.grade}`,
-          level: 'SMK',
-          subLevelLabel: getSchoolLevelDisplay('SMK', src.grade).subLabel,
-          categoryTag: 'Umum/Wajib',
-          locationRef: src.locationRef
-            ? `Lampiran III (I. Umum) · Acuan ${src.locationRef}`
-            : 'Lampiran III (I. Umum) · Acuan Lampiran II',
-          specialNotes: `Irisan Fase ${src.phase} SMK/MAK: mengacu pada Lampiran II Kepka BSKAP No. 046/H/KR/2025.`,
-        });
-      });
-    });
-
-    if (irisanClones.length > 0) {
-      analyzedSubjects = [...analyzedSubjects, ...irisanClones];
-    }
   }
 
   if (analyzedSubjects.length === 0) {
@@ -2838,7 +2580,7 @@ export interface LevelRecapSummary {
 }
 
 /**
- * Tahap 1: Rekapitulasi Jumlah Mata Pelajaran & Ruang Lingkup per Jenjang (SD, SMP, SMA, SMK)
+ * Tahap 1: Rekapitulasi Jumlah Mata Pelajaran & Ruang Lingkup per Jenjang (SD, SMP, SMA)
  * Dihitung murni dari entri yang teridentifikasi di dalam dokumen CP.
  */
 export function buildLevelRecapFromSubjects(
@@ -2850,10 +2592,9 @@ export function buildLevelRecapFromSubjects(
     SD: 'SD / MI / Paket A',
     SMP: 'SMP / MTs / Paket B',
     SMA: 'SMA / MA / Paket C',
-    SMK: 'SMK / MAK',
   };
 
-  return (['SD', 'SMP', 'SMA', 'SMK'] as SchoolLevelGroup[]).map((grp) => {
+  return (['SD', 'SMP', 'SMA'] as SchoolLevelGroup[]).map((grp) => {
     const groupEntries = analyzedSubjects.filter((s) => isSameSchoolLevelGroup(s.level, grp));
     const uniqueSubjectSet = new Set(groupEntries.map((s) => s.subject.trim().toLowerCase()));
     const phasesCovered = Array.from(
@@ -2880,13 +2621,6 @@ export function buildLevelRecapFromSubjects(
     } else if (grp === 'SMA') {
       if (/\btingkat\s+lanjut\b|\bpilihan\b|\bfase\s*f\b/i.test(lowerText) && groupEntries.length > 0) {
         specialNotes.push('Mencakup Fase E (Kelas X) dan Fase F (Kelas XI–XII, termasuk mapel pilihan/tingkat lanjut jika tercantum).');
-      }
-    } else if (grp === 'SMK') {
-      if (/\bprogram\s*4\s*tahun\b|\bkelas\s*(?:13|xiii)\b/i.test(lowerText)) {
-        specialNotes.push('Terdeteksi rujukan SMK Program 4 Tahun (hingga Kelas XIII Fase F).');
-      }
-      if (groupEntries.some((e) => /dasar[\s-]+dasar|konsentrasi|pkk|pkl/i.test(e.subject))) {
-        specialNotes.push('Mencakup kelompok kejuruan (Dasar-Dasar Program Keahlian / Konsentrasi / PKK / PKL).');
       }
     }
 
@@ -2930,7 +2664,7 @@ export interface PhaseDirectoryGroup {
 }
 
 export interface PhaseDirectoryLevel {
-  number: 1 | 2 | 3 | 4;
+  number: 1 | 2 | 3;
   group: SchoolLevelGroup;
   title: string;
   lampiranRef?: string;
@@ -2943,7 +2677,7 @@ export interface PhaseDirectoryLevel {
 
 /**
  * Menghasilkan struktur 2 Bagian Baku:
- * - Bagian 1: Ringkasan Jumlah Mata Pelajaran per Jenjang & Fase (Umum/Wajib vs Pilihan/Tingkat Lanjut/Kejuruan + Lampiran)
+ * - Bagian 1: Ringkasan Jumlah Mata Pelajaran per Jenjang & Fase (Umum/Wajib vs Pilihan/Tingkat Lanjut + Lampiran)
  * - Bagian 2: Katalog Lengkap Mata Pelajaran & Ruang Lingkup Materi per Elemen beserta rujukan halaman/bagian.
  */
 export function buildPhaseDirectoryByLevel(
@@ -2952,19 +2686,10 @@ export function buildPhaseDirectoryByLevel(
 ): PhaseDirectoryLevel[] {
   const lower = rawText.toLowerCase();
 
-  const inferCategoryTag = (entry: CPSubjectEntry): 'Umum/Wajib' | 'Pilihan/Tingkat Lanjut' | 'Kejuruan/Konsentrasi' => {
-    if (entry.categoryTag) return entry.categoryTag;
+  const inferCategoryTag = (entry: CPSubjectEntry): 'Umum/Wajib' | 'Pilihan/Tingkat Lanjut' => {
+    if (entry.categoryTag === 'Pilihan/Tingkat Lanjut') return 'Pilihan/Tingkat Lanjut';
     const grp = getSchoolLevelGroup(entry.level);
     const subL = entry.subject.toLowerCase();
-    if (
-      grp === 'SMK' &&
-      /\b(?:dasar[\s-]+dasar|konsentrasi|kreativitas,\s*inovasi|projek\s+kreatif|pkk|praktik\s+kerja|pkl|kejuruan|produksi\s+dan\s+siaran|produksi\s+film|kimia\s+(?:analisis|industri|tekstil)|\(smk\))\b/i.test(
-        subL
-      ) &&
-      !/projek\s+ipas|sejarah/i.test(subL)
-    ) {
-      return 'Kejuruan/Konsentrasi';
-    }
     if (
       (grp === 'SMA' &&
         (entry.phase || '').toUpperCase().includes('F') &&
@@ -3088,18 +2813,9 @@ export function buildPhaseDirectoryByLevel(
     smaNotes.push('Fase F memuat kelompok mata pelajaran umum dan pilihan / tingkat lanjut sesuai teks dokumen.');
   }
 
-  const smkNotes: string[] = [];
-  if (/\bprogram\s*4\s*tahun\b|\bkelas\s*(?:13|xiii)\b/.test(lower)) {
-    smkNotes.push('Tercantum Program 4 Tahun (hingga Kelas XIII Fase F).');
-  }
-  if (analyzedSubjects.some((s) => isSameSchoolLevelGroup(s.level, 'SMK') && /dasar[\s-]+dasar|konsentrasi|pkk|pkl/i.test(s.subject))) {
-    smkNotes.push('Mencakup kelompok mata pelajaran umum serta kelompok kejuruan / konsentrasi keahlian.');
-  }
-
   const sdSplit = countSplit('SD');
   const smpSplit = countSplit('SMP');
   const smaSplit = countSplit('SMA');
-  const smkSplit = countSplit('SMK');
 
   return [
     {
@@ -3131,17 +2847,6 @@ export function buildPhaseDirectoryByLevel(
       phases: [
         { phaseTitle: 'Fase E (Kelas X)', subjects: extractRowsFor('SMA', ['Fase E']) },
         { phaseTitle: 'Fase F (Kelas XI–XII)', subjects: extractRowsFor('SMA', ['Fase F']) },
-      ],
-    },
-    {
-      number: 4,
-      group: 'SMK',
-      title: 'SMK / MAK',
-      ...smkSplit,
-      specialNotes: smkNotes,
-      phases: [
-        { phaseTitle: 'Fase E (Kelas X)', subjects: extractRowsFor('SMK', ['Fase E']) },
-        { phaseTitle: 'Fase F (Kelas XI–XII / Program 4 Tahun Kelas XIII)', subjects: extractRowsFor('SMK', ['Fase F']) },
       ],
     },
   ];
@@ -3476,10 +3181,6 @@ export function extractCPDocumentInsights(
   const hasIPAS = analyzedSubjects.some((s) => /\bipas\b/i.test(s.subject));
   const hasIPAorIPS = analyzedSubjects.some((s) => /\b(ipa|ips|ilmu\s+pengetahuan\s+alam|ilmu\s+pengetahuan\s+sosial)\b/i.test(s.subject));
   const hasInformatikaSD = analyzedSubjects.some((s) => isSameSchoolLevelGroup(s.level, 'SD') && /informatika/i.test(s.subject));
-  const smkVocationalEntries = analyzedSubjects.filter(
-    (s) => isSameSchoolLevelGroup(s.level, 'SMK') && s.categoryTag === 'Kejuruan/Konsentrasi'
-  );
-  const distinctSmkVocational = Array.from(new Set(smkVocationalEntries.map((s) => s.subject.trim())));
 
   const ambiguitiesOrLimitations: string[] = [];
   if (!source) {
@@ -3489,11 +3190,7 @@ export function extractCPDocumentInsights(
       ambiguitiesOrLimitations.push(coverageReport.unreadOrTruncatedNotice);
     }
     if (lampiranMap.length === 0) {
-      ambiguitiesOrLimitations.push('Penanda pembagian Lampiran I–V tidak eksplisit pada teks yang terbaca.');
-    } else if (lampiranMap.length < 5) {
-      ambiguitiesOrLimitations.push(
-        `Hanya ${lampiranMap.length} tajuk Lampiran yang teridentifikasi eksplisit (${lampiranMap.map((l) => l.lampiran).join(', ')}).`
-      );
+      ambiguitiesOrLimitations.push('Penanda pembagian Lampiran tidak eksplisit pada teks yang terbaca.');
     }
   }
 
@@ -3519,11 +3216,7 @@ export function extractCPDocumentInsights(
           : 'Belum ada entri IPAS/IPA/IPS yang terekstrak dari teks.',
       informatikaSDRule: hasInformatikaSD
         ? 'Informatika terdeteksi muncul pada jenjang SD dalam teks yang terbaca.'
-        : 'Informatika tidak terdeteksi sebagai rumusan CP mapel tersendiri pada jenjang SD (muncul pada SMP/SMA/SMK bila tercantum).',
-      smkLampiranIIIRule:
-        distinctSmkVocational.length > 0
-          ? `Kelompok Kejuruan / Konsentrasi SMK/MAK (Lampiran III) dipisahkan dari kelompok umum dengan ${distinctSmkVocational.length} entri terdeteksi.`
-          : 'Belum ada entri kejuruan/konsentrasi khusus SMK (Lampiran III) yang terbaca dalam potongan teks.',
+        : 'Informatika tidak terdeteksi sebagai rumusan CP mapel tersendiri pada jenjang SD (muncul pada SMP/SMA bila tercantum).',
       ambiguitiesOrLimitations,
     },
   };

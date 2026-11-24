@@ -85,7 +85,7 @@ export class StudentExcelUtils {
         const rows: any[][] = [
           // Header info
           ['TEMPLATE IMPORT DATA SISWA - ' + cls.name.toUpperCase()],
-          [`Satuan Pendidikan: ${schoolProfile.schoolName || 'SMA / SMK / SMP'} | Tahun Ajaran: ${schoolProfile.academicYear || '2025/2026'}`],
+          [`Satuan Pendidikan: ${schoolProfile.schoolName || 'SMA / SMP / SD'} | Tahun Ajaran: ${schoolProfile.academicYear || '2025/2026'}`],
           ['PETUNJUK: Isi data siswa di bawah ini. Kolom NISN/NIS bersifat opsional. Tambahkan baris sesuai jumlah siswa.'],
           [], // Empty row
           // Column Headers (Mandatory per requirement: NO, NISN/NIS, Nama Siswa, Kelas)

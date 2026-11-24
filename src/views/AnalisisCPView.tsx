@@ -7,6 +7,7 @@ import {
   Printer,
   Sparkles,
   ChevronRight,
+  ChevronDown,
   CheckCircle2,
   Save,
   Copy,
@@ -37,7 +38,7 @@ import {
   SchoolLevel,
   EducationLevel,
 } from '../types';
-import { StorageService, addStorageListener } from '../lib/storage';
+import { StorageService, addStorageListener, type DualCPCoveredSubject } from '../lib/storage';
 import { ExportService } from '../lib/exportUtils';
 import { generateExpertCurriculumDocument } from '../lib/curriculumEngine';
 import {
@@ -47,11 +48,7 @@ import {
 } from '../components/CustomFormatSelector';
 import { UniversalFileParser } from '../lib/universalFileParser';
 import { DocumentPdfPreview } from '../components/DocumentPdfPreview';
-import {
-  SUBJECT_MATERIAL_PRESETS,
-  getSubjectPresetByGrade,
-  SubjectPreset,
-} from '../lib/subjectMaterialPresets';
+import { getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
 import {
   analyzeCPTextHeuristic,
   detectLevelPhaseGradeFromText,
@@ -60,6 +57,9 @@ import {
   mergeAnalyzedSubjects,
   normalizeSchoolLevel,
   resolvePhaseByLevelAndGrade,
+  TIERED_SCHOOL_LEVEL_CARDS,
+  getSchoolLevelGroup,
+  type SchoolLevelGroup,
 } from '../lib/curriculumLevels';
 import {
   AgamaIslamCPUploadModal,
@@ -78,6 +78,11 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'upload_format' | 'analisis_elemen' | 'pratinjau_dokumen'>(initialTab);
   const [selectedSemester, setSelectedSemester] = useState<'Ganjil' | 'Genap' | '1 Tahun'>('Ganjil');
+  const [expandedCPTierLevels, setExpandedCPTierLevels] = useState<Record<SchoolLevelGroup, boolean>>({
+    SD: false,
+    SMP: false,
+    SMA: false,
+  });
 
   // Metadata from Storage
   const schoolProfile = StorageService.getSchoolProfile();
@@ -176,6 +181,7 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
   const [isAnalyzingCP, setIsAnalyzingCP] = useState<boolean>(false);
   const [catalogSearch, setCatalogSearch] = useState<string>('');
   const [catalogFilterLevel, setCatalogFilterLevel] = useState<string>('ALL');
+  const [catalogFilterCategory, setCatalogFilterCategory] = useState<'ALL' | 'WAJIB' | 'PILIHAN'>('ALL');
   const [showAgamaIslamCPModal, setShowAgamaIslamCPModal] = useState<boolean>(false);
 
   // Direct Format Upload Input
@@ -496,6 +502,8 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
       materialsSem1,
       materialsSem2,
       analyzedSubjects: finalAnalyzedSubjects,
+      uploadedByRole: activeMasterCP?.uploadedByRole,
+      uploadedByName: activeMasterCP?.uploadedByName,
       syncStatus: 'synced',
       lastSyncedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -511,22 +519,33 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
     }, 3500);
   };
 
-  // Apply Subject Preset from Catalog
-  const handleApplyPreset = (preset: SubjectPreset) => {
-    setSubject(preset.subject);
-    setLevel(preset.level);
-    setGrade(preset.grade);
-    setPhase(preset.phase);
-    setJpPerWeek(preset.jpPerWeek || 3);
-    setCpText(preset.cpSummary);
-    if (preset.elements) setElements(preset.elements);
-    setMaterialsSem1((preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `cp-m1-${idx + 1}` })));
-    setMaterialsSem2((preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `cp-m2-${idx + 1}` })));
+  // Pilih Mata Pelajaran langsung dari Katalog Resmi BSKAP No. 046/2025 & No. 020/2026
+  const handleSelectCatalogSubject = (entry: DualCPCoveredSubject) => {
+    const targetGrade = Number(entry.grade) || entry.gradesList?.[0] || (entry.levelGroup === 'SD' ? 4 : entry.levelGroup === 'SMP' ? 7 : 10);
+    const targetLevel = (entry.levelGroup || entry.level || 'SMA') as SchoolLevel;
+    const targetPhase = entry.phase || resolvePhaseByLevelAndGrade(targetLevel, targetGrade);
+    const fallback = getSubjectPresetByGrade(entry.subject, targetLevel as EducationLevel, targetGrade, targetPhase);
 
-    setSaveToast(`Preset kurikulum resmi "${preset.subject} (${preset.level} Kelas ${preset.grade})" berhasil diterapkan!`);
+    setSubject(entry.subject);
+    setLevel(targetLevel);
+    setGrade(targetGrade);
+    setPhase(targetPhase);
+    setJpPerWeek(entry.jpPerWeek || fallback.jpPerWeek || 3);
+    setCpText(entry.cpText || fallback.cpSummary);
+    setElements(
+      entry.elements && entry.elements.length > 0
+        ? entry.elements
+        : fallback.elements || []
+    );
+    const sem1 = entry.materialsSem1 && entry.materialsSem1.length > 0 ? entry.materialsSem1 : fallback.materialsSem1 || [];
+    const sem2 = entry.materialsSem2 && entry.materialsSem2.length > 0 ? entry.materialsSem2 : fallback.materialsSem2 || [];
+    setMaterialsSem1(sem1.map((m, idx) => ({ ...m, id: (m as Partial<CPMaterialItem>).id || `cp-m1-${idx + 1}` })));
+    setMaterialsSem2(sem2.map((m, idx) => ({ ...m, id: (m as Partial<CPMaterialItem>).id || `cp-m2-${idx + 1}` })));
+
+    setSaveToast(`Mata pelajaran "${entry.subject} (${targetLevel} • ${targetPhase})" dari CP ${entry.docNumber || '046/2025 & 020/2026'} berhasil dimuat!`);
     setTimeout(() => setSaveToast(null), 3500);
     setActiveTab('analisis_elemen');
-    if (isAgamaIslamSubject(preset.subject)) {
+    if (isAgamaIslamSubject(entry.subject)) {
       setShowAgamaIslamCPModal(true);
     }
   };
@@ -633,14 +652,21 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
     );
   };
 
-  // Filter Catalog Presets
-  const filteredPresets = SUBJECT_MATERIAL_PRESETS.filter((p) => {
+  // Filter Katalog Terpadu CP No. 046/2025 & No. 020/2026
+  const dualCPCatalog = StorageService.getAllSubjectsFromBothCPs();
+  const filteredCatalogSubjects = dualCPCatalog.all.filter((entry) => {
+    const q = catalogSearch.trim().toLowerCase();
     const matchSearch =
-      catalogSearch === '' ||
-      p.subject.toLowerCase().includes(catalogSearch.toLowerCase()) ||
-      p.cpSummary.toLowerCase().includes(catalogSearch.toLowerCase());
-    const matchLevel = catalogFilterLevel === 'ALL' || p.level === catalogFilterLevel;
-    return matchSearch && matchLevel;
+      q === '' ||
+      entry.subject.toLowerCase().includes(q) ||
+      (entry.cpText || '').toLowerCase().includes(q);
+    const matchLevel = catalogFilterLevel === 'ALL' || entry.levelGroup === catalogFilterLevel;
+    const matchCategory =
+      catalogFilterCategory === 'ALL' ||
+      (catalogFilterCategory === 'PILIHAN'
+        ? entry.categoryTag === 'Pilihan/Tingkat Lanjut'
+        : entry.categoryTag !== 'Pilihan/Tingkat Lanjut');
+    return matchSearch && matchLevel && matchCategory;
   });
 
   return (
@@ -857,7 +883,7 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
                   </h2>
                 </div>
                 <p className="text-xs text-blue-900/80 leading-relaxed max-w-3xl">
-                  Setiap sekolah dan MGMP memiliki format dokumen Analisis CP tersendiri. Anda dapat mengunggah berkas template format sekolah Anda (Word .docx, Excel .xlsx, PDF, atau Foto/Scan) atau memilih preset resmi. Dokumen analisis CP otomatis menyesuaikan tata letak, kolom dekomposisi elemen, dan format lembar pengesahan.
+                  Setiap sekolah dan MGMP memiliki format dokumen Analisis CP tersendiri. Anda dapat mengunggah berkas template format sekolah Anda (Word .docx, Excel .xlsx, PDF, atau Foto/Scan) atau memilih langsung mata pelajaran dari CP BSKAP No. 046/2025 &amp; No. 020/2026 yang tersinkron otomatis. Dokumen analisis CP otomatis menyesuaikan tata letak, kolom dekomposisi elemen, dan format lembar pengesahan.
                 </p>
               </div>
 
@@ -934,7 +960,7 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
               </div>
             </div>
 
-            {/* Quick Catalog Preset Picker */}
+            {/* Katalog Terpadu CP BSKAP No. 046/2025 & No. 020/2026 */}
             <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -942,57 +968,206 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
                     <BookOpen className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold text-slate-900">Adopsi dari Katalog Resmi BSKAP</h3>
-                    <p className="text-[11px] text-slate-500">Pilih dari 25+ mata pelajaran siap pakai</p>
+                    <h3 className="text-xs font-bold text-slate-900">
+                      Katalog Terpadu CP No. 046/2025 &amp; No. 020/2026
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Tersinkron {dualCPCatalog.all.length} entri SD, SMP, SMA (Wajib &amp; Pilihan) serta Pendidikan Agama
+                    </p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <div className="relative flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <div className="relative flex-1 min-w-[160px]">
                   <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     type="text"
                     value={catalogSearch}
                     onChange={(e) => setCatalogSearch(e.target.value)}
-                    placeholder="Cari mapel (Fisika, Biologi, MTK, dll)..."
+                    placeholder="Cari mapel (Fisika, Antropologi, IPAS, Agama...)..."
                     className="w-full pl-8 pr-3 py-1.5 rounded-lg text-xs border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-600 outline-none"
                   />
                 </div>
                 <select
                   value={catalogFilterLevel}
                   onChange={(e) => setCatalogFilterLevel(e.target.value)}
-                  className="px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-slate-50 text-slate-700"
+                  className="px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-slate-50 text-slate-700 font-semibold"
                 >
-                  <option value="ALL">Semua</option>
+                  <option value="ALL">Semua Jenjang</option>
                   <option value="SD">SD</option>
                   <option value="SMP">SMP</option>
                   <option value="SMA">SMA</option>
                 </select>
+                <select
+                  value={catalogFilterCategory}
+                  onChange={(e) => setCatalogFilterCategory(e.target.value as 'ALL' | 'WAJIB' | 'PILIHAN')}
+                  className="px-2 py-1.5 rounded-lg text-xs border border-slate-200 bg-slate-50 text-slate-700 font-semibold"
+                >
+                  <option value="ALL">Wajib &amp; Pilihan</option>
+                  <option value="WAJIB">Umum / Wajib</option>
+                  <option value="PILIHAN">Pilihan / Lanjut</option>
+                </select>
               </div>
 
-              <div className="max-h-36 overflow-y-auto space-y-1 custom-scrollbar pr-1">
-                {filteredPresets.map((preset, idx) => (
-                  <button
-                    key={`${preset.subject}-${preset.grade}-${idx}`}
-                    type="button"
-                    onClick={() => handleApplyPreset(preset)}
-                    className="w-full text-left p-2 rounded-lg bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-xs flex items-center justify-between transition cursor-pointer"
-                  >
-                    <div>
-                      <span className="font-bold text-slate-900">{preset.subject}</span>
-                      <span className="text-[10px] text-slate-500 ml-1.5">
-                        {preset.level} Kelas {preset.grade} ({preset.phase})
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-semibold text-blue-600 bg-white px-2 py-0.5 rounded border border-blue-200">
-                      Terapkan
-                    </span>
-                  </button>
-                ))}
+              <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar pr-1">
+                {filteredCatalogSubjects.map((entry, idx) => {
+                  const phaseDisp = entry.phasesList.length > 0 ? entry.phasesList.join(', ') : entry.phase;
+                  const isPilihan = entry.categoryTag === 'Pilihan/Tingkat Lanjut';
+                  return (
+                    <button
+                      key={`${entry.slot}-${entry.levelGroup}-${entry.subject}-${idx}`}
+                      type="button"
+                      onClick={() => handleSelectCatalogSubject(entry)}
+                      className="w-full text-left p-2 rounded-lg bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-xs flex items-center justify-between gap-2 transition cursor-pointer"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-bold text-slate-900">{entry.subject}</span>
+                        <span className="text-[10px] text-slate-500 ml-1.5">
+                          {entry.levelGroup} ({phaseDisp})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                            isPilihan
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          {isPilihan ? 'Pilihan' : 'Wajib'}
+                        </span>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                            entry.slot === 'agama'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}
+                        >
+                          {entry.slot === 'agama' ? 'CP 020/2026' : 'CP 046/2025'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
+
+          {/* Daftar Seluruh Mata Pelajaran yang Diambil dari CP */}
+          {(() => {
+            const groupedFromStorage = StorageService.getAllSubjectsFromCPGrouped();
+            const mergedAll = mergeAnalyzedSubjects(analyzedSubjects, groupedFromStorage.all);
+            if (mergedAll.length === 0) return null;
+            const byGrp = {
+              SD: Array.from(
+                new Map(
+                  mergedAll
+                    .filter((e) => getSchoolLevelGroup(e.level) === 'SD')
+                    .map((e) => [e.subject.trim().toLowerCase(), e])
+                ).values()
+              ),
+              SMP: Array.from(
+                new Map(
+                  mergedAll
+                    .filter((e) => getSchoolLevelGroup(e.level) === 'SMP')
+                    .map((e) => [e.subject.trim().toLowerCase(), e])
+                ).values()
+              ),
+              SMA: Array.from(
+                new Map(
+                  mergedAll
+                    .filter((e) => getSchoolLevelGroup(e.level) === 'SMA')
+                    .map((e) => [e.subject.trim().toLowerCase(), e])
+                ).values()
+              ),
+            };
+            const totalUniq = byGrp.SD.length + byGrp.SMP.length + byGrp.SMA.length;
+            return (
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">
+                      Seluruh Mata Pelajaran CP No. 046/2025 &amp; No. 020/2026 ({totalUniq} Mapel)
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      Tersinkron otomatis mencakup Mapel SD, SMP, SMA Umum/Wajib, SMA Pilihan/Tingkat Lanjut, dan Pendidikan Agama &amp; Budi Pekerti.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
+                  {TIERED_SCHOOL_LEVEL_CARDS.map((card) => {
+                    const list = byGrp[card.group];
+                    const isExpanded = expandedCPTierLevels[card.group];
+                    return (
+                      <div key={`acp-tier-${card.group}`} className="rounded-xl bg-slate-50 border border-slate-200/80 overflow-hidden">
+                        <button
+                          type="button"
+                          aria-expanded={isExpanded}
+                          onClick={() =>
+                            setExpandedCPTierLevels((prev) => ({
+                              ...prev,
+                              [card.group]: !prev[card.group],
+                            }))
+                          }
+                          className="w-full p-2.5 flex items-center justify-between gap-2 text-[11px] font-bold text-slate-700 text-left hover:bg-slate-100/80 transition-colors cursor-pointer"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            {isExpanded ? (
+                              <ChevronDown className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            ) : (
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            )}
+                            <span>Mata Pelajaran ({card.aliases})</span>
+                          </span>
+                          <span className="text-slate-500 tabular-nums shrink-0">{list.length} Mapel</span>
+                        </button>
+                        {isExpanded && (
+                          <div className="px-2.5 pb-2.5 pt-2 border-t border-slate-200/70 bg-white">
+                            {list.length === 0 ? (
+                              <p className="text-[11px] text-slate-400">Belum ada mapel pada jenjang ini.</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {list.map((entry, idx) => {
+                                  const isSelected =
+                                    getSchoolLevelGroup(level) === card.group &&
+                                    entry.subject.trim().toLowerCase() === subject.trim().toLowerCase();
+                                  return (
+                                    <button
+                                      key={`acp-sub-${card.group}-${entry.subject}-${idx}`}
+                                      type="button"
+                                      onClick={() => {
+                                        setSubject(entry.subject);
+                                        setLevel(entry.level);
+                                        setGrade(Number(entry.grade) || (card.group === 'SD' ? 4 : card.group === 'SMP' ? 7 : 10));
+                                        setPhase(entry.phase || resolvePhaseByLevelAndGrade(entry.level, Number(entry.grade) || 10));
+                                        if (entry.jpPerWeek) setJpPerWeek(entry.jpPerWeek);
+                                        if (entry.cpText) setCpText(entry.cpText);
+                                        if (entry.elements && entry.elements.length > 0) setElements(entry.elements);
+                                        if (entry.materialsSem1 && entry.materialsSem1.length > 0) setMaterialsSem1(entry.materialsSem1);
+                                        if (entry.materialsSem2 && entry.materialsSem2.length > 0) setMaterialsSem2(entry.materialsSem2);
+                                      }}
+                                      className={`px-2 py-1 rounded-md border text-[11px] font-semibold transition cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-blue-600 text-white border-blue-600'
+                                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-400 hover:text-blue-700'
+                                      }`}
+                                    >
+                                      {entry.subject}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Form: CP Resmi Fase */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">

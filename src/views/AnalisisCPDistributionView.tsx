@@ -28,7 +28,6 @@ import {
   Search,
   X,
   Check,
-  Bookmark,
   ListOrdered,
   AlertCircle,
   Sliders,
@@ -47,38 +46,14 @@ import {
 } from '../types';
 import { StorageService, INITIAL_CP_DISTRIBUTIONS } from '../lib/storage';
 import { ExportService } from '../lib/exportUtils';
-import { SUBJECT_MATERIAL_PRESETS, type SubjectPreset, getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
+import { getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
+import { getSchoolLevelGroup, isSameSubjectName } from '../lib/curriculumLevels';
 import { CustomFormatSelector, CustomFormatConfig } from '../components/CustomFormatSelector';
 import { CPUploaderAndAnalyzer } from '../components/CPUploaderAndAnalyzer';
 import { generateExpertCurriculumDocument } from '../lib/curriculumEngine';
 import { handleNumberInputFocus, parseNumberInput } from '../lib/inputUtils';
 import { AMDLogo } from '../components/AMDLogo';
 import { generateAutoTPForMaterial } from '../lib/curriculumData';
-
-const POPULAR_SUBJECTS = [
-  'Fisika',
-  'Matematika',
-  'Kimia',
-  'Biologi',
-  'Informatika',
-  'Bahasa Indonesia',
-  'Bahasa Inggris',
-  'Bahasa Jerman',
-  'Bahasa Arab',
-  'Bahasa Jepang',
-  'Bahasa Mandarin',
-  'Bahasa Perancis',
-  'Pendidikan Pancasila',
-  'Sejarah',
-  'Geografi',
-  'Ekonomi',
-  'Sosiologi',
-  'Pendidikan Jasmani & Kesehatan (PJOK)',
-  'Seni Budaya',
-  'Prakarya & Kewirausahaan',
-  'Pendidikan Agama & Budi Pekerti',
-  'IPAS (SD/SMP)',
-];
 
 interface AnalisisCPDistributionViewProps {
   initialTab?: 'upload' | 'sem1' | 'sem2' | 'preview' | 'bank' | 'format_sekolah';
@@ -160,10 +135,6 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
   const [batchText, setBatchText] = useState<string>('');
   const [batchHoursPerItem, setBatchHoursPerItem] = useState<number>(18);
   const [batchAssessment, setBatchAssessment] = useState<string>('Tes Formatif & Kinerja');
-
-  // Preset Template Modal State
-  const [isPresetModalOpen, setIsPresetModalOpen] = useState<boolean>(false);
-  const [selectedPresetSubject, setSelectedPresetSubject] = useState<string>('Fisika');
 
   // Search/Filter in tab
   const [searchKeyword, setSearchKeyword] = useState<string>('');
@@ -268,7 +239,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
   // Automatically update phase and sync materials when level or grade changes
   const handleSyncGradeMaterials = (targetGradeNum?: number, targetLevelStr?: SchoolLevel) => {
     const tgtGrade = targetGradeNum !== undefined ? targetGradeNum : (Number(grade) || 10);
-    const tgtLevel = (targetLevelStr || level || 'SMA') as 'SMA' | 'SMP' | 'SD' | 'SMK';
+    const tgtLevel = (targetLevelStr || level || 'SMA') as 'SMA' | 'SMP' | 'SD';
     const preset = getSubjectPresetByGrade(subject || 'Fisika', tgtLevel, tgtGrade);
     
     setPhase(preset.phase);
@@ -653,6 +624,8 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
         }
       ],
       executiveSummary: `Analisis CP ${subject} ${level} (${phase} Kelas ${grade}) oleh Guru ${teacherName} berhasil disinkronkan ke seluruh perangkat ajar. Terbagi atas ${materialsSem1.length} TP di Semester 1 (${totalSem1} JP) dan ${materialsSem2.length} TP di Semester 2 (${totalSem2} JP) dengan pendekatan Deep Learning 3 Pilar.`,
+      uploadedByRole: activeMasterCP?.uploadedByRole,
+      uploadedByName: activeMasterCP?.uploadedByName,
       syncStatus: 'synced',
       lastSyncedAt: new Date().toISOString(),
     };
@@ -811,7 +784,7 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
 
   // Clear semester
   const handleClearSemester = (semester: 1 | 2) => {
-    if (window.confirm(`Yakin ingin mengosongkan seluruh daftar materi Semester ${semester}? Anda dapat menambahkan materi baru atau memilih preset kapan saja.`)) {
+    if (window.confirm(`Yakin ingin mengosongkan seluruh daftar materi Semester ${semester}? Anda dapat menambahkan materi baru atau menyinkronkan ulang dari CP 046/2025 & 020/2026 kapan saja.`)) {
       if (semester === 1) setMaterialsSem1([]);
       else setMaterialsSem2([]);
       showNotif(`Daftar materi Semester ${semester} telah dikosongkan.`, 'info');
@@ -909,28 +882,29 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
     showNotif(`Materi "${name}" (${hours} JP) berhasil ditambahkan ke Semester ${targetSemester}!`);
   };
 
-  // Apply Subject Preset
-  const handleApplySubjectPreset = (preset: SubjectPreset) => {
-    setSubject(preset.subject);
-    setLevel(preset.level);
-    setGrade(preset.grade);
-    setPhase(preset.phase);
-    setTotalHoursPerYear(preset.totalHoursPerYear);
-    setCpText(preset.cpSummary);
-    
-    const sem1WithIds: CPMaterialItem[] = preset.materialsSem1.map((m, idx) => ({
-      ...m,
-      id: `mat-1-${Date.now()}-${idx}`,
-    }));
-    const sem2WithIds: CPMaterialItem[] = preset.materialsSem2.map((m, idx) => ({
-      ...m,
-      id: `mat-2-${Date.now()}-${idx}`,
-    }));
+  // Sync Subject from CP No. 046/2025 & No. 020/2026
+  const handleSelectSyncedSubject = (newSubject: string, targetLevelOverride?: SchoolLevel) => {
+    const tgtLevel = targetLevelOverride || level || 'SMA';
+    const tgtGrade = Number(grade) || (tgtLevel === 'SD' ? 4 : tgtLevel === 'SMP' ? 7 : 10);
+    setSubject(newSubject);
+    if (targetLevelOverride) setLevel(targetLevelOverride);
 
-    setMaterialsSem1(sem1WithIds);
-    setMaterialsSem2(sem2WithIds);
-    setIsPresetModalOpen(false);
-    showNotif(`Template standar materi ${preset.subject} (${preset.phase}) berhasil dimuat untuk Semester 1 & Semester 2!`);
+    const cpEntry = StorageService.findMasterCPEntry(newSubject, tgtLevel, tgtGrade);
+    const preset = getSubjectPresetByGrade(newSubject, tgtLevel as 'SD' | 'SMP' | 'SMA', tgtGrade, cpEntry?.phase || phase);
+
+    const resolvedPhase = cpEntry?.phase || preset.phase;
+    const resolvedJp = cpEntry?.jpPerWeek || preset.jpPerWeek || jpPerWeek || 3;
+    const resolvedHours = cpEntry?.totalHoursPerYear || preset.totalHoursPerYear || resolvedJp * 36;
+    const sem1Source = cpEntry?.materialsSem1 && cpEntry.materialsSem1.length > 0 ? cpEntry.materialsSem1 : preset.materialsSem1;
+    const sem2Source = cpEntry?.materialsSem2 && cpEntry.materialsSem2.length > 0 ? cpEntry.materialsSem2 : preset.materialsSem2;
+
+    setPhase(resolvedPhase);
+    setJpPerWeek(resolvedJp);
+    setTotalHoursPerYear(resolvedHours);
+    setCpText(cpEntry?.cpText || preset.cpSummary);
+    setMaterialsSem1(sem1Source.map((m, idx) => ({ ...m, id: (m as Partial<CPMaterialItem>).id || `mat-1-${Date.now()}-${idx}` })));
+    setMaterialsSem2(sem2Source.map((m, idx) => ({ ...m, id: (m as Partial<CPMaterialItem>).id || `mat-2-${Date.now()}-${idx}` })));
+    showNotif(`Materi ${newSubject} (${tgtLevel} • ${resolvedPhase}) tersinkron otomatis dari CP BSKAP!`);
   };
 
   // Update item with bidirectional sync between allocatedHours and meetingCount
@@ -1469,19 +1443,76 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
               </div>
             </div>
 
-            {/* Mata Pelajaran */}
+            {/* Mata Pelajaran (Tersinkron CP 046/2025 & CP 020/2026) */}
             <div>
-              <label className="block text-slate-300 font-bold mb-1">Mata Pelajaran (Mapel) *</label>
-              <div>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ketik Mapel..."
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-bold text-indigo-300"
-                />
-              </div>
+              <label className="block text-slate-300 font-bold mb-1">
+                Mata Pelajaran ({getSchoolLevelGroup(level)}) *
+              </label>
+              {(() => {
+                const syncedDir = StorageService.getAllSubjectsFromBothCPs();
+                const levelEntries = syncedDir.byLevel[getSchoolLevelGroup(level)] || [];
+                const wajibEntries = levelEntries.filter(
+                  (e) => e.slot !== 'agama' && e.categoryTag !== 'Pilihan/Tingkat Lanjut'
+                );
+                const pilihanEntries = levelEntries.filter(
+                  (e) => e.slot !== 'agama' && e.categoryTag === 'Pilihan/Tingkat Lanjut'
+                );
+                const agamaEntries = levelEntries.filter((e) => e.slot === 'agama');
+                const currentMatch = levelEntries.find((e) => isSameSubjectName(e.subject, subject));
+
+                return (
+                  <div className="space-y-1.5">
+                    <select
+                      value={currentMatch ? currentMatch.subject : '__MANUAL__'}
+                      onChange={(e) => {
+                        if (e.target.value && e.target.value !== '__MANUAL__') {
+                          handleSelectSyncedSubject(e.target.value, level);
+                        }
+                      }}
+                      className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-indigo-300 focus:outline-none focus:border-indigo-500 font-bold text-xs"
+                    >
+                      {wajibEntries.length > 0 && (
+                        <optgroup label={`CP #1 (046/2025) Mapel Umum / Wajib (${wajibEntries.length})`}>
+                          {wajibEntries.map((entry) => (
+                            <option key={`dist-w-${entry.subject}`} value={entry.subject}>
+                              {entry.subject}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {pilihanEntries.length > 0 && (
+                        <optgroup label={`CP #1 (046/2025) Mapel Pilihan / Lanjut (${pilihanEntries.length})`}>
+                          {pilihanEntries.map((entry) => (
+                            <option key={`dist-p-${entry.subject}`} value={entry.subject}>
+                              {entry.subject}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {agamaEntries.length > 0 && (
+                        <optgroup label={`CP #2 (020/2026) Pendidikan Agama & Budi Pekerti (${agamaEntries.length})`}>
+                          {agamaEntries.map((entry) => (
+                            <option key={`dist-a-${entry.subject}`} value={entry.subject}>
+                              {entry.subject}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <option value="__MANUAL__">
+                        {currentMatch ? '-- Tulis Mapel Manual --' : `${subject || 'Mapel Kustom'} (Manual)`}
+                      </option>
+                    </select>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Atau ketik nama Mapel..."
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-semibold text-xs"
+                    />
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Jenjang, Tingkat & Fase */}
@@ -1846,15 +1877,6 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                       <span>Tempel Cepat (Batch)</span>
                     </button>
 
-                    <button
-                      onClick={() => setIsPresetModalOpen(true)}
-                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition"
-                      title="Gunakan materi standar kurikulum nasional per mata pelajaran"
-                    >
-                      <Bookmark className="w-3.5 h-3.5" />
-                      <span>Template Mapel</span>
-                    </button>
-
                     {materialsSem1.length > 0 && (
                       <button
                         onClick={() => handleClearSemester(1)}
@@ -2215,13 +2237,6 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                       <Plus className="w-3.5 h-3.5" />
                       <span>Input Materi Semester 1</span>
                     </button>
-                    <button
-                      onClick={() => setIsPresetModalOpen(true)}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl flex items-center space-x-1.5"
-                    >
-                      <Bookmark className="w-3.5 h-3.5" />
-                      <span>Pilih Template Mapel</span>
-                    </button>
                   </div>
                 </div>
               )}
@@ -2270,15 +2285,6 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                     >
                       <ClipboardPaste className="w-3.5 h-3.5" />
                       <span>Tempel Cepat (Batch)</span>
-                    </button>
-
-                    <button
-                      onClick={() => setIsPresetModalOpen(true)}
-                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition"
-                      title="Gunakan materi standar kurikulum nasional per mata pelajaran"
-                    >
-                      <Bookmark className="w-3.5 h-3.5" />
-                      <span>Template Mapel</span>
                     </button>
 
                     {materialsSem2.length > 0 && (
@@ -2608,13 +2614,6 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Input Materi Semester 2</span>
-                    </button>
-                    <button
-                      onClick={() => setIsPresetModalOpen(true)}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold rounded-xl flex items-center space-x-1.5"
-                    >
-                      <Bookmark className="w-3.5 h-3.5" />
-                      <span>Pilih Template Mapel</span>
                     </button>
                   </div>
                 </div>
@@ -3538,90 +3537,6 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 3: PUSTAKA TEMPLATE MATERI MAPEL (PRESETS) */}
-      {/* ========================================================================= */}
-      {isPresetModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-amber-600/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
-                  <Bookmark className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white">
-                    Pustaka Template Materi Kurikulum Berbasis Deep Learning
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Pilih struktur materi standar Kemendikbudristek untuk langsung mendistribusikan Semester 1 & 2.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsPresetModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {SUBJECT_MATERIAL_PRESETS.map((preset, idx) => (
-                  <div
-                    key={`${preset.subject}-${preset.grade}-${idx}`}
-                    className="bg-slate-950 border border-slate-800 hover:border-amber-500/60 p-4 rounded-2xl transition space-y-3 flex flex-col justify-between"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          {preset.level} • {preset.phase} (Kelas {preset.grade})
-                        </span>
-                        <span className="text-[11px] font-mono text-emerald-400 font-bold">
-                          {preset.totalHoursPerYear} JP/Tahun
-                        </span>
-                      </div>
-
-                      <h4 className="text-sm font-bold text-white">{preset.subject}</h4>
-                      <p className="text-slate-400 text-[11px] line-clamp-2 leading-relaxed">
-                        {preset.cpSummary}
-                      </p>
-
-                      {/* Semester 1 & 2 topics preview */}
-                      <div className="pt-2 border-t border-slate-800/80 space-y-1.5 text-[11px]">
-                        <div>
-                          <span className="text-indigo-400 font-semibold">Semester 1 ({preset.materialsSem1.length} Materi): </span>
-                          <span className="text-slate-300">
-                            {preset.materialsSem1.map((m) => m.essentialMaterial).join(', ')}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-cyan-400 font-semibold">Semester 2 ({preset.materialsSem2.length} Materi): </span>
-                          <span className="text-slate-300">
-                            {preset.materialsSem2.map((m) => m.essentialMaterial).join(', ')}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleApplySubjectPreset(preset)}
-                      className="w-full mt-2 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl font-bold flex items-center justify-center space-x-1.5 transition shadow"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Gunakan Template {preset.subject}</span>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

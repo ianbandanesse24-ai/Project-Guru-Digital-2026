@@ -90,11 +90,13 @@ export default function App() {
     applyThemeToDOM(normalizedTheme);
   }, [theme]);
 
-  // Dual Cloud Auto-Sync Runner & Admin CP BSKAP 046 Catalog Hydration
+  // Dual Cloud Auto-Sync Runner & Official CP BSKAP 046/2025 + 020/2026 Auto-Hydration
   useEffect(() => {
+    // Sinkronkan otomatis seluruh mata pelajaran resmi CP BSKAP No. 046/2025 & No. 020/2026 ke seluruh aplikasi
+    StorageService.ensureOfficialCP046And020Synced();
     // Inisialisasi sinkronisasi otomatis dual cloud (Supabase & GitHub)
     CloudAutoSyncService.init();
-    // Sinkronisasi daftar CP BSKAP 046 & pengaturan admin dari server agar semua jenjang terisi otomatis
+    // Sinkronisasi daftar CP & pengaturan admin dari server agar semua jenjang terisi otomatis
     StorageService.fetchAdminSettingsFromServer();
     StorageService.fetchAdminCPCatalogFromServer();
   }, []);

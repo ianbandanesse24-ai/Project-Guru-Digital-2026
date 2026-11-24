@@ -40,6 +40,7 @@ type SubjectDomain =
   | 'arts_theatre'
   | 'sports_health'
   | 'religious_studies'
+  | 'coding_ai'
   | 'general_academic';
 
 function detectDomain(subLower: string): SubjectDomain {
@@ -112,7 +113,10 @@ function detectDomain(subLower: string): SubjectDomain {
   if (subLower.includes('olahraga') || subLower.includes('penjas') || subLower.includes('kebugaran') || subLower.includes('futsal')) {
     return 'sports_health';
   }
-  if (subLower.includes('agama') || subLower.includes('islam') || subLower.includes('kristen') || subLower.includes('katolik') || subLower.includes('hindu') || subLower.includes('buddha')) {
+  if (subLower.includes('koding') || subLower.includes('kecerdasan artifisial') || subLower.includes('informatika') || subLower.includes('pendidikan digital')) {
+    return 'coding_ai';
+  }
+  if (subLower.includes('agama') || subLower.includes('budi pekerti') || subLower.includes('kepercayaan') || subLower.includes('islam') || subLower.includes('kristen') || subLower.includes('katolik') || subLower.includes('hindu') || subLower.includes('buddha') || subLower.includes('khonghucu')) {
     return 'religious_studies';
   }
   if (subLower.includes('antropologi') || subLower.includes('arkeologi') || subLower.includes('filsafat') || subLower.includes('hukum')) {
@@ -165,7 +169,7 @@ export function generateDynamicGradePreset(
     phase,
     totalHoursPerYear: totalHours,
     jpPerWeek,
-    cpSummary: `Peserta didik mampu menguasai capaian pembelajaran esensial ${cleanSubject} untuk Tingkat Kelas ${numGrade} (${phase}) sesuai Keputusan Kepala BSKAP No. 046/H/KR/2025 dengan pendekatan Deep Learning (Mindful, Meaningful, Joyful Learning).`,
+    cpSummary: `Peserta didik mampu menguasai capaian pembelajaran esensial ${cleanSubject} untuk Tingkat Kelas ${numGrade} (${phase}) sesuai Keputusan Kepala BSKAP No. 046/H/KR/2025 & No. 020/H/KR/2026 dengan pendekatan Deep Learning (Mindful, Meaningful, Joyful Learning).`,
     elements: [
       {
         name: `Pemahaman ${cleanSubject} (Kelas ${numGrade})`,
@@ -382,7 +386,7 @@ function getDistinctTopicsByGradeAndDomain(
       }
     }
 
-  // 2. VOCATIONAL / APPLIED TECHNICAL (SMK & Pilihan SMA Kejuruan)
+  // 2. APPLIED / VOCATIONAL ELECTIVES (Pilihan SMA Terapan)
   if (
     domain === 'vocational_engineering' ||
     domain === 'vocational_business' ||
@@ -499,7 +503,7 @@ function getDistinctTopicsByGradeAndDomain(
           },
         ],
       };
-    } else if (grade === 12) {
+    } else {
       return {
         sem1: [
           {
@@ -519,12 +523,12 @@ function getDistinctTopicsByGradeAndDomain(
             deepLearning: 'Joyful: Merancang produk inovasi yang menjawab keluhan konsumen dengan harga terjangkau.',
           },
           {
-            title: `Bab 3: Praktik Kerja Lapangan (PKL) di Dunia Usaha / Industri Mitra: Tahap Adaptasi & Pelaksanaan Bidang ${subject}`,
-            element: 'Praktik Kerja Lapangan',
-            competency: 'Melaksanakan pekerjaan nyata di industri',
+            title: `Bab 3: Praktik Terapan & Kolaborasi Karya Bidang ${subject}`,
+            element: 'Praktik Terapan',
+            competency: 'Melaksanakan proyek terapan nyata',
             hours: 35,
-            assessment: 'Evaluasi Kinerja Shift Kerja Industri oleh Pembimbing DUDI',
-            deepLearning: 'Meaningful: Menjadi bagian dari roda industri sesungguhnya dan merasakan ritme kerja profesional.',
+            assessment: 'Evaluasi Kinerja Proyek oleh Guru Pembimbing',
+            deepLearning: 'Meaningful: Menerapkan kompetensi ke dalam karya nyata yang bermanfaat.',
           },
         ],
         sem2: [
@@ -534,86 +538,308 @@ function getDistinctTopicsByGradeAndDomain(
             competency: 'Memasarkan produk dan membukukan laba',
             hours: 35,
             assessment: 'Gelar Bazar Produk & Laporan Neraca Laba Rugi Penjualan Riil',
-            deepLearning: 'Joyful: Menikmati hasil penjualan produk karya sendiri yang laris manis dibeli konsumen.',
+            deepLearning: 'Joyful: Menikmati hasil penjualan produk karya sendiri yang bermanfaat.',
           },
           {
-            title: `Bab 5: Praktik Kerja Lapangan (PKL): Penyusunan Portofolio Akhir Magang & Laporan Evaluasi DUDI Bidang ${subject}`,
-            element: 'Evaluasi Praktik Industri',
-            competency: 'Menyusun laporan komprehensif PKL',
+            title: `Bab 5: Penyusunan Portofolio Akhir & Laporan Evaluasi Karya Bidang ${subject}`,
+            element: 'Evaluasi Praktik Terapan',
+            competency: 'Menyusun laporan komprehensif proyek',
             hours: 35,
-            assessment: 'Sidang Ujian Laporan Praktik Kerja Lapangan di Depan Penguji Industri',
-            deepLearning: 'Mindful: Mengambil hikmah berharga dari pengalaman bekerja bersama para profesional senior.',
+            assessment: 'Presentasi Laporan Proyek di Depan Penguji Sekolah',
+            deepLearning: 'Mindful: Mengambil hikmah berharga dari pengalaman praktik terapan.',
           },
           {
-            title: `Bab 6: Uji Kompetensi Keahlian (UKK) Bersertifikat Lembaga Sertifikasi Profesi (LSP/BNSP) Bidang ${subject}`,
-            element: 'Sertifikasi Profesi & Kelulusan',
-            competency: 'Meraih predikat kompeten penguji eksternal',
+            title: `Bab 6: Asesmen Kompetensi & Diseminasi Karya Bidang ${subject}`,
+            element: 'Asesmen & Kelulusan',
+            competency: 'Meraih predikat kompeten pada uji akhir',
             hours: 35,
-            assessment: 'Asesmen Sumatif Akhir Jenjang (SAJ): Penilaian Asesor Eksternal Industri Predikat Kompeten (K)',
-            deepLearning: 'Joyful: Rasa bangga tak terkira saat menerima sertifikat kompetensi keahlian berstandar nasional.',
-          },
-        ],
-      };
-    } else {
-      // Grade 13 (SMK 4 Tahun)
-      return {
-        sem1: [
-          {
-            title: `Bab 1: Pemagangan Industri Penuh (Full-Scale Industrial Internship) & Manajemen Siklus Kerja ${subject}`,
-            element: 'Pemagangan Industri Penuh',
-            competency: 'Mengelola siklus produksi industri',
-            hours: 45,
-            assessment: 'Evaluasi Kinerja Manajemen Kerja Industri Mitra Bulanan',
-            deepLearning: 'Meaningful: Mengemban tanggung jawab memimpin shift operasional pada lini kerja pabrik.',
-          },
-          {
-            title: `Bab 2: Manajemen Mutu Menyeluruh (Total Quality Management / Six Sigma) dan Audit Sistem ${subject}`,
-            element: 'Manajemen Mutu Global',
-            competency: 'Menganalisis efisiensi sistem produksi',
-            hours: 45,
-            assessment: 'Laporan Audit Mutu Kaizen dan Rekomendasi Efisiensi Lini Kerja',
-            deepLearning: 'Mindful: Menemukan solusi efisiensi yang menekan limbah produksi dan menghemat energi.',
-          },
-          {
-            title: `Bab 3: Sertifikasi Profesi Tingkat Ahli / Madya Standar Asosiasi Industri Global Bidang ${subject}`,
-            element: 'Sertifikasi Profesi Lanjut',
-            competency: 'Menguasai standar sertifikasi internasional',
-            hours: 45,
-            assessment: 'Uji Sertifikasi Profesi Tingkat Lanjut Dewan Asosiasi Industri',
-            deepLearning: 'Meaningful: Meraih lisensi kerja tingkat madya yang diakui di kawasan regional dan dunia.',
-          },
-        ],
-        sem2: [
-          {
-            title: `Bab 4: Riset Rekayasa Terapan & Inovasi Teknologi Capstone Project Bidang ${subject}`,
-            element: 'Riset Terapan Industri',
-            competency: 'Merancang inovasi teknologi industri',
-            hours: 45,
-            assessment: 'Uji Validasi Alat Inovasi Terapan Langsung di Lingkungan Industri Mitra',
-            deepLearning: 'Joyful: Alat inovasi rancangan sendiri terpasang dan beroperasi nyata meningkatkan output pabrik.',
-          },
-          {
-            title: `Bab 5: Studi Kelayakan Tekno-Ekonomi, Hak Paten, dan Standardisasi Operasional Inovasi ${subject}`,
-            element: 'Kelayakan Tekno-Ekonomi',
-            competency: 'Menyusun berkas pendaftaran paten',
-            hours: 45,
-            assessment: 'Dokumen Analisis ROI dan Draft Pendaftaran Hak Kekayaan Intelektual (HAKI)',
-            deepLearning: 'Meaningful: Melindungi karya inovasi bangsa melalui pendaftaran hak cipta dan paten resmi.',
-          },
-          {
-            title: `Bab 6: Sidang Terbuka Diseminasi Karya Riset Terapan di Hadapan Pimpinan Industri & Dewan Penguji ${subject}`,
-            element: 'Diseminasi Karya & Kelulusan',
-            competency: 'Mempertahankan inovasi industri',
-            hours: 45,
-            assessment: 'Asesmen Sumatif Akhir Program 4 Tahun: Sidang Terbuka Karya Capstone & Penyerahan Ijazah Teknisi Unggul',
-            deepLearning: 'Joyful: Menerima penghargaan inovasi terbaik dari dewan direksi industri pada hari kelulusan.',
+            assessment: 'Asesmen Sumatif Akhir Jenjang (SAJ)',
+            deepLearning: 'Joyful: Rasa bangga menyajikan karya terbaik saat kelulusan.',
           },
         ],
       };
     }
   }
 
-  // 3. GENERAL ACADEMIC & ALL OTHER SUBJECTS (Grade 1 to 13 distinct progression)
+  // 2B. RELIGIOUS STUDIES & KEPERCAYAAN (BSKAP No. 020/H/KR/2026)
+  if (domain === 'religious_studies') {
+    if (grade <= 6) {
+      return {
+        sem1: [
+          {
+            title: `Bab 1: Kasih Sayang Tuhan, Mengenal Kitab Suci, dan Nilai Dasar ${subject} (Kelas ${grade})`,
+            element: 'Kitab Suci & Keimanan',
+            competency: 'Mengenal ajaran kasih sayang dan nilai keimanan dasar',
+            hours: 24,
+            assessment: 'Observasi Pembiasaan Doa, Cerita Teladan & Lembar Refleksi',
+            deepLearning: `Mindful: Menumbuhkan kesadaran syukur dan doa sebelum beraktivitas.`,
+          },
+          {
+            title: `Bab 2: Akhlak Mulia, Kejujuran, dan Hormat kepada Orang Tua serta Guru (Kelas ${grade})`,
+            element: 'Akhlak & Budi Pekerti',
+            competency: 'Membiasakan perilaku jujur, santun, dan hormat',
+            hours: 24,
+            assessment: 'Jurnal Pembiasaan Budi Pekerti & Bermain Peran',
+            deepLearning: `Meaningful: Menghubungkan ajaran akhlak mulia dengan sikap nyata di rumah dan sekolah.`,
+          },
+          {
+            title: `Bab 3: Praktik Ibadah Harian, Kebersihan Diri, dan Kerukunan Teman (Kelas ${grade})`,
+            element: 'Ibadah & Ritual',
+            competency: 'Mempraktikkan tata cara ibadah dasar secara tertib',
+            hours: 24,
+            assessment: 'Praktik Langsung Tata Cara Ibadah & Doa Harian',
+            deepLearning: `Joyful: Mempraktikkan ibadah harian bersama teman dengan suasana gembira dan damai.`,
+          },
+        ],
+        sem2: [
+          {
+            title: `Bab 4: Kisah Keteladanan Tokoh Spiritual & Nilai Keberagaman Nusantara (Kelas ${grade})`,
+            element: 'Sejarah & Keteladanan',
+            competency: 'Meneladani kesabaran dan kasih sayang tokoh suci',
+            hours: 24,
+            assessment: 'Poster Kisah Teladan & Presentasi Cerita Singkat',
+            deepLearning: `Meaningful: Mengambil inspirasi teladan untuk hidup rukun di tengah keberagaman.`,
+          },
+          {
+            title: `Bab 5: Kepedulian Sosial, Gotong Royong, dan Merawat Alam Ciptaan Tuhan (Kelas ${grade})`,
+            element: 'Budi Pekerti & Ekoteologi',
+            competency: 'Menunjukkan aksi nyata peduli sesama dan lingkungan',
+            hours: 24,
+            assessment: 'Aksi Sosial Kelas & Proyek Merawat Lingkungan Sekolah',
+            deepLearning: `Joyful: Berbagi kebaikan dan merawat tanaman bersama sahabat lintas kelas.`,
+          },
+          {
+            title: `Bab 6: Refleksi Karakter Beriman, Toleransi, dan Syukur Akhir Tahun (Kelas ${grade})`,
+            element: 'Moderasi & Toleransi',
+            competency: 'Merefleksikan sikap toleransi dan kerukunan umat',
+            hours: 24,
+            assessment: 'Asesmen Sumatif & Portofolio Karakter Budi Pekerti',
+            deepLearning: `Mindful: Menyadari indahnya hidup rukun sebagai wujud rasa syukur kepada Tuhan.`,
+          },
+        ],
+      };
+    } else if (grade <= 9) {
+      return {
+        sem1: [
+          {
+            title: `Bab 1: Pemahaman Mendalam Kitab Suci & Prinsip Keimanan Kontekstual ${subject} (Kelas ${grade})`,
+            element: 'Kitab Suci & Keimanan',
+            competency: 'Menganalisis pesan moral kitab suci dalam kehidupan remaja',
+            hours: 18,
+            assessment: 'Analisis Makna Ayat/Teks Suci & Diskusi Kelompok',
+            deepLearning: `Mindful: Menghayati makna teks suci sebagai kompas moral era digital.`,
+          },
+          {
+            title: `Bab 2: Integritas Moral, Etika Pergaulan Remaja, dan Anti-Perundungan (Kelas ${grade})`,
+            element: 'Akhlak & Budi Pekerti',
+            competency: 'Menerapkan etika pergaulan bermartabat dan anti-bullying',
+            hours: 18,
+            assessment: 'Studi Kasus Etika Remaja & Kampanye Sekolah Ramah',
+            deepLearning: `Meaningful: Mengaktualisasikan ajaran agama untuk mencegah perundungan di sekolah.`,
+          },
+          {
+            title: `Bab 3: Pendalaman Makna Ibadah, Doa, dan Spiritualitas Diri (Kelas ${grade})`,
+            element: 'Ibadah & Ritual',
+            competency: 'Mempraktikkan ibadah dengan kesadaran penuh dan khusyuk',
+            hours: 18,
+            assessment: 'Uji Praktik Ibadah & Jurnal Refleksi Spiritual',
+            deepLearning: `Mindful: Melatih ketenangan batin dan kekhusyukan dalam beribadah.`,
+          },
+        ],
+        sem2: [
+          {
+            title: `Bab 4: Sejarah Peradaban Keagamaan, Kearifan Lokal, dan Tokoh Pembaru (Kelas ${grade})`,
+            element: 'Sejarah & Peradaban',
+            competency: 'Mengevaluasi kontribusi tokoh agama bagi peradaban damai',
+            hours: 18,
+            assessment: 'Esai Sejarah Tokoh & Presentasi Infografis',
+            deepLearning: `Meaningful: Memetik hikmah sejarah perjuangan kemanusiaan tokoh-tokoh agama.`,
+          },
+          {
+            title: `Bab 5: Moderasi Beragama, Dialog Harmonis, dan Solidaritas Kemanusiaan (Kelas ${grade})`,
+            element: 'Moderasi & Toleransi',
+            competency: 'Mengembangkan sikap inklusif dan toleran dalam masyarakat majemuk',
+            hours: 18,
+            assessment: 'Proyek Kolaborasi Harmoni Kebhinekaan',
+            deepLearning: `Joyful: Merayakan persaudaraan sejati lintas budaya dan keyakinan.`,
+          },
+          {
+            title: `Bab 6: Tanggung Jawab Ekologis & Bakti Sosial Komunitas (Kelas ${grade})`,
+            element: 'Budi Pekerti & Pengabdian',
+            competency: 'Merancang proyek pelayanan sosial dan pelestarian alam',
+            hours: 18,
+            assessment: 'Asesmen Sumatif & Laporan Aksi Kemanusiaan',
+            deepLearning: `Joyful: Mengabdi langsung kepada masyarakat sebagai wujud nyata keimanan.`,
+          },
+        ],
+      };
+    } else {
+      return {
+        sem1: [
+          {
+            title: `Bab 1: Epistemologi Iman, Rasionalitas, dan Makna Kehidupan dalam ${subject} (Kelas ${grade})`,
+            element: 'Keimanan & Filsafat Moral',
+            competency: 'Menganalisis keselarasan iman, ilmu pengetahuan, dan teknologi modern',
+            hours: 18,
+            assessment: 'Makalah Analitis Iman & Ilmu serta Forum Diskusi Kritis',
+            deepLearning: `Mindful: Merefleksikan tujuan hidup manusia dan tanggung jawab intelektual.`,
+          },
+          {
+            title: `Bab 2: Etika Digital, Bioetika, dan Integritas Generasi Muda (Kelas ${grade})`,
+            element: 'Akhlak & Etika Kontemporer',
+            competency: 'Mengevaluasi persoalan etika kontemporer berdasarkan nilai agama',
+            hours: 18,
+            assessment: 'Debat Etis Isu Kontemporer & Kode Etik Digital Pelajar',
+            deepLearning: `Meaningful: Menjawab dilema moral era kecerdasan artifisial dengan nilai luhur.`,
+          },
+          {
+            title: `Bab 3: Spiritualitas Transformatif & Praktik Ibadah Kemasyarakatan (Kelas ${grade})`,
+            element: 'Ibadah & Pengabdian',
+            competency: 'Menghubungkan kesalehan pribadi dengan kesalehan sosial',
+            hours: 18,
+            assessment: 'Observasi Praktik Keagamaan & Rencana Aksi Sosial',
+            deepLearning: `Mindful: Menumbuhkan empati sosial melalui ibadah yang membumi.`,
+          },
+        ],
+        sem2: [
+          {
+            title: `Bab 4: Kontribusi Tokoh Agama dalam Kebangsaan, Perdamaian Dunia, dan HAM (Kelas ${grade})`,
+            element: 'Sejarah & Kebangsaan',
+            competency: 'Menganalisis peran nilai agama dalam membangun keadilan sosial',
+            hours: 18,
+            assessment: 'Kajian Literatur Kebangsaan & Presentasi Seminar Kelas',
+            deepLearning: `Meaningful: Meneladani semangat persatuan dan kemanusiaan tokoh bangsa.`,
+          },
+          {
+            title: `Bab 5: Moderasi Beragama, Kerukunan Global, dan Kepemimpinan Inklusif (Kelas ${grade})`,
+            element: 'Moderasi & Toleransi',
+            competency: 'Menjadi pelopor kerukunan dan dialog antarumat beragama',
+            hours: 18,
+            assessment: 'Proyek Kampanye Toleransi & Resolusi Konflik Damai',
+            deepLearning: `Joyful: Berkolaborasi membangun proyek perdamaian di lingkungan sekolah.`,
+          },
+          {
+            title: `Bab 6: Proyek Pengabdian Masyarakat Berkelanjutan & Manifesto Budi Pekerti (Kelas ${grade})`,
+            element: 'Aktualisasi Budi Pekerti',
+            competency: 'Menyajikan proyek nyata kepedulian sosial dan ekoteologi',
+            hours: 18,
+            assessment: 'Asesmen Sumatif Akhir Tahun & Gelar Karya Pengabdian',
+            deepLearning: `Joyful: Merayakan kebermanfaatan diri bagi sesama dan kelestarian bumi.`,
+          },
+        ],
+      };
+    }
+  }
+
+  // 2C. CODING, AI & DIGITAL EDUCATION (BSKAP No. 046/H/KR/2025 & No. 020/H/KR/2026)
+  if (domain === 'coding_ai') {
+    const isSD = grade <= 6;
+    const isSMP = grade >= 7 && grade <= 9;
+    return {
+      sem1: [
+        {
+          title: `Bab 1: Berpikir Komputasional (Dekomposisi, Pola, Abstraksi, Algoritma) ${subject} (Kelas ${grade})`,
+          element: 'Berpikir Komputasional',
+          competency: 'Menerapkan logika berpikir komputasional untuk memecahkan masalah',
+          hours: isSD ? 18 : 24,
+          assessment: 'Tantangan Logika Algoritma & Lembar Kerja Unplugged/Digital',
+          deepLearning: `Mindful: Melatih ketelitian menyusun langkah logis pemecahan masalah.`,
+        },
+        {
+          title: `Bab 2: Literasi Digital, Keamanan Siber, dan Etika Pemanfaatan Teknologi (Kelas ${grade})`,
+          element: 'Literasi Digital & Etika',
+          competency: 'Mengevaluasi keamanan data pribadi dan jejak digital secara kritis',
+          hours: isSD ? 18 : 24,
+          assessment: 'Audit Keamanan Akun & Simulasi Identifikasi Misinformasi',
+          deepLearning: `Meaningful: Melindungi diri dan komunitas dari risiko kejahatan siber.`,
+        },
+        {
+          title: `Bab 3: Pemrograman Terstruktur & Pengembangan Solusi ${isSD ? 'Blok Visual' : isSMP ? 'Algoritmik' : 'Berbasis Teks/Python'} (Kelas ${grade})`,
+          element: 'Pemrograman & Algoritma',
+          competency: 'Merancang dan menguji program interaktif sederhana hingga kompleks',
+          hours: isSD ? 18 : 24,
+          assessment: 'Proyek Mini Aplikasi / Animasi Logika Terstruktur',
+          deepLearning: `Joyful: Bereksperimen membangun program interaktif yang langsung bekerja.`,
+        },
+      ],
+      sem2: [
+        {
+          title: `Bab 4: Konsep Dasar Kecerdasan Artifisial (AI), Data, dan Mesin Pembelajar (Kelas ${grade})`,
+          element: 'Literasi Kecerdasan Artifisial',
+          competency: 'Memahami cara kerja model AI, klasifikasi data, dan bias algoritmik',
+          hours: isSD ? 18 : 24,
+          assessment: 'Eksperimen Klasifikasi Data Sederhana & Analisis Hasil Prediksi',
+          deepLearning: `Meaningful: Memahami bagaimana AI membantu kehidupan sekaligus batasannya.`,
+        },
+        {
+          title: `Bab 5: Etika Kecerdasan Artifisial, Hak Cipta, dan Kolaborasi Manusia-AI (Kelas ${grade})`,
+          element: 'Etika & Pemanfaatan AI',
+          competency: 'Menggunakan perangkat AI secara jujur, aman, dan bertanggung jawab',
+          hours: isSD ? 18 : 24,
+          assessment: 'Studi Kasus Etika AI & Uji Prompting Bertanggung Jawab',
+          deepLearning: `Mindful: Menempatkan manusia sebagai pengendali etis di atas teknologi AI.`,
+        },
+        {
+          title: `Bab 6: Proyek Inovasi Koding & Kecerdasan Artifisial untuk Masalah Sekitar (Kelas ${grade})`,
+          element: 'Proyek Desain Inovatif',
+          competency: 'Merancang purwarupa solusi digital berbasis koding dan AI',
+          hours: isSD ? 18 : 24,
+          assessment: 'Asesmen Sumatif: Demo Prototipe Solusi Digital & Presentasi Tim',
+          deepLearning: `Joyful: Memamerkan karya inovasi teknologi yang berdampak bagi warga sekolah.`,
+        },
+      ],
+    };
+  }
+
+  // 2D. SENI (MUSIK, TARI, TEATER)
+  if (domain === 'arts_music' || domain === 'arts_dance' || domain === 'arts_theatre') {
+    const artFocus =
+      domain === 'arts_music'
+        ? 'Bunyi, Ritme, Melodi, dan Aransemen Musik'
+        : domain === 'arts_dance'
+        ? 'Gerak Tubuh, Ruang, Waktu, Tenaga, dan Koreografi Tari'
+        : 'Olah Tubuh, Olah Suara, Naskah, dan Penyutradaraan Teater';
+    return {
+      sem1: [
+        {
+          title: `Bab 1: Mengalami & Mengeksplorasi Unsur Pokok ${subject} (${artFocus}) (Kelas ${grade})`,
+          element: 'Mengalami (Experiencing)',
+          competency: 'Mengidentifikasi dan mengeksplorasi elemen artistik dasar karya seni',
+          hours: 18,
+          assessment: 'Observasi Eksplorasi Artistik & Jurnal Apresiasi',
+          deepLearning: `Mindful: Mengasah kepekaan rasa dan pendengaran/pengamatan terhadap keindahan seni.`,
+        },
+        {
+          title: `Bab 2: Teknik Dasar, Tata Artistik, dan Ragam Karya Tradisional Nusantara ${subject} (Kelas ${grade})`,
+          element: 'Merefleksikan & Mengapresiasi',
+          competency: 'Menganalisis keunikan karya seni tradisi dan modern Nusantara',
+          hours: 18,
+          assessment: 'Uji Teknik Dasar & Presentasi Apresiasi Seni Daerah',
+          deepLearning: `Meaningful: Menghubungkan ekspresi seni dengan identitas budaya lokal Indonesia.`,
+        },
+      ],
+      sem2: [
+        {
+          title: `Bab 3: Menciptakan & Mengkreasikan Karya Kolaboratif ${subject} (Kelas ${grade})`,
+          element: 'Menciptakan (Making/Creating)',
+          competency: 'Merancang dan menyusun karya seni orisinal secara kolaboratif',
+          hours: 18,
+          assessment: 'Penilaian Proses Latihan & Rancangan Karya Orisinal',
+          deepLearning: `Joyful: Berkarya penuh ekspresi dan kegembiraan bersama tim kreatif.`,
+        },
+        {
+          title: `Bab 4: Gelar Pertunjukan, Apresiasi Publik, dan Refleksi Berdampak ${subject} (Kelas ${grade})`,
+          element: 'Berdampak (Impacting)',
+          competency: 'Menampilkan karya seni di hadapan audiens dan melakukan refleksi',
+          hours: 18,
+          assessment: 'Asesmen Sumatif: Pementasan Karya Seni & Evaluasi Reflektif',
+          deepLearning: `Joyful: Merayakan keberanian tampil dan apresiasi positif dari komunitas sekolah.`,
+        },
+      ],
+    };
+  }
+
+  // 3. GENERAL ACADEMIC & ALL OTHER SUBJECTS (Grade 1 to 12 distinct progression)
   if (grade <= 3) {
     return {
       sem1: [

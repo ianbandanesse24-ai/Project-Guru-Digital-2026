@@ -40,8 +40,9 @@ import {
   ClipboardList,
   BookOpen,
 } from 'lucide-react';
-import { UserAccount, SchoolProfile, AppTheme, ActiveMasterCPData } from '../types';
+import { UserAccount, SchoolProfile, AppTheme, ActiveMasterCPData, AdminUploadedCPItem, CPSubjectEntry } from '../types';
 import { StorageService } from '../lib/storage';
+import { TIERED_SCHOOL_LEVEL_CARDS, type SchoolLevelGroup } from '../lib/curriculumLevels';
 import { PWAInstallButton } from '../components/PWAInstallButton';
 import { AMDLogo } from '../components/AMDLogo';
 
@@ -60,24 +61,40 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
   const [schoolProfile, setSchoolProfile] = useState<SchoolProfile>(() => StorageService.getSchoolProfile());
   const [activeTab, setActiveTab] = useState<'all' | 'ai' | 'admin' | 'kaldik'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeMasterCP, setActiveMasterCP] = useState<ActiveMasterCPData | null>(() => StorageService.getActiveMasterCP());
+  const [activeMasterCP, setActiveMasterCP] = useState<ActiveMasterCPData | null>(() => StorageService.getAdminMasterCP());
+  const [adminUploadedCPs, setAdminUploadedCPs] = useState<AdminUploadedCPItem[]>(() => StorageService.getAdminUploadedCPs());
+  const [cpRefreshTick, setCpRefreshTick] = useState<number>(0);
   const [isCPNotifExpanded, setIsCPNotifExpanded] = useState<boolean>(true);
+  const [isAllSubjectsExpanded, setIsAllSubjectsExpanded] = useState<boolean>(false);
   const [dismissCPNotif, setDismissCPNotif] = useState<boolean>(false);
 
-  // Sync real-time updates for Master CP & School Profile
+  // Sync real-time updates strictly for Admin-uploaded Master CP & School Profile
   useEffect(() => {
     const handleCPUpdate = () => {
-      setActiveMasterCP(StorageService.getActiveMasterCP());
+      setActiveMasterCP(StorageService.getAdminMasterCP());
+      setAdminUploadedCPs(StorageService.getAdminUploadedCPs());
       setSchoolProfile(StorageService.getSchoolProfile());
+      setCpRefreshTick((t) => t + 1);
     };
+
+    Promise.all([
+      StorageService.fetchAdminSettingsFromServer(),
+      StorageService.fetchAdminCPCatalogFromServer(),
+    ]).then(() => {
+      handleCPUpdate();
+    });
 
     window.addEventListener('storage', handleCPUpdate);
     window.addEventListener('master-cp-updated', handleCPUpdate);
+    window.addEventListener('master-cp-catalog-updated', handleCPUpdate);
+    window.addEventListener('admin-cp-updated', handleCPUpdate);
     window.addEventListener('curriculum-parameters-synced', handleCPUpdate);
 
     return () => {
       window.removeEventListener('storage', handleCPUpdate);
       window.removeEventListener('master-cp-updated', handleCPUpdate);
+      window.removeEventListener('master-cp-catalog-updated', handleCPUpdate);
+      window.removeEventListener('admin-cp-updated', handleCPUpdate);
       window.removeEventListener('curriculum-parameters-synced', handleCPUpdate);
     };
   }, []);
@@ -91,7 +108,21 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
 
   const pendingApprovals = users.filter((u) => u.status === 'pending');
 
-  // Master CP summary statistics
+  // Strict Admin-only CP summary statistics
+  const validAdminUploads = adminUploadedCPs.filter(
+    (item) => item.fileName?.trim() && item.uploadedByRole === 'admin'
+  );
+  const latestAdminUpload = validAdminUploads.length > 0 ? validAdminUploads[validAdminUploads.length - 1] : null;
+  const hasAdminCP = Boolean(
+    (activeMasterCP && activeMasterCP.uploadedByRole === 'admin' && activeMasterCP.fileName?.trim()) ||
+      validAdminUploads.length > 0
+  );
+  const bannerFileName = activeMasterCP?.fileName || latestAdminUpload?.fileName || 'Dokumen CP Master';
+  const bannerSubject = activeMasterCP?.subject || latestAdminUpload?.subject || 'Kurikulum Nasional';
+  const bannerLevel = activeMasterCP?.level || latestAdminUpload?.level || 'SMA';
+  const bannerGrade = activeMasterCP?.grade || latestAdminUpload?.grade || 10;
+  const bannerPhase = activeMasterCP?.phase || latestAdminUpload?.phase || 'Fase E';
+
   const sem1Materials = activeMasterCP?.materialsSem1 || [];
   const sem2Materials = activeMasterCP?.materialsSem2 || [];
   const totalBab = sem1Materials.length + sem2Materials.length;
@@ -99,6 +130,36 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
   sem1Materials.forEach((m) => { totalTP += (m.tpCount || 2); });
   sem2Materials.forEach((m) => { totalTP += (m.tpCount || 2); });
   if (totalTP === 0 && totalBab > 0) totalTP = totalBab * 2;
+
+  const adminSubjectsGrouped = React.useMemo(() => {
+    if (!hasAdminCP) {
+      return {
+        totalUnique: 0,
+        byLevelPhase: { SD: [], SMP: [], SMA: [] } as ReturnType<
+          typeof StorageService.getAllSubjectsByLevelAndPhase
+        >['byLevelPhase'],
+      };
+    }
+    return StorageService.getAllSubjectsByLevelAndPhase({ adminOnly: true });
+  }, [hasAdminCP, activeMasterCP, adminUploadedCPs, cpRefreshTick]);
+
+  const handleOpenSubjectFromBanner = (entry: CPSubjectEntry) => {
+    const currentProf = StorageService.getSchoolProfile();
+    StorageService.saveSchoolProfile(
+      {
+        ...currentProf,
+        level: entry.level,
+        grade: Number(entry.grade) || (entry.level === 'SD' ? 4 : entry.level === 'SMP' ? 7 : 10),
+        phase: entry.phase || currentProf.phase,
+        subject: entry.subject,
+        jpPerWeek: entry.jpPerWeek || currentProf.jpPerWeek,
+        totalHoursPerYear: entry.totalHoursPerYear || currentProf.totalHoursPerYear,
+      },
+      undefined,
+      true
+    );
+    onNavigate('parameter_kurikulum');
+  };
 
   // Greeting based on time
   const hour = new Date().getHours();
@@ -334,9 +395,9 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* PEMBERITAHUAN CP MASTER BERHASIL DIUNGGAH & DISINKRONKAN KE PARAMETER */}
+      {/* PEMBERITAHUAN CP MASTER YANG DIUPLOAD OLEH ADMIN                           */}
       {/* ========================================================================= */}
-      {activeMasterCP && !dismissCPNotif && (
+      {hasAdminCP && !dismissCPNotif && (
         <div className="rounded-2xl border-2 border-emerald-500/60 bg-gradient-to-br from-emerald-950/95 via-slate-900 to-indigo-950/90 text-white p-5 shadow-xl space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 relative overflow-hidden">
           {/* Subtle Ambient Glow */}
           <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -352,34 +413,34 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center space-x-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping mr-1" />
-                    <span>PEMBERITAHUAN CP MASTER TERSINKRONISASI</span>
+                    <span>CP MASTER UPLOAD ADMIN TERSINKRONISASI</span>
                   </span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center space-x-1">
                     <FileText className="w-3 h-3 text-indigo-300 mr-1" />
-                    <span className="truncate max-w-[260px]">File: {activeMasterCP.fileName || 'Dokumen CP Master'}</span>
+                    <span className="truncate max-w-[260px]">File: {bannerFileName}</span>
                   </span>
-                  {activeMasterCP.lastSyncedAt && (
+                  {(activeMasterCP?.lastSyncedAt || latestAdminUpload?.uploadedAt) && (
                     <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
-                      Sinkron: {new Date(activeMasterCP.lastSyncedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                      Sinkron: {new Date(activeMasterCP?.lastSyncedAt || latestAdminUpload?.uploadedAt || '').toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
                     </span>
                   )}
                 </div>
 
                 <h3 className="text-base sm:text-lg font-black text-white mt-1 leading-snug flex flex-wrap items-center gap-1.5">
-                  <span>Capaian Pembelajaran (CP) Resmi:</span>
+                  <span>Capaian Pembelajaran (CP) Upload Admin:</span>
                   <span className="text-emerald-300 underline decoration-emerald-500/50 underline-offset-2">
-                    {activeMasterCP.subject}
+                    {bannerSubject}
                   </span>
                   <span className="text-slate-300 font-normal text-xs sm:text-sm">
-                    ({activeMasterCP.level} Kelas {activeMasterCP.grade} • {activeMasterCP.phase})
+                    ({bannerLevel} Kelas {bannerGrade} • {bannerPhase})
                   </span>
                   <span className="text-indigo-300 font-mono text-[11px] bg-indigo-950/80 px-2 py-0.5 rounded-md border border-indigo-500/30">
-                    {activeMasterCP.fileName || 'Dokumen Resmi'}
+                    {bannerFileName}
                   </span>
                 </h3>
 
                 <p className="text-xs text-slate-300 mt-0.5 leading-relaxed">
-                  Dokumen CP master <strong className="text-emerald-300">"{activeMasterCP.fileName || activeMasterCP.subject}"</strong> telah berhasil dianalisis dan tersinkronisasi penuh ke <strong>Parameter Kurikulum</strong>. Seluruh konfigurasi mata pelajaran, Bab &amp; ruang lingkup materi, serta alokasi JP otomatis aktif di seluruh 9 perangkat ajar.
+                  Dokumen CP master <strong className="text-emerald-300">"{bannerFileName}"</strong> yang diupload oleh Admin telah tersimpan paten dan tersinkronisasi penuh ke <strong>Profil Guru</strong> dan <strong>Parameter Kurikulum</strong>.
                 </p>
               </div>
             </div>
@@ -409,35 +470,162 @@ export const DashboardHomeView: React.FC<DashboardHomeViewProps> = ({
           {/* Expanded CP Synchronization Details */}
           {isCPNotifExpanded && (
             <div className="space-y-4 pt-2 border-t border-slate-800/80 relative z-10">
+              {/* Daftar File CP yang Diupload Admin */}
+              {validAdminUploads.length > 0 && (
+                <div className="p-3 rounded-xl bg-slate-950/75 border border-emerald-500/30 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-emerald-300">
+                    <span>Daftar File CP Resmi Upload Admin ({validAdminUploads.length} Dokumen)</span>
+                    <span className="text-[10px] text-slate-400">Hanya CP Upload Admin</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {validAdminUploads.map((item) => (
+                      <div
+                        key={item.id || `${item.no}-${item.fileName}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs"
+                      >
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white font-mono font-bold text-[10px]">
+                          No. {item.no}
+                        </span>
+                        {item.slot === 'agama' && (
+                          <span className="px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-500/40 font-bold text-[10px]">
+                            CP #2 Agama
+                          </span>
+                        )}
+                        <span className="font-semibold text-white truncate max-w-[220px]" title={item.fileName}>
+                          {item.fileName}
+                        </span>
+                        {item.subject && (
+                          <span className="text-[10px] text-slate-400">• {item.subject}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Parameter Metrics Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5 text-xs">
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Mata Pelajaran</span>
-                  <p className="font-extrabold text-white text-xs truncate">{activeMasterCP.subject}</p>
+              {activeMasterCP && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5 text-xs">
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Mata Pelajaran</span>
+                    <p className="font-extrabold text-white text-xs truncate">{activeMasterCP.subject}</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Jenjang &amp; Kelas</span>
+                    <p className="font-extrabold text-indigo-300 text-xs truncate">{activeMasterCP.level} Kelas {activeMasterCP.grade}</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Fase Kurikulum</span>
+                    <p className="font-extrabold text-teal-300 text-xs">{activeMasterCP.phase}</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Beban Belajar</span>
+                    <p className="font-extrabold text-emerald-400 text-xs font-mono">{activeMasterCP.totalHoursPerYear} JP ({activeMasterCP.jpPerWeek} JP/Mgg)</p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">BAB / Ruang Lingkup</span>
+                    <p className="font-extrabold text-amber-300 text-xs font-mono">
+                      {totalBab} Bab ({sem1Materials.length} Sem 1, {sem2Materials.length} Sem 2)
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5 col-span-2 sm:col-span-4 lg:col-span-1">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Target TP &amp; ATP</span>
+                    <p className="font-extrabold text-purple-300 text-xs font-mono">{totalTP} Tujuan Pembelajaran</p>
+                  </div>
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Jenjang &amp; Kelas</span>
-                  <p className="font-extrabold text-indigo-300 text-xs truncate">{activeMasterCP.level} Kelas {activeMasterCP.grade}</p>
+              )}
+
+              {/* Seluruh Mata Pelajaran yang Diambil dari CP Admin (Dikelompokkan per Jenjang, Kelas & Fase - tersembunyi secara default) */}
+              {adminSubjectsGrouped.totalUnique > 0 && (
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
+                  <div className={`flex flex-wrap items-center justify-between gap-2 ${isAllSubjectsExpanded ? 'border-b border-slate-800 pb-2' : ''}`}>
+                    <span className="text-xs font-bold text-white flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-emerald-400" />
+                      <span>Direktori Mapel CP No. 046/2025 &amp; No. 020/2026 ({adminSubjectsGrouped.totalUnique} Mapel)</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAllSubjectsExpanded((prev) => !prev)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-emerald-300 text-[11px] font-bold transition cursor-pointer"
+                    >
+                      {isAllSubjectsExpanded ? (
+                        <>
+                          <ChevronUp className="w-3.5 h-3.5" />
+                          <span>Sembunyikan Daftar</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-3.5 h-3.5" />
+                          <span>Tampilkan Daftar Mapel</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {isAllSubjectsExpanded && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {TIERED_SCHOOL_LEVEL_CARDS.map((card) => {
+                      const phaseBuckets = adminSubjectsGrouped.byLevelPhase[card.group] || [];
+                      const activeBuckets = phaseBuckets.filter((pb) => pb.items.length > 0);
+                      const levelUniqueCount = new Set(
+                        activeBuckets.flatMap((pb) =>
+                          pb.items.map((e) => e.subject.trim().toLowerCase().replace(/\s+&\s+/g, ' dan '))
+                        )
+                      ).size;
+                      return (
+                        <div
+                          key={`dash-tier-${card.group}`}
+                          className="p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 space-y-2.5"
+                        >
+                          <div className="flex items-center justify-between text-[11px] font-bold border-b border-slate-800 pb-1.5">
+                            <span className="text-slate-200">{card.aliases}</span>
+                            <span className="text-emerald-400 tabular-nums">{levelUniqueCount} Mapel</span>
+                          </div>
+                          {activeBuckets.length === 0 ? (
+                            <p className="text-[11px] text-slate-500">Belum ada mapel pada jenjang ini.</p>
+                          ) : (
+                            <div className="space-y-2.5">
+                              {activeBuckets.map((pb) => (
+                                <div key={`dash-phase-${card.group}-${pb.phase}`} className="space-y-1">
+                                  <div className="flex items-center justify-between text-[10px] font-semibold text-sky-300">
+                                    <span>{pb.label}</span>
+                                    <span className="text-slate-400 tabular-nums">{pb.items.length}</span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {pb.items.map((entry, idx) => {
+                                      const isPilihan = entry.categoryTag === 'Pilihan/Tingkat Lanjut';
+                                      return (
+                                        <button
+                                          key={`dash-sub-${card.group}-${pb.phase}-${entry.subject}-${idx}`}
+                                          type="button"
+                                          onClick={() => handleOpenSubjectFromBanner(entry)}
+                                          className={`px-2 py-1 rounded-md border text-[11px] font-medium transition text-left cursor-pointer inline-flex items-center gap-1 ${
+                                            isPilihan
+                                              ? 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40 hover:border-amber-400 text-amber-200'
+                                              : 'bg-slate-950 hover:bg-emerald-950/60 border-slate-700 hover:border-emerald-500/60 text-slate-200 hover:text-emerald-200'
+                                          }`}
+                                          title={`Buka ${entry.subject} (${pb.label}) di Parameter Kurikulum`}
+                                        >
+                                          <span>{entry.subject}</span>
+                                          {isPilihan && (
+                                            <span className="text-[9px] font-bold text-amber-300 bg-amber-500/20 px-1 rounded">
+                                              Pilihan
+                                            </span>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  )}
                 </div>
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Fase Kurikulum</span>
-                  <p className="font-extrabold text-teal-300 text-xs">{activeMasterCP.phase}</p>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Beban Belajar</span>
-                  <p className="font-extrabold text-emerald-400 text-xs font-mono">{activeMasterCP.totalHoursPerYear} JP ({activeMasterCP.jpPerWeek} JP/Mgg)</p>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">BAB / Ruang Lingkup</span>
-                  <p className="font-extrabold text-amber-300 text-xs font-mono">
-                    {totalBab} Bab ({sem1Materials.length} Sem 1, {sem2Materials.length} Sem 2)
-                  </p>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-0.5 col-span-2 sm:col-span-4 lg:col-span-1">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block">Target TP &amp; ATP</span>
-                  <p className="font-extrabold text-purple-300 text-xs font-mono">{totalTP} Tujuan Pembelajaran</p>
-                </div>
-              </div>
+              )}
 
               {/* Connected Modules Ecosystem Pipeline */}
               <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 space-y-2">

@@ -27,32 +27,36 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
     StorageService.getSchoolProfile()
   );
   const [activeMasterCP, setActiveMasterCP] = useState<ActiveMasterCPData | null>(() =>
-    StorageService.getActiveMasterCP()
+    StorageService.getAdminMasterCP()
   );
   const [adminUploadedCPs, setAdminUploadedCPs] = useState<AdminUploadedCPItem[]>(() =>
     StorageService.getAdminUploadedCPs()
   );
 
-  // Live sync if Admin CP, Master CP, or school profile updates
+  // Live sync strictly with Admin-uploaded CPs, Master CP Catalog, and school profile
   useEffect(() => {
     const syncData = () => {
-      setActiveMasterCP(StorageService.getActiveMasterCP());
+      setActiveMasterCP(StorageService.getAdminMasterCP());
       setAdminUploadedCPs(StorageService.getAdminUploadedCPs());
       setSchoolProfile(StorageService.getSchoolProfile());
     };
 
-    // Fetch latest Admin settings / uploaded CP list from server
-    StorageService.fetchAdminSettingsFromServer().then(() => {
+    Promise.all([
+      StorageService.fetchAdminSettingsFromServer(),
+      StorageService.fetchAdminCPCatalogFromServer(),
+    ]).then(() => {
       syncData();
     });
 
     window.addEventListener('storage', syncData);
     window.addEventListener('master-cp-updated', syncData);
+    window.addEventListener('master-cp-catalog-updated', syncData);
     window.addEventListener('admin-cp-updated', syncData);
     window.addEventListener('curriculum-parameters-synced', syncData);
     return () => {
       window.removeEventListener('storage', syncData);
       window.removeEventListener('master-cp-updated', syncData);
+      window.removeEventListener('master-cp-catalog-updated', syncData);
       window.removeEventListener('admin-cp-updated', syncData);
       window.removeEventListener('curriculum-parameters-synced', syncData);
     };
@@ -95,24 +99,31 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
       ? 'Selamat Sore'
       : 'Selamat Malam';
 
-  // Prioritize CP files uploaded by Admin; fallback to activeMasterCP if available
+  // Strictly display ONLY CP files uploaded by Admin (never non-admin or preset fallback CPs)
   const displayCPList: AdminUploadedCPItem[] = useMemo(() => {
-    if (adminUploadedCPs.length > 0) {
-      return adminUploadedCPs;
+    const validAdminList = adminUploadedCPs.filter(
+      (item) => item.fileName?.trim() && item.uploadedByRole === 'admin'
+    );
+    if (validAdminList.length > 0) {
+      return validAdminList;
     }
-    if (activeMasterCP?.fileName?.trim()) {
+    if (activeMasterCP?.fileName?.trim() && activeMasterCP.uploadedByRole === 'admin') {
       return [
         {
           id: activeMasterCP.id || 'active-cp-1',
           no: 1,
+          slot: activeMasterCP.slot || 'primary',
+          isPermanent: activeMasterCP.isPermanent ?? true,
           docNumber: activeMasterCP.docNumber,
           fileName: activeMasterCP.fileName.trim(),
+          folderName: activeMasterCP.folderName,
           subject: activeMasterCP.subject,
           level: activeMasterCP.level,
           grade: activeMasterCP.grade,
           phase: activeMasterCP.phase,
           uploadedAt: activeMasterCP.uploadedAt || new Date().toISOString(),
           uploadedBy: activeMasterCP.uploadedByName || 'Admin',
+          uploadedByRole: 'admin',
         },
       ];
     }
@@ -204,11 +215,21 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
                         <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-mono font-bold text-[11px] shrink-0">
                           No. {item.no}
                         </span>
+                        {item.slot === 'agama' && (
+                          <span className="px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 border border-teal-200 font-bold text-[10px] shrink-0">
+                            CP #2 Agama
+                          </span>
+                        )}
                         <span className="font-semibold text-slate-800 truncate" title={item.fileName}>
                           {item.fileName}
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
+                        {item.isPermanent && (
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md">
+                            Paten
+                          </span>
+                        )}
                         {item.folderName && (
                           <span className="text-[10px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
                             {item.folderName}
@@ -227,7 +248,7 @@ export const WelcomeSyncView: React.FC<WelcomeSyncViewProps> = ({
             </div>
           ) : (
             <p className="text-sm sm:text-base text-slate-600 max-w-lg mx-auto leading-relaxed pt-1 font-normal">
-              Selamat datang di Aplikasi Administrasi Guru &amp; Kurikulum Deep Learning. Silakan unggah dokumen file CP terlebih dahulu atau langsung buka dashboard untuk mulai menyusun perangkat ajar. Selamat bertugas dan sukses hari ini!
+              Selamat datang di Aplikasi Administrasi Guru &amp; Kurikulum Deep Learning. Belum ada file CP yang diupload oleh Admin. Silakan unggah dokumen CP melalui menu Admin atau langsung buka dashboard untuk mulai menyusun perangkat ajar.
             </p>
           )}
         </div>

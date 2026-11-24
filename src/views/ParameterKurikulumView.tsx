@@ -24,6 +24,9 @@ import {
   Calculator,
   UserCheck,
   ChevronRight,
+  ChevronDown,
+  Search,
+  Layers,
 } from 'lucide-react';
 import {
   SchoolLevel,
@@ -44,6 +47,7 @@ import {
   resolvePhaseByLevelAndGrade,
   getGradeOptionsByLevel,
   getSchoolLevelDisplay,
+  isSameSubjectName,
 } from '../lib/curriculumLevels';
 import { handleNumberInputFocus, parseNumberInput } from '../lib/inputUtils';
 import { KalenderPendidikanView } from './KalenderPendidikanView';
@@ -159,6 +163,11 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
   const [showSubjectSelector, setShowSubjectSelector] = useState(false);
   const [customSubjectInput, setCustomSubjectInput] = useState('');
   const [catalogVersion, setCatalogVersion] = useState(0);
+  const [directoryScope, setDirectoryScope] = useState<'level' | 'all'>('all');
+  const [directorySlotFilter, setDirectorySlotFilter] = useState<'all' | 'primary' | 'agama'>('all');
+  const [directoryCategoryFilter, setDirectoryCategoryFilter] = useState<'all' | 'wajib' | 'pilihan'>('all');
+  const [directorySearch, setDirectorySearch] = useState('');
+  const [showCPDirectory, setShowCPDirectory] = useState(false);
   const isSyncingFromSelfRef = React.useRef(false);
 
   // Modal for adding chapter with automatic TP generation according to taught material
@@ -167,15 +176,20 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
   const [modalTPCount, setModalTPCount] = useState(2);
   const [modalAllocatedHours, setModalAllocatedHours] = useState(12);
 
-  // Daftar kelas & fase sesuai Tingkat Sekolah (SD 1-6, SMP 7-9, SMA 10-12, SMK 10-13)
+  // Daftar kelas & fase sesuai Tingkat Sekolah (SD 1-6, SMP 7-9, SMA 10-12)
   const availableGrades = useMemo(() => {
     return getGradeOptionsByLevel(level);
   }, [level]);
 
-  // Daftar Mata Pelajaran pada CP Master BSKAP 046 yang diupload Admin sesuai Tingkat Sekolah terpilih
+  // Daftar Mata Pelajaran pada CP Master (CP #1 + CP #2) sesuai Tingkat Sekolah terpilih
   const cpMasterSubjects = useMemo(() => {
     return StorageService.getSubjectsFromMasterCPByLevel(level);
   }, [level, catalogVersion]);
+
+  // Direktori lengkap seluruh Mata Pelajaran dari CP #1 (Umum/Pilihan) dan CP #2 (Agama & Budi Pekerti)
+  const bothCPsDirectory = useMemo(() => {
+    return StorageService.getAllSubjectsFromBothCPs();
+  }, [level, subject, catalogVersion]);
 
   const activeCPSubjectMatch = useMemo(() => {
     const clean = subject.trim().toLowerCase();
@@ -185,8 +199,30 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
   const levelDisplay = useMemo(() => getSchoolLevelDisplay(level, grade), [level, grade]);
   const currentLevelGroup = getSchoolLevelGroup(level);
 
-  // Sync with storage and synchronization broadcast changes
+  // Hydrate catalog & settings from backend on mount + subscribe to live sync events
   useEffect(() => {
+    let isMounted = true;
+    Promise.all([
+      StorageService.fetchAdminCPCatalogFromServer(),
+      StorageService.fetchAdminSettingsFromServer(),
+    ]).then(([catalogRes]) => {
+      if (!isMounted) return;
+      setCatalogVersion((v) => v + 1);
+      if (catalogRes?.activeMasterCP && !isSyncingFromSelfRef.current) {
+        const updated = catalogRes.activeMasterCP;
+        if (updated.subject && !StorageService.getSchoolProfile().subject) {
+          setSubject(updated.subject);
+          if (updated.level) setLevel(updated.level as SchoolLevel);
+          if (updated.grade) setGrade(Number(updated.grade));
+          if (updated.phase) setPhase(updated.phase);
+          if (updated.jpPerWeek) setJpPerWeek(Number(updated.jpPerWeek));
+          if (updated.timeAllocationPerWeek) setTimeAllocationPerWeek(updated.timeAllocationPerWeek);
+          setMaterialsSem1(updated.materialsSem1 || []);
+          setMaterialsSem2(updated.materialsSem2 || []);
+        }
+      }
+    }).catch(() => {});
+
     const handleRefresh = (customDetail?: any) => {
       setCatalogVersion((v) => v + 1);
       if (isSyncingFromSelfRef.current) return;
@@ -218,6 +254,7 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     window.addEventListener('school-profile-updated', onProf);
 
     return () => {
+      isMounted = false;
       unsub();
       window.removeEventListener('curriculum-parameters-synced', onSync);
       window.removeEventListener('master-cp-updated', onMaster);
@@ -232,7 +269,7 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     const levelOpt = SCHOOL_LEVEL_OPTIONS.find((o) => o.level === newLevel) || SCHOOL_LEVEL_OPTIONS[2];
     const masterEntries = StorageService.getSubjectsFromMasterCPByLevel(newLevel);
     const currentInMaster = masterEntries.find(
-      (entry) => entry.subject.trim().toLowerCase() === subject.trim().toLowerCase()
+      (entry) => isSameSubjectName(entry.subject, subject)
     );
     const pickedMaster = currentInMaster || masterEntries[0] || null;
 
@@ -347,27 +384,41 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     );
   };
 
-  // Subject change handler (mengambil Bab/lingkup materi dari CP Master jika tersedia untuk Tingkat Sekolah aktif)
-  const handleSubjectChange = (newSubject: string) => {
+  // Subject change handler (mengambil Bab/lingkup materi dari CP Master CP #1 / CP #2 jika tersedia)
+  const handleSubjectChange = (
+    newSubject: string,
+    overrideLevel?: SchoolLevel,
+    overrideGrade?: number,
+    overridePhase?: string
+  ) => {
     const cleanSub = newSubject.trim();
     if (!cleanSub) return;
 
-    const nextPhase = resolvePhaseByLevelAndGrade(level, grade);
-    const masterEntry = StorageService.findMasterCPEntry(cleanSub, level, grade, undefined, nextPhase);
-    const validGrades = getGradeOptionsByLevel(level).map((g) => g.grade);
-    const nextGrade = validGrades.includes(grade)
-      ? grade
-      : (masterEntry && validGrades.includes(Number(masterEntry.grade)) ? Number(masterEntry.grade) : (validGrades[0] || 10));
-    const resolvedPhase = resolvePhaseByLevelAndGrade(level, nextGrade);
+    const targetLevel: SchoolLevel = overrideLevel || level;
+    const validGrades = getGradeOptionsByLevel(targetLevel).map((g) => g.grade);
+    const preferredGrade = overrideGrade ?? (overrideLevel ? undefined : grade);
+    const prePhase = overridePhase || (preferredGrade ? resolvePhaseByLevelAndGrade(targetLevel, preferredGrade) : undefined);
+
+    const masterEntry = StorageService.findMasterCPEntry(cleanSub, targetLevel, preferredGrade, undefined, prePhase);
+    const nextGrade =
+      preferredGrade && validGrades.includes(Number(preferredGrade))
+        ? Number(preferredGrade)
+        : masterEntry && validGrades.includes(Number(masterEntry.grade))
+        ? Number(masterEntry.grade)
+        : validGrades[0] || (targetLevel === 'SD' ? 4 : targetLevel === 'SMP' ? 7 : 10);
+    const resolvedPhase = overridePhase || masterEntry?.phase || resolvePhaseByLevelAndGrade(targetLevel, nextGrade);
 
     let sem1: CPMaterialItem[] = [];
     let sem2: CPMaterialItem[] = [];
-    let targetJp = jpPerWeek || 3;
+    const targetLevelOpt = SCHOOL_LEVEL_OPTIONS.find((o) => o.level === targetLevel);
+    let targetJp = jpPerWeek || targetLevelOpt?.defaultJpPerWeek || 3;
+    let targetTimeAlloc = overrideLevel && targetLevelOpt
+      ? `2 x ${targetLevelOpt.defaultMinutesPerJp}`
+      : timeAllocationPerWeek;
     let sourceLabel = 'preset standar';
 
     if (
       masterEntry &&
-      (Number(masterEntry.grade) === Number(nextGrade) || (masterEntry.phase || '').toLowerCase() === resolvedPhase.toLowerCase()) &&
       ((masterEntry.materialsSem1?.length || 0) > 0 || (masterEntry.materialsSem2?.length || 0) > 0)
     ) {
       sem1 = (masterEntry.materialsSem1 || []).map((m, idx) => ({
@@ -379,18 +430,21 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
         id: m.id || `mat-2-${idx + 1}`,
       }));
       targetJp = masterEntry.jpPerWeek || targetJp;
-      sourceLabel = 'CP Master';
+      sourceLabel = masterEntry.slot === 'agama' ? 'CP #2 Pendidikan Agama & Budi Pekerti' : 'CP #1 Umum/Pilihan';
     } else {
-      const preset = getSubjectPresetByGrade(cleanSub, level as EducationLevel, nextGrade);
+      const preset = getSubjectPresetByGrade(cleanSub, targetLevel as EducationLevel, nextGrade);
       sem1 = (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
       sem2 = (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
       targetJp = preset.jpPerWeek || targetJp;
     }
 
+    const nextLvlDisplay = getSchoolLevelDisplay(targetLevel, nextGrade);
+    setLevel(targetLevel);
     setSubject(cleanSub);
     setGrade(nextGrade);
-    setPhase(nextPhase);
+    setPhase(resolvedPhase);
     setJpPerWeek(targetJp);
+    setTimeAllocationPerWeek(targetTimeAlloc);
     setMaterialsSem1(sem1);
     setMaterialsSem2(sem2);
     setShowSubjectSelector(false);
@@ -399,16 +453,20 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
       sem1,
       sem2,
       targetJp,
-      `Mata Pelajaran "${cleanSub}" (${levelDisplay.shortLabel} • Kelas ${nextGrade} / ${nextPhase}) berhasil dipilih & materi Bab Semester 1 & 2 dari ${sourceLabel} otomatis disinkronkan!`,
+      `Mata Pelajaran "${cleanSub}" (${nextLvlDisplay.shortLabel} • Kelas ${nextGrade} / ${resolvedPhase}) dipilih & materi dari ${sourceLabel} otomatis disinkronkan!`,
       {
         subject: cleanSub,
-        level,
+        level: targetLevel,
         grade: nextGrade,
-        phase: nextPhase,
+        phase: resolvedPhase,
         jpPerWeek: targetJp,
+        timeAllocationPerWeek: targetTimeAlloc,
       }
     );
-    if (isAgamaIslamSubject(cleanSub)) {
+    const hasUploadedAgamaCP = Boolean(
+      masterEntry && (masterEntry.slot === 'agama' || (masterEntry.cpText && masterEntry.cpText.trim().length > 20))
+    ) || bothCPsDirectory.cp2Meta.uploaded;
+    if (isAgamaIslamSubject(cleanSub) && !hasUploadedAgamaCP) {
       setShowAgamaIslamCPModal(true);
     }
   };
@@ -466,8 +524,18 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     const totSem1 = syncMaterialsSem1.reduce((sum, m) => sum + (m.allocatedHours || 0), 0);
     const totSem2 = syncMaterialsSem2.reduce((sum, m) => sum + (m.allocatedHours || 0), 0);
 
+    const matchedMasterEntry = StorageService.findMasterCPEntry(
+      targetSubject,
+      targetLevel,
+      targetGrade,
+      undefined,
+      targetPhase
+    );
+
     const updatedMaster: ActiveMasterCPData = {
       id: currentMaster?.id || `master-cp-${Date.now()}`,
+      slot: currentMaster?.slot || matchedMasterEntry?.slot || 'primary',
+      docNumber: currentMaster?.docNumber || matchedMasterEntry?.docNumber,
       fileName: currentMaster?.fileName || `${targetSubject}_Kelas_${targetGrade}_${targetLevel}.pdf`,
       uploadedAt: currentMaster?.uploadedAt || new Date().toISOString(),
       teacherName: currentMaster?.teacherName || schoolProfile.teacherName || 'Guru Pengampu',
@@ -487,9 +555,15 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
       materialsSem1: syncMaterialsSem1,
       materialsSem2: syncMaterialsSem2,
       totalHoursPerYear: totSem1 + totSem2,
-      cpText: currentMaster?.cpText || '',
-      elements: currentMaster?.elements || [],
+      cpText: matchedMasterEntry?.cpText || currentMaster?.cpText || '',
+      elements:
+        matchedMasterEntry?.elements && matchedMasterEntry.elements.length > 0
+          ? matchedMasterEntry.elements
+          : currentMaster?.elements || [],
       analyzedSubjects: currentMaster?.analyzedSubjects,
+      uploadedByRole: currentMaster?.uploadedByRole,
+      uploadedByName: currentMaster?.uploadedByName,
+      isPermanent: currentMaster?.isPermanent ?? true,
     };
 
     isSyncingFromSelfRef.current = true;
@@ -1023,10 +1097,13 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 {TIERED_SCHOOL_LEVEL_CARDS.map((card) => {
                   const isActiveTier = currentLevelGroup === card.group;
-                  const masterCount = StorageService.getSubjectsFromMasterCPByLevel(card.primaryLevel).length;
+                  const levelEntries = bothCPsDirectory.byLevel[card.group] || [];
+                  const masterCount = levelEntries.length;
+                  const cp1Cnt = levelEntries.filter((e) => e.slot !== 'agama').length;
+                  const cp2Cnt = levelEntries.filter((e) => e.slot === 'agama').length;
 
                   const getCardTheme = (grp: string, active: boolean) => {
                     switch (grp) {
@@ -1042,10 +1119,6 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                         return active
                           ? 'bg-blue-100/90 border-blue-600 ring-2 ring-blue-500/40 shadow-md text-blue-950'
                           : 'bg-blue-50/70 border-blue-200 hover:border-blue-400 text-slate-900';
-                      case 'SMK':
-                        return active
-                          ? 'bg-purple-100/90 border-purple-600 ring-2 ring-purple-500/40 shadow-md text-purple-950'
-                          : 'bg-purple-50/70 border-purple-200 hover:border-purple-400 text-slate-900';
                       default:
                         return active
                           ? 'bg-blue-100 border-blue-600 ring-2 ring-blue-500/40 shadow-md text-blue-950'
@@ -1058,7 +1131,6 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                       case 'SD': return 'bg-emerald-600 text-white';
                       case 'SMP': return 'bg-amber-600 text-white';
                       case 'SMA': return 'bg-blue-600 text-white';
-                      case 'SMK': return 'bg-purple-600 text-white';
                       default: return 'bg-indigo-600 text-white';
                     }
                   };
@@ -1090,6 +1162,16 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                         </div>
                         <div className="text-[11px] font-black mt-1 tracking-tight">{card.aliases}</div>
                         <div className="text-[10px] opacity-75 font-semibold">{card.title}</div>
+                        {masterCount > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1 text-[9px] font-bold">
+                            <span className="px-1.5 py-0.5 rounded bg-white/80 text-blue-800 border border-blue-200">
+                              CP #1: {cp1Cnt}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-white/80 text-emerald-800 border border-emerald-200">
+                              CP #2 Agama: {cp2Cnt}
+                            </span>
+                          </div>
+                        )}
                         <ul className="mt-2 space-y-0.5 text-[10px] opacity-90 leading-snug font-medium">
                           {card.phaseDetails.map((detail, dIdx) => (
                             <li key={dIdx} className="flex items-start space-x-1">
@@ -1105,10 +1187,10 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
               </div>
             </div>
 
-            {/* Langkah 2: Mata Pelajaran (mengikuti Tingkat Sekolah & CP Master), Kelas/Fase, & Beban JP */}
+            {/* Langkah 2: Mata Pelajaran (mengikuti Tingkat Sekolah & Kedua CP Admin), Kelas/Fase, & Beban JP */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs pt-1">
               {/* Mata Pelajaran (placed AFTER Tingkat Sekolah) */}
-              <div className="sm:col-span-5 bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-1.5 relative">
+              <div className="sm:col-span-5 bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2 relative">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] text-slate-600 font-bold flex items-center space-x-1.5">
                     <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-600 text-white text-[10px] font-black">2</span>
@@ -1123,85 +1205,94 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                   </button>
                 </div>
 
-                <select
-                  value={(() => {
-                    const lowerSub = subject.trim().toLowerCase();
-                    const cpMatch = cpMasterSubjects.find((s) => s.subject.trim().toLowerCase() === lowerSub);
-                    if (cpMatch) return cpMatch.subject;
-                    if (!lowerSub && cpMasterSubjects.length === 0) return '';
-                    return '__CUSTOM_CURRENT__';
-                  })()}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '__MANUAL__') {
-                      setShowSubjectSelector(true);
-                    } else if (val && val !== '__CUSTOM_CURRENT__') {
-                      handleSubjectChange(val);
-                    }
-                  }}
-                  className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-blue-800 font-bold focus:outline-none focus:border-blue-600 text-xs"
-                >
-                  {cpMasterSubjects.length > 0 ? (
-                    <optgroup label={`Seluruh Mapel dari CP BSKAP 046 Admin — ${levelDisplay.shortLabel} (${cpMasterSubjects.length} Mapel)`}>
-                      {cpMasterSubjects.map((s) => (
-                        <option key={`cp-${s.subject}`} value={s.subject}>
-                          {s.subject}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : (
-                    <option value="" disabled>
-                      -- Belum ada CP BSKAP 046 yang diupload Admin untuk {levelDisplay.shortLabel} --
-                    </option>
-                  )}
-                  {subject.trim() &&
-                    !cpMasterSubjects.some((s) => s.subject.trim().toLowerCase() === subject.trim().toLowerCase()) && (
-                      <option value="__CUSTOM_CURRENT__">{subject} (Manual / Kustom)</option>
-                    )}
-                  <option value="__MANUAL__">+ Tulis Mapel Manual Lainnya...</option>
-                </select>
+                {(() => {
+                  const activeLevelEntries = bothCPsDirectory.byLevel[currentLevelGroup] || [];
+                  const cp1WajibEntries = activeLevelEntries.filter(
+                    (e) => e.slot !== 'agama' && e.categoryTag !== 'Pilihan/Tingkat Lanjut'
+                  );
+                  const cp1PilihanEntries = activeLevelEntries.filter(
+                    (e) => e.slot !== 'agama' && e.categoryTag === 'Pilihan/Tingkat Lanjut'
+                  );
+                  const cp2LevelEntries = activeLevelEntries.filter((e) => e.slot === 'agama');
 
-                <div className="flex flex-wrap items-center justify-between gap-1 text-[10px]">
-                  {activeCPSubjectMatch ? (
-                    <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
-                      Sesuai CP BSKAP 046 Admin ({levelDisplay.shortLabel} • {cpMasterSubjects.length} Mapel Tersedia)
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-medium">
-                      {cpMasterSubjects.length > 0
-                        ? `Memuat ${cpMasterSubjects.length} mapel dari CP BSKAP 046 Admin (${levelDisplay.shortLabel})`
-                        : `Menunggu upload CP BSKAP 046 Admin untuk ${levelDisplay.shortLabel}`}
-                    </span>
-                  )}
-                </div>
+                  return (
+                    <>
+                      <select
+                        value={(() => {
+                          const lowerSub = subject.trim().toLowerCase();
+                          const cpMatch = activeLevelEntries.find((s) => s.subject.trim().toLowerCase() === lowerSub);
+                          if (cpMatch) return cpMatch.subject;
+                          if (!lowerSub && activeLevelEntries.length === 0) return '';
+                          return '__CUSTOM_CURRENT__';
+                        })()}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__MANUAL__') {
+                            setShowSubjectSelector(true);
+                          } else if (val && val !== '__CUSTOM_CURRENT__') {
+                            handleSubjectChange(val);
+                          }
+                        }}
+                        className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-blue-800 font-bold focus:outline-none focus:border-blue-600 text-xs"
+                      >
+                        {activeLevelEntries.length > 0 ? (
+                          <>
+                            {cp1WajibEntries.length > 0 && (
+                              <optgroup label={`CP #1 (046/2025) Mapel Umum / Wajib — ${levelDisplay.shortLabel} (${cp1WajibEntries.length} Mapel)`}>
+                                {cp1WajibEntries.map((s) => (
+                                  <option key={`cp1-w-${s.subject}`} value={s.subject}>
+                                    {s.subject}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {cp1PilihanEntries.length > 0 && (
+                              <optgroup label={`CP #1 (046/2025) Mapel Pilihan / Tingkat Lanjut — ${levelDisplay.shortLabel} (${cp1PilihanEntries.length} Mapel)`}>
+                                {cp1PilihanEntries.map((s) => (
+                                  <option key={`cp1-p-${s.subject}`} value={s.subject}>
+                                    {s.subject}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {cp2LevelEntries.length > 0 && (
+                              <optgroup label={`CP #2 (020/2026) Pendidikan Agama & Budi Pekerti — ${levelDisplay.shortLabel} (${cp2LevelEntries.length} Mapel)`}>
+                                {cp2LevelEntries.map((s) => (
+                                  <option key={`cp2-${s.subject}`} value={s.subject}>
+                                    {s.subject}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </>
+                        ) : (
+                          <option value="" disabled>
+                            -- Belum ada CP yang diupload Admin untuk {levelDisplay.shortLabel} --
+                          </option>
+                        )}
+                        {subject.trim() &&
+                          !activeLevelEntries.some((s) => isSameSubjectName(s.subject, subject)) && (
+                            <option value="__CUSTOM_CURRENT__">{subject} (Manual / Kustom)</option>
+                          )}
+                        <option value="__MANUAL__">+ Tulis Mapel Manual Lainnya...</option>
+                      </select>
 
-                {cpMasterSubjects.length > 0 && (
-                  <div className="pt-1.5 border-t border-slate-100 space-y-1">
-                    <div className="text-[10px] font-bold text-slate-500 flex items-center justify-between">
-                      <span>Mapel dalam CP ({levelDisplay.shortLabel}):</span>
-                      <span className="text-emerald-700">{cpMasterSubjects.length} Mapel</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-0.5">
-                      {cpMasterSubjects.map((s) => {
-                        const isSelected = s.subject.trim().toLowerCase() === subject.trim().toLowerCase();
-                        return (
-                          <button
-                            key={`quick-${s.subject}`}
-                            type="button"
-                            onClick={() => handleSubjectChange(s.subject)}
-                            className={`px-2 py-0.5 rounded-md border text-[10px] font-semibold transition cursor-pointer ${
-                              isSelected
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-400 hover:text-blue-700'
-                            }`}
-                          >
-                            {s.subject}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-[10px]">
+                        {activeCPSubjectMatch ? (
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                            Tersinkron CP 046/2025 &amp; 020/2026 ({levelDisplay.shortLabel} &bull; Wajib: {cp1WajibEntries.length}, Pilihan: {cp1PilihanEntries.length}, Agama: {cp2LevelEntries.length})
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-medium">
+                            {activeLevelEntries.length > 0
+                              ? `Tersedia ${activeLevelEntries.length} mapel dari CP 046/2025 & 020/2026 (${levelDisplay.shortLabel})`
+                              : `Menunggu upload CP #1 / CP #2 Admin untuk ${levelDisplay.shortLabel}`}
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {showSubjectSelector && (
                   <div className="pt-2 border-t border-slate-100 space-y-1.5">
@@ -1211,11 +1302,9 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                         value={customSubjectInput}
                         onChange={(e) => setCustomSubjectInput(e.target.value)}
                         placeholder={
-                          level === 'SMK'
-                            ? 'Misal: Teknik Komputer & Jaringan / Akuntansi'
-                            : level === 'SD'
+                          level === 'SD'
                             ? 'Misal: Bahasa Daerah / Muatan Lokal'
-                            : 'Misal: Antropologi / Bahasa Jerman'
+                            : 'Misal: Antropologi / Pendidikan Agama Islam & Budi Pekerti'
                         }
                         className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600"
                         onKeyDown={(e) => {
@@ -1303,8 +1392,314 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
             <AgamaIslamCPBanner
               subject={subject}
               onOpenModal={() => setShowAgamaIslamCPModal(true)}
-              activeFileName={StorageService.getActiveMasterCP()?.fileName}
+              activeFileName={bothCPsDirectory.cp2Meta.fileName || StorageService.getActiveMasterCP()?.fileName}
             />
+
+            {/* Direktori Lengkap Seluruh Mata Pelajaran dari CP No. 046/2025 & No. 020/2026 (tersembunyi secara default) */}
+            <div className="bg-slate-50/90 border border-slate-200 rounded-2xl p-3 sm:p-3.5 space-y-3">
+              <div className={`flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 ${showCPDirectory ? 'border-b border-slate-200 pb-3' : ''}`}>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Layers className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <h3 className="text-xs sm:text-sm font-extrabold text-slate-900">
+                      Direktori Mapel CP #1 (046/2025) &amp; CP #2 (020/2026)
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold">
+                      CP #1: {bothCPsDirectory.cp1Meta.uniqueSubjectCount} mapel
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
+                      CP #2: {bothCPsDirectory.cp2Meta.uniqueSubjectCount} mapel
+                    </span>
+                  </div>
+                  {showCPDirectory && (bothCPsDirectory.cp1Meta.fileName || bothCPsDirectory.cp2Meta.fileName) && (
+                    <p className="text-[10px] text-slate-500">
+                      {bothCPsDirectory.cp1Meta.fileName && (
+                        <span>
+                          Sumber CP #1: <strong className="text-slate-700">{bothCPsDirectory.cp1Meta.fileName}</strong>
+                        </span>
+                      )}
+                      {bothCPsDirectory.cp1Meta.fileName && bothCPsDirectory.cp2Meta.fileName && ' • '}
+                      {bothCPsDirectory.cp2Meta.fileName && (
+                        <span>
+                          Sumber CP #2: <strong className="text-emerald-700">{bothCPsDirectory.cp2Meta.fileName}</strong>
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setShowCPDirectory((prev) => !prev)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold transition cursor-pointer"
+                  >
+                    {showCPDirectory ? (
+                      <>
+                        <ChevronDown className="w-3.5 h-3.5" />
+                        <span>Sembunyikan Daftar</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                        <span>Tampilkan Daftar Mapel</span>
+                      </>
+                    )}
+                  </button>
+
+                  {showCPDirectory && (
+                    <>
+                      <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setDirectoryScope('all')}
+                      className={`px-2.5 py-1 rounded-md font-bold transition cursor-pointer ${
+                        directoryScope === 'all'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Semua Jenjang SD/SMP/SMA ({bothCPsDirectory.all.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDirectoryScope('level')}
+                      className={`px-2.5 py-1 rounded-md font-bold transition cursor-pointer ${
+                        directoryScope === 'level'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Jenjang {currentLevelGroup} ({(bothCPsDirectory.byLevel[currentLevelGroup] || []).length})
+                    </button>
+                  </div>
+
+                  <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setDirectoryCategoryFilter('all')}
+                      className={`px-2 py-1 rounded-md font-bold transition cursor-pointer ${
+                        directoryCategoryFilter === 'all'
+                          ? 'bg-slate-800 text-white'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Semua Kategori
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDirectoryCategoryFilter('wajib')}
+                      className={`px-2 py-1 rounded-md font-bold transition cursor-pointer ${
+                        directoryCategoryFilter === 'wajib'
+                          ? 'bg-sky-700 text-white'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Umum/Wajib
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDirectoryCategoryFilter('pilihan')}
+                      className={`px-2 py-1 rounded-md font-bold transition cursor-pointer ${
+                        directoryCategoryFilter === 'pilihan'
+                          ? 'bg-amber-600 text-white'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Pilihan/Lanjut
+                    </button>
+                  </div>
+
+                  <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setDirectorySlotFilter('all')}
+                      className={`px-2 py-1 rounded-md font-bold transition cursor-pointer ${
+                        directorySlotFilter === 'all'
+                          ? 'bg-slate-800 text-white'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Keduanya
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDirectorySlotFilter('primary')}
+                      className={`px-2 py-1 rounded-md font-bold transition cursor-pointer ${
+                        directorySlotFilter === 'primary'
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      CP #1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDirectorySlotFilter('agama')}
+                      className={`px-2 py-1 rounded-md font-bold transition cursor-pointer ${
+                        directorySlotFilter === 'agama'
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      CP #2
+                    </button>
+                  </div>
+
+                      {bothCPsDirectory.all.length > 6 && (
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            value={directorySearch}
+                            onChange={(e) => setDirectorySearch(e.target.value)}
+                            placeholder="Cari mapel..."
+                            className="pl-7 pr-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-36"
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {showCPDirectory && (() => {
+                const rawList =
+                  directoryScope === 'all'
+                    ? bothCPsDirectory.all
+                    : bothCPsDirectory.byLevel[currentLevelGroup] || [];
+                const q = directorySearch.trim().toLowerCase();
+                const filteredList = rawList.filter((item) => {
+                  if (directorySlotFilter !== 'all' && item.slot !== directorySlotFilter) return false;
+                  if (directoryCategoryFilter === 'wajib' && item.categoryTag === 'Pilihan/Tingkat Lanjut') return false;
+                  if (directoryCategoryFilter === 'pilihan' && item.categoryTag !== 'Pilihan/Tingkat Lanjut') return false;
+                  if (q && !item.subject.toLowerCase().includes(q) && !item.levelGroup.toLowerCase().includes(q)) {
+                    return false;
+                  }
+                  return true;
+                });
+
+                if (filteredList.length === 0) {
+                  return (
+                    <div className="p-4 rounded-xl bg-white border border-dashed border-slate-300 text-center text-xs text-slate-500">
+                      {bothCPsDirectory.all.length === 0
+                        ? 'Belum ada file CP yang dianalisis & disinkronkan oleh Admin. Unggah CP #1 (Umum/Pilihan) dan CP #2 (Pendidikan Agama & Budi Pekerti) di menu Upload CP Master untuk menampilkan seluruh mata pelajaran di sini.'
+                        : 'Tidak ada mata pelajaran yang cocok dengan filter pencarian Anda.'}
+                    </div>
+                  );
+                }
+
+                const groupsToRender: Array<{ key: string; title: string; items: typeof filteredList; accent: 'blue' | 'amber' | 'emerald' }> = [
+                  {
+                    key: 'cp1-wajib',
+                    title: `CP #1 (046/2025) — Mata Pelajaran Umum / Wajib (${filteredList.filter((i) => i.slot !== 'agama' && i.categoryTag !== 'Pilihan/Tingkat Lanjut').length})`,
+                    items: filteredList.filter((i) => i.slot !== 'agama' && i.categoryTag !== 'Pilihan/Tingkat Lanjut'),
+                    accent: 'blue' as const,
+                  },
+                  {
+                    key: 'cp1-pilihan',
+                    title: `CP #1 (046/2025) — Mata Pelajaran Pilihan / Tingkat Lanjut (${filteredList.filter((i) => i.slot !== 'agama' && i.categoryTag === 'Pilihan/Tingkat Lanjut').length})`,
+                    items: filteredList.filter((i) => i.slot !== 'agama' && i.categoryTag === 'Pilihan/Tingkat Lanjut'),
+                    accent: 'amber' as const,
+                  },
+                  {
+                    key: 'cp2-agama',
+                    title: `CP #2 (020/2026) — Pendidikan Agama, Budi Pekerti & Pemutakhiran (${filteredList.filter((i) => i.slot === 'agama').length})`,
+                    items: filteredList.filter((i) => i.slot === 'agama'),
+                    accent: 'emerald' as const,
+                  },
+                ].filter((g) => g.items.length > 0);
+
+                return (
+                  <div className="space-y-3">
+                    {groupsToRender.map((grp) => (
+                      <div key={grp.key} className="space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-bold">
+                          <span
+                            className={
+                              grp.accent === 'emerald'
+                                ? 'text-emerald-800'
+                                : grp.accent === 'amber'
+                                ? 'text-amber-800'
+                                : 'text-blue-900'
+                            }
+                          >
+                            {grp.title}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            Klik salah satu mapel untuk langsung memuat Bab Semester 1 &amp; 2
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-0.5">
+                          {grp.items.map((item) => {
+                            const isSelected =
+                              isSameSubjectName(item.subject, subject) &&
+                              item.levelGroup === currentLevelGroup;
+                            const targetLvl = item.levelGroup as SchoolLevel;
+                            const targetGrd = Number(item.grade) || item.gradesList[0] || (targetLvl === 'SD' ? 4 : targetLvl === 'SMP' ? 7 : 10);
+                            const phaseDisplay =
+                              item.phasesList.length > 0 ? item.phasesList.join(', ') : item.phase;
+                            const babCount = (item.materialsSem1?.length || 0) + (item.materialsSem2?.length || 0);
+                            const isPilihan = item.categoryTag === 'Pilihan/Tingkat Lanjut';
+
+                            return (
+                              <button
+                                key={`${grp.key}-${item.levelGroup}-${item.subject}`}
+                                type="button"
+                                onClick={() => handleSubjectChange(item.subject, targetLvl, targetGrd, item.phase)}
+                                className={`p-2.5 rounded-xl border text-left transition cursor-pointer flex items-start justify-between gap-2 ${
+                                  isSelected
+                                    ? grp.accent === 'emerald'
+                                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                                      : grp.accent === 'amber'
+                                      ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                                      : 'bg-blue-600 text-white border-blue-700 shadow-sm'
+                                    : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200 hover:border-blue-300'
+                                }`}
+                              >
+                                <div className="min-w-0">
+                                  <div className="text-[11px] font-extrabold leading-snug break-words">
+                                    {item.subject}
+                                  </div>
+                                  <div className={`text-[10px] mt-0.5 font-medium ${isSelected ? 'text-white/90' : 'text-slate-500'}`}>
+                                    {item.levelGroup} &bull; {phaseDisplay}
+                                    {babCount > 0 ? ` • ${babCount} Bab` : ''}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end gap-0.5 shrink-0">
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                      isSelected
+                                        ? 'bg-white/20 text-white'
+                                        : grp.accent === 'emerald'
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                        : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    }`}
+                                  >
+                                    {item.slot === 'agama' ? 'CP #2' : 'CP #1'}
+                                  </span>
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
+                                      isSelected
+                                        ? 'bg-white/20 text-white'
+                                        : isPilihan
+                                        ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                        : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                    }`}
+                                  >
+                                    {isPilihan ? 'Pilihan' : 'Wajib'}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
 
           {/* Card: Distribusi Bab Materi Pokok & Rumusan TP (Semester 1 & 2) */}

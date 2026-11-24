@@ -591,6 +591,7 @@ let cachedAdminSettings: any = {
   totalAIDocsPurgedCount: 0,
   enable12hCurriculumReset: false,
   curriculumResetIntervalHours: 0,
+  cpResetTimestamp: '',
   lastUpdated: new Date().toISOString(),
   updatedBy: 'Sistem Master Admin',
 };
@@ -775,10 +776,30 @@ let persistedAdminCPCatalog: {
   catalog: any[];
   activeMasterCP: any | null;
   updatedAt: string;
+  cpResetTimestamp: string;
 } = {
   catalog: [],
   activeMasterCP: null,
   updatedAt: '',
+  cpResetTimestamp: '',
+};
+
+const sanitizeNoSMKServerEntry = (item: any) => {
+  if (!item || typeof item !== 'object') return item;
+  const lvl = String(item.level || '').toUpperCase() === 'SMK' ? 'SMA' : item.level;
+  const subList = Array.isArray(item.analyzedSubjects)
+    ? item.analyzedSubjects.filter(
+        (s: any) =>
+          s &&
+          String(s.level || '').toUpperCase() !== 'SMK' &&
+          Number(s.grade) !== 13
+      )
+    : item.analyzedSubjects;
+  return {
+    ...item,
+    level: lvl,
+    analyzedSubjects: subList,
+  };
 };
 
 function loadPersistedAdminCPCatalog() {
@@ -787,10 +808,14 @@ function loadPersistedAdminCPCatalog() {
       const raw = fs.readFileSync(ADMIN_CP_CATALOG_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
+        const rawCatalog = Array.isArray(parsed.catalog) ? parsed.catalog : [];
         persistedAdminCPCatalog = {
-          catalog: Array.isArray(parsed.catalog) ? parsed.catalog : [],
-          activeMasterCP: parsed.activeMasterCP || null,
+          catalog: rawCatalog
+            .filter((c: any) => c && String(c.level || '').toUpperCase() !== 'SMK' && Number(c.grade) !== 13)
+            .map(sanitizeNoSMKServerEntry),
+          activeMasterCP: parsed.activeMasterCP ? sanitizeNoSMKServerEntry(parsed.activeMasterCP) : null,
           updatedAt: parsed.updatedAt || '',
+          cpResetTimestamp: parsed.cpResetTimestamp || '',
         };
       }
     }
@@ -799,7 +824,12 @@ function loadPersistedAdminCPCatalog() {
   }
 }
 
-function savePersistedAdminCPCatalog(data: { catalog: any[]; activeMasterCP: any | null; updatedAt: string }) {
+function savePersistedAdminCPCatalog(data: {
+  catalog: any[];
+  activeMasterCP: any | null;
+  updatedAt: string;
+  cpResetTimestamp?: string;
+}) {
   try {
     const dir = path.dirname(ADMIN_CP_CATALOG_FILE);
     if (!fs.existsSync(dir)) {
@@ -819,22 +849,39 @@ app.get('/api/admin/cp-catalog', (req, res) => {
     catalog: persistedAdminCPCatalog.catalog || [],
     activeMasterCP: persistedAdminCPCatalog.activeMasterCP || null,
     updatedAt: persistedAdminCPCatalog.updatedAt || '',
+    cpResetTimestamp:
+      persistedAdminCPCatalog.cpResetTimestamp || cachedAdminSettings.cpResetTimestamp || '',
   });
 });
 
 app.post('/api/admin/cp-catalog', (req, res) => {
   try {
     const { catalog, activeMasterCP, updatedAt } = req.body || {};
+    const sanitizedCatalog = Array.isArray(catalog)
+      ? catalog
+          .filter((c: any) => c && String(c.level || '').toUpperCase() !== 'SMK' && Number(c.grade) !== 13)
+          .map(sanitizeNoSMKServerEntry)
+      : persistedAdminCPCatalog.catalog;
+    const sanitizedActive =
+      activeMasterCP !== undefined
+        ? activeMasterCP
+          ? sanitizeNoSMKServerEntry(activeMasterCP)
+          : null
+        : persistedAdminCPCatalog.activeMasterCP;
+
     persistedAdminCPCatalog = {
-      catalog: Array.isArray(catalog) ? catalog : persistedAdminCPCatalog.catalog,
-      activeMasterCP: activeMasterCP !== undefined ? activeMasterCP : persistedAdminCPCatalog.activeMasterCP,
+      catalog: sanitizedCatalog,
+      activeMasterCP: sanitizedActive,
       updatedAt: updatedAt || new Date().toISOString(),
+      cpResetTimestamp:
+        persistedAdminCPCatalog.cpResetTimestamp || cachedAdminSettings.cpResetTimestamp || '',
     };
     savePersistedAdminCPCatalog(persistedAdminCPCatalog);
     res.json({
       success: true,
       count: persistedAdminCPCatalog.catalog.length,
       updatedAt: persistedAdminCPCatalog.updatedAt,
+      cpResetTimestamp: persistedAdminCPCatalog.cpResetTimestamp,
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -843,13 +890,26 @@ app.post('/api/admin/cp-catalog', (req, res) => {
 
 app.delete('/api/admin/cp-catalog', (req, res) => {
   try {
+    const nowIso = new Date().toISOString();
     persistedAdminCPCatalog = {
       catalog: [],
       activeMasterCP: null,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso,
+      cpResetTimestamp: nowIso,
     };
     savePersistedAdminCPCatalog(persistedAdminCPCatalog);
-    res.json({ success: true });
+    cachedAdminSettings = {
+      ...cachedAdminSettings,
+      adminUploadedCPs: [],
+      cpResetTimestamp: nowIso,
+      lastUpdated: nowIso,
+    };
+    savePersistedAdminSettings(cachedAdminSettings);
+    res.json({
+      success: true,
+      cpResetTimestamp: nowIso,
+      updatedAt: nowIso,
+    });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1710,14 +1770,14 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
         const chunkText = chunksToRun[chunkIdx];
         try {
           const deepAnalysisPrompt = `
-          Anda adalah Kurikulum & Data Extraction Engineer spesialis Kurikulum Merdeka (Kepka BSKAP No. 046/H/KR/2025). Tugas Anda adalah mengekstrak secara mendalam daftar mata pelajaran, jumlah mata pelajaran per jenjang/lampiran, serta ruang lingkup materi/kompetensi per Fase dan Kelas khusus untuk tingkat SD/MI/Paket A, SMP/MTs/Paket B, SMA/MA/Paket C, dan SMK/MAK. Jangan sertakan audit perangkat ajar atau informasi di luar katalog mata pelajaran dan ruang lingkup materinya.
+          Anda adalah Kurikulum & Data Extraction Engineer spesialis Kurikulum Merdeka (Kepka BSKAP No. 046/H/KR/2025). Tugas Anda adalah mengekstrak secara mendalam daftar mata pelajaran, jumlah mata pelajaran per jenjang/lampiran, serta ruang lingkup materi/kompetensi per Fase dan Kelas khusus untuk tingkat SD/MI/Paket A (Fase A: Kelas I–II, Fase B: Kelas III–IV, Fase C: Kelas V–VI), SMP/MTs/Paket B (Fase D: Kelas VII–IX), dan SMA/MA/Paket C (Fase E: Kelas X; Fase F: Kelas XI–XII). Abaikan bagian SMK/MAK dan jangan sertakan audit perangkat ajar atau informasi di luar katalog mata pelajaran dan ruang lingkup materinya.
 
           ATURAN KETAT (ANTI-HALUSINASI & ANTI-PANGKAS):
           1. SUMBER TUNGGAL: Gunakan HANYA informasi yang tertulis eksplisit di potongan teks CP di bawah ini. DILARANG mengarang mata pelajaran, fase, atau ruang lingkup materi yang tidak tercantum.
           2. JANGAN MERINGKAS BERLEBIHAN: Setiap ruang lingkup materi harus memuat kata kunci konsep, objek kajian, elemen, dan batasan ruang lingkup (misalnya rentang bilangan, jenis teks, topik sains/sosial, atau subelemen) sesuai bunyi CP.
-          3. CATAT PENGECUALIAN & CATATAN KHUSUS: Jika suatu mapel tidak memiliki CP pada fase tertentu (misal Bahasa Inggris mulai Fase B; IPAS Fase B/C; Informatika di Fase D/E/F; IPA/IPS terpadu vs terpisah; SMK Program 4 Tahun Kelas XIII), tulis eksplisit pada "specialNotes".
-          4. SERTAKAN REFERENSI LOKASI: Cantumkan nomor Lampiran (mis. Lampiran II / III) dan halaman PDF dari penanda "--- [Halaman X] ---" pada field "locationRef" (contoh: "Lampiran II · Hal. 45–52").
-          5. KELENGKAPAN SEKUENSIAL: Ini adalah bagian ke-${chunkIdx + 1} dari total ${totalChunksNeeded} bagian dokumen (total ${extractedText.length.toLocaleString('id-ID')} karakter). Ekstrak seluruh mata pelajaran yang terbaca di bagian ini secara berurutan (SD -> SMP -> SMA -> SMK) tanpa memangkas satu mapel pun, dan JANGAN menebak bagian yang belum muncul di potongan ini.
+          3. CATAT PENGECUALIAN & CATATAN KHUSUS: Jika suatu mapel tidak memiliki CP pada fase tertentu (misal Bahasa Inggris mulai Fase B; IPAS Fase B/C; Informatika di Fase D/E/F; IPA/IPS terpadu vs terpisah), tulis eksplisit pada "specialNotes".
+          4. SERTAKAN REFERENSI LOKASI: Cantumkan nomor Lampiran (mis. Lampiran II) dan halaman PDF dari penanda "--- [Halaman X] ---" pada field "locationRef" (contoh: "Lampiran II · Hal. 45–52").
+          5. KELENGKAPAN SEKUENSIAL: Ini adalah bagian ke-${chunkIdx + 1} dari total ${totalChunksNeeded} bagian dokumen (total ${extractedText.length.toLocaleString('id-ID')} karakter). Ekstrak seluruh mata pelajaran yang terbaca di bagian ini secara berurutan (SD -> SMP -> SMA) tanpa memangkas satu mapel pun, dan JANGAN menebak bagian yang belum muncul di potongan ini.
 
           INFORMASI DOKUMEN:
           - Nama File: "${fileName || 'Capaian Pembelajaran'}"
@@ -1726,8 +1786,8 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
           ${chunkText ? `KONTEN TEKS DOKUMEN CP (BAGIAN ${chunkIdx + 1}/${totalChunksNeeded}):\n---\n${chunkText}\n---` : '(Dokumen terlampir via format PDF/gambar inline)'}
 
           INSTRUKSI EKSTRAKSI PRESISI:
-          1. Daftarkan HANYA mata pelajaran yang benar-benar muncul dalam teks di atas pada array "analyzedSubjects", dipisahkan presisi per jenjang (SD / SMP / SMA / SMK), fase (Fase A–F), dan kelas (1–13).
-          2. Pisahkan "categoryTag": "Umum/Wajib", "Pilihan/Tingkat Lanjut", atau "Kejuruan/Konsentrasi" sesuai kelompok mapel dalam dokumen.
+          1. Daftarkan HANYA mata pelajaran yang benar-benar muncul dalam teks di atas pada array "analyzedSubjects", dipisahkan presisi per jenjang (SD / SMP / SMA), fase (Fase A–F), dan kelas (1–12).
+          2. Pisahkan "categoryTag": "Umum/Wajib" atau "Pilihan/Tingkat Lanjut" sesuai kelompok mapel dalam dokumen.
           3. Untuk setiap entri pada "materialsSem1" & "materialsSem2", gunakan format "Bab X: <Judul Ruang Lingkup Materi Spesifik dari Teks CP>" yang memuat kata kunci konsep & batasan lingkup asli dokumen (DILARANG mengarang judul generik seperti "Konsep Dasar 1" atau "Unit 1").
           4. Cantumkan "elements" sesuai elemen CP resmi lengkap dengan "description", "essentialMaterials" (objek kajian/konsep kunci), dan "competencies".
 
@@ -1736,8 +1796,8 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
             "identifiedMetadata": {
               "title": "Judul resmi dokumen CP",
               "subject": "Nama Mata Pelajaran Utama Terdeteksi",
-              "level": "SD | SMP | SMA | SMK",
-              "subLevelLabel": "SD / MI / Paket A | SMP / MTs / Paket B | SMA / MA / Paket C | SMK / MAK Program 3/4 Tahun",
+              "level": "SD | SMP | SMA",
+              "subLevelLabel": "SD / MI / Paket A | SMP / MTs / Paket B | SMA / MA / Paket C",
               "phase": "Fase A | Fase B | Fase C | Fase D | Fase E | Fase F",
               "grade": 10,
               "totalHoursPerYear": 108,
@@ -1747,11 +1807,11 @@ app.post('/api/ai/analyze-cp-file', async (req, res) => {
             "analyzedSubjects": [
               {
                 "subject": "Nama Mata Pelajaran",
-                "level": "SD | SMP | SMA | SMK",
+                "level": "SD | SMP | SMA",
                 "subLevelLabel": "Keterangan Jenjang & Program",
                 "phase": "Fase A..F",
                 "grade": 10,
-                "categoryTag": "Umum/Wajib | Pilihan/Tingkat Lanjut | Kejuruan/Konsentrasi",
+                "categoryTag": "Umum/Wajib | Pilihan/Tingkat Lanjut",
                 "locationRef": "Lampiran ... · Hal. X–Y",
                 "specialNotes": "Catatan pengecualian fase atau integrasi mapel jika ada di dokumen",
                 "jpPerWeek": 3,
@@ -2340,7 +2400,7 @@ app.post('/api/ai/read-image', async (req, res) => {
         
         INFORMASI TAMBAHAN:
         - Mata Pelajaran / Domain: ${subject || 'Sains, Matematika, dan Umum'}
-        - Jenjang Pendidikan: ${level || 'SD - SMA / SMK'}
+        - Jenjang Pendidikan: ${level || 'SD - SMA'}
         ${customPrompt ? `- Catatan / Permintaan Khusus Guru: "${customPrompt}"` : ''}
 
         PANDUAN PEMBACAAN KHUSUS:

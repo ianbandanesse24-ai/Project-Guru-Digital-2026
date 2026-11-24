@@ -23,68 +23,12 @@
   "totalAIDocsPurgedCount": 0,
   "enable12hCurriculumReset": false,
   "curriculumResetIntervalHours": 0,
-  "lastUpdated": "2026-11-17T23:18:41.583Z",
+  "lastUpdated": "2026-11-23T11:35:00.000Z",
   "updatedBy": "Aspian La Ode Madimu, S.Pd Gr.",
   "enable24hCurriculumReset": false,
   "lastCurriculumResetTimestamp": "Kurikulum & Perangkat",
   "nextCurriculumResetTimestamp": "Siklus 24 Jam (Khusus Kurikulum & Perangkat)",
   "totalCurriculumResetCount": 0,
-  "adminUploadedCPs": [
-    {
-      "id": "admin-cp-1794896141779",
-      "no": 1,
-      "docNumber": "046",
-      "fileName": "BSKAP NO 046 HKR 2025",
-      "subject": "Fisika",
-      "level": "SMA",
-      "grade": 10,
-      "phase": "Fase E",
-      "uploadedAt": "2026-11-17T06:21:23.400Z",
-      "uploadedBy": "Aspian La Ode Madimu, S.Pd Gr."
-    },
-    {
-      "id": "master-fisika-12",
-      "no": 2,
-      "fileName": "Dokumen_CP_Fisika_SMA_BSKAP.pdf",
-      "subject": "Fisika",
-      "level": "SMA",
-      "grade": 12,
-      "phase": "Fase F",
-      "uploadedAt": "2026-11-17T06:23:07.131Z",
-      "uploadedBy": "Aspian La Ode Madimu, S.Pd Gr."
-    },
-    {
-      "id": "master-fisika-10",
-      "no": 3,
-      "fileName": "Dokumen_CP_Fisika_BSKAP_Kemendikdasmen.pdf",
-      "subject": "Fisika",
-      "level": "SMA",
-      "grade": 10,
-      "phase": "Fase E",
-      "uploadedAt": "2026-11-17T22:53:19.624Z",
-      "uploadedBy": "Aspian La Ode Madimu, S.Pd Gr."
-    },
-    {
-      "id": "master-informatika-10",
-      "no": 4,
-      "fileName": "Dokumen_CP_Informatika_SMA_BSKAP.pdf",
-      "subject": "Informatika",
-      "level": "SMA",
-      "grade": 10,
-      "phase": "Fase E",
-      "uploadedAt": "2026-11-17T06:23:35.222Z",
-      "uploadedBy": "Aspian La Ode Madimu, S.Pd Gr."
-    },
-    {
-      "id": "admin-cp-1794955682402",
-      "no": 5,
-      "fileName": "Kep KaBSKAP 046 2025.pdf",
-      "subject": "Fisika",
-      "level": "SMA",
-      "grade": 10,
-      "phase": "Fase E",
-      "uploadedAt": "2026-11-17T22:53:09.794Z",
-      "uploadedBy": "Aspian La Ode Madimu, S.Pd Gr."
-    }
-  ]
+  "cpResetTimestamp": "",
+  "adminUploadedCPs": []
 }

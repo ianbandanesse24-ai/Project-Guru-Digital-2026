@@ -226,6 +226,44 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
   });
   const [subjectSearch, setSubjectSearch] = useState<string>('');
 
+  // Upload ke-2 (Khusus Pendidikan Agama & Budi Pekerti) States
+  const agamaFileInputRef = useRef<HTMLInputElement>(null);
+  const [agamaFile, setAgamaFile] = useState<File | null>(null);
+  const [agamaFileName, setAgamaFileName] = useState<string>('');
+  const [agamaFileType, setAgamaFileType] = useState<string>('');
+  const [agamaFileSize, setAgamaFileSize] = useState<number>(0);
+  const [agamaFileBase64, setAgamaFileBase64] = useState<string>('');
+  const [agamaRawText, setAgamaRawText] = useState<string>('');
+  const [agamaDocName, setAgamaDocName] = useState<string>('');
+  const [agamaDocNumber, setAgamaDocNumber] = useState<string>('');
+  const [agamaFocusSubject, setAgamaFocusSubject] = useState<string>('AUTO');
+  const [isReadingAgamaFile, setIsReadingAgamaFile] = useState<boolean>(false);
+  const [isAnalyzingAgama, setIsAnalyzingAgama] = useState<boolean>(false);
+  const [agamaProgress, setAgamaProgress] = useState<number>(0);
+  const [agamaStepText, setAgamaStepText] = useState<string>('');
+  const [agamaErrorMsg, setAgamaErrorMsg] = useState<string>('');
+  const [agamaSyncSuccess, setAgamaSyncSuccess] = useState<{
+    docName: string;
+    subjectCount: number;
+    levelCount: number;
+    subjectsPreview: string[];
+    syncedAt: string;
+  } | null>(() => {
+    const uploaded = StorageService.getAdminUploadedCPs();
+    const agamaUpload = uploaded.find((u) => u.slot === 'agama');
+    if (!agamaUpload) return null;
+    const catalogAgama = StorageService.getMasterCPCatalog().filter((c) => c.slot === 'agama');
+    const uniqueSubs = Array.from(new Set(catalogAgama.map((c) => c.subject).filter(Boolean)));
+    const uniqueLvls = Array.from(new Set(catalogAgama.map((c) => getSchoolLevelGroup(c.level))));
+    return {
+      docName: stripExtension(agamaUpload.fileName) || 'CP Pendidikan Agama & Budi Pekerti',
+      subjectCount: uniqueSubs.length || 1,
+      levelCount: uniqueLvls.length || 1,
+      subjectsPreview: uniqueSubs.length > 0 ? uniqueSubs : [agamaUpload.subject || 'Pendidikan Agama Islam & Budi Pekerti'],
+      syncedAt: agamaUpload.uploadedAt,
+    };
+  });
+
   // Sync States
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncSuccessInfo, setSyncSuccessInfo] = useState<{
@@ -237,16 +275,69 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
     profileGrade: number;
     profilePhase: string;
     syncedAt: string;
-  } | null>(null);
+  } | null>(() => {
+    const initial = buildInitialDraftFromStorage();
+    if (!initial || !initial.isSynced) return null;
+    const lvls = new Set(initial.analyzedSubjects.map((s) => getSchoolLevelGroup(s.level)));
+    const uniqSubs = new Set(
+      initial.analyzedSubjects.map((s) => `${getSchoolLevelGroup(s.level)}::${s.subject.trim().toLowerCase()}`)
+    );
+    return {
+      docName: initial.docName,
+      totalSubjects: uniqSubs.size || initial.analyzedSubjects.length,
+      levelCount: lvls.size || 1,
+      profileSubject: initial.primarySubject,
+      profileLevel: initial.primaryLevel,
+      profileGrade: Number(initial.primaryGrade) || 4,
+      profilePhase: initial.primaryPhase,
+      syncedAt: initial.syncedAt || initial.analyzedAt,
+    };
+  });
+
+  // Reset States
+  const [isResettingCP, setIsResettingCP] = useState<boolean>(false);
+  const [resetNotice, setResetNotice] = useState<string>('');
 
   useEffect(() => {
     const syncLists = () => {
-      setAdminUploadedCPs(StorageService.getAdminUploadedCPs());
+      const latestUploads = StorageService.getAdminUploadedCPs();
+      setAdminUploadedCPs(latestUploads);
+      const hydrated = buildInitialDraftFromStorage();
+      if (hydrated) {
+        setAnalysisDraft((prev) => {
+          if (prev && !prev.isSynced) return prev;
+          return hydrated;
+        });
+        if (hydrated.isSynced) {
+          const lvls = new Set(hydrated.analyzedSubjects.map((s) => getSchoolLevelGroup(s.level)));
+          const uniqSubs = new Set(
+            hydrated.analyzedSubjects.map((s) => `${getSchoolLevelGroup(s.level)}::${s.subject.trim().toLowerCase()}`)
+          );
+          setSyncSuccessInfo({
+            docName: hydrated.docName,
+            totalSubjects: uniqSubs.size || hydrated.analyzedSubjects.length,
+            levelCount: lvls.size || 1,
+            profileSubject: hydrated.primarySubject,
+            profileLevel: hydrated.primaryLevel,
+            profileGrade: Number(hydrated.primaryGrade) || 4,
+            profilePhase: hydrated.primaryPhase,
+            syncedAt: hydrated.syncedAt || hydrated.analyzedAt,
+          });
+        }
+      } else if (latestUploads.length === 0) {
+        setAnalysisDraft((prev) => (prev && !prev.isSynced ? prev : null));
+        setSyncSuccessInfo(null);
+        setAgamaSyncSuccess(null);
+      }
     };
     window.addEventListener('admin-cp-updated', syncLists);
+    window.addEventListener('master-cp-updated', syncLists);
+    window.addEventListener('master-cp-catalog-updated', syncLists);
     window.addEventListener('storage', syncLists);
     return () => {
       window.removeEventListener('admin-cp-updated', syncLists);
+      window.removeEventListener('master-cp-updated', syncLists);
+      window.removeEventListener('master-cp-catalog-updated', syncLists);
       window.removeEventListener('storage', syncLists);
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
     };
@@ -530,7 +621,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
     if (folderInputRef.current) folderInputRef.current.value = '';
   };
 
-  // Run Deep Analysis across SD/MI/Paket A, SMP/MTs/Paket B, SMA/MA/Paket C, SMK/MAK + Classes/Phases + Subjects + Materials
+  // Run Deep Analysis across SD/MI/Paket A, SMP/MTs/Paket B, SMA/MA/Paket C + Classes/Phases + Subjects + Materials
   const handleDeepAnalysis = async () => {
     if (!selectedFile && !fileBase64 && !rawTextContent.trim() && !fileName.trim()) {
       setErrorMsg('Pilih file CP terlebih dahulu (PDF, Word, Excel, TXT, atau Folder CP).');
@@ -555,7 +646,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
         setAnalysisStepText('Membaca berkas CP & mengekstrak seluruh halaman dokumen...');
       } else if (pct < 55) {
         setAnalysisStepText(
-          'Mengidentifikasi 4 tingkat sekolah (SD/MI/Paket A, SMP/MTs/Paket B, SMA/MA/Paket C, SMK/MAK)...'
+          'Mengidentifikasi 3 tingkat sekolah (SD/MI/Paket A, SMP/MTs/Paket B, SMA/MA/Paket C)...'
         );
       } else if (pct < 78) {
         setAnalysisStepText('Memetakan jenjang kelas, fase (A–F), dan seluruh mata pelajaran resmi...');
@@ -959,8 +1050,104 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
         primaryGrade: defaultEntryForGroup?.grade || resolvedPrimaryGrd,
         primaryPhase: defaultEntryForGroup?.phase || resolvedPrimaryPhs,
         analyzedAt: new Date().toISOString(),
-        isSynced: false,
+        isSynced: true,
       };
+
+      // Auto-save & auto-sync to Profil Guru & Parameter Kurikulum immediately
+      const resolvedDocTitle = docName.trim() || stripExtension(fileName) || 'Dokumen CP Resmi';
+      const recordedFileName = fileName.trim() || `${resolvedDocTitle}.pdf`;
+      const resolvedPrimaryDocNum = docNumber.trim() || undefined;
+
+      const targetSubject = defaultEntryForGroup?.subject || resolvedPrimarySub;
+      const targetLevel = (defaultEntryForGroup?.level || resolvedPrimaryLvl) as SchoolLevel;
+      const targetGrade = Number(defaultEntryForGroup?.grade) || Number(resolvedPrimaryGrd) || 10;
+      const targetPhase =
+        defaultEntryForGroup?.phase ||
+        resolvePhaseByLevelAndGrade(targetLevel, targetGrade);
+      const targetJpPerWeek = defaultEntryForGroup?.jpPerWeek || (targetLevel === 'SD' ? 4 : 3);
+      const targetSem1 = defaultEntryForGroup?.materialsSem1 || [];
+      const targetSem2 = defaultEntryForGroup?.materialsSem2 || [];
+      const targetHours =
+        targetSem1.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0) +
+          targetSem2.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0) ||
+        defaultEntryForGroup?.totalHoursPerYear ||
+        (targetLevel === 'SD' ? 144 : 108);
+
+      const syncedAnalyzedSubjects = mergedSubjects.map((entry) => ({
+        ...entry,
+        slot: entry.slot || ('primary' as const),
+        sourceFileName: entry.sourceFileName || recordedFileName,
+        docNumber: entry.docNumber || resolvedPrimaryDocNum,
+      }));
+
+      const nowIso = new Date().toISOString();
+      const schoolProfile = StorageService.getSchoolProfile();
+      const syncedMaster: ActiveMasterCPData = {
+        id: draft.id,
+        slot: 'primary',
+        isPermanent: true,
+        fileName: recordedFileName,
+        folderName: folderName || undefined,
+        docNumber: resolvedPrimaryDocNum,
+        uploadedByRole: currentUser.role,
+        uploadedByName: currentUser.name,
+        fileType: fileType || 'application/pdf',
+        fileSize,
+        uploadedAt: nowIso,
+        level: targetLevel,
+        subLevelLabel: getSchoolLevelDisplay(targetLevel, targetGrade).subLabel,
+        grade: targetGrade,
+        phase: targetPhase,
+        subject: targetSubject,
+        teacherName: schoolProfile.teacherName || currentUser.name,
+        teacherNip: schoolProfile.teacherNip,
+        schoolName: schoolProfile.schoolName || currentUser.school,
+        academicYear: schoolProfile.academicYear || '2026/2027',
+        totalHoursPerYear: targetHours,
+        jpPerWeek: targetJpPerWeek,
+        cpText: defaultEntryForGroup?.cpText || effectiveRawText,
+        elements: defaultEntryForGroup?.elements || [],
+        materialsSem1: targetSem1,
+        materialsSem2: targetSem2,
+        analyzedSubjects: syncedAnalyzedSubjects,
+        coverageReport: computedCoverage,
+        documentInsights: resolvedDocumentInsights,
+        executiveSummary: draft.executiveSummary,
+        syncStatus: 'synced',
+        lastSyncedAt: nowIso,
+      };
+
+      StorageService.setActiveMasterCP(syncedMaster);
+
+      const latestProfile = StorageService.getSchoolProfile();
+      StorageService.saveSchoolProfile({
+        ...latestProfile,
+        subject: targetSubject,
+        level: targetLevel,
+        grade: targetGrade,
+        phase: targetPhase,
+        jpPerWeek: targetJpPerWeek,
+        totalHoursPerYear: targetHours,
+        cpText: syncedMaster.cpText,
+      });
+
+      const updatedActive = StorageService.getActiveMasterCP(DEFAULT_ADMIN.id) || syncedMaster;
+      const adminCatalog = StorageService.getMasterCPCatalog().filter(
+        (c) => c.uploadedByRole === 'admin' || currentUser.role === 'admin'
+      );
+      StorageService.syncAdminCPCatalogToServer(adminCatalog, updatedActive).catch(() => {});
+      StorageService.syncAdminSettingsNow().catch(() => {});
+
+      const totalUniqueSubjects = new Set(
+        syncedAnalyzedSubjects.map((s) => `${getSchoolLevelGroup(s.level)}::${s.subject.trim().toLowerCase()}`)
+      ).size;
+      const activeLevelCount = new Set(
+        syncedAnalyzedSubjects.map((s) => getSchoolLevelGroup(s.level))
+      ).size;
+
+      draft.isSynced = true;
+      draft.syncedAt = nowIso;
+      draft.analyzedSubjects = updatedActive.analyzedSubjects || syncedAnalyzedSubjects;
 
       setAnalysisDraft(draft);
       setSelectedLevelGroup(firstPresentGroup);
@@ -969,6 +1156,25 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
           getGradeOptionsByLevel(firstPresentGroup)[0].grade
       );
       setSelectedSubjectName(defaultEntryForGroup?.subject || resolvedPrimarySub);
+
+      setAdminUploadedCPs(StorageService.getAdminUploadedCPs());
+      setSyncSuccessInfo({
+        docName: resolvedDocTitle,
+        totalSubjects: totalUniqueSubjects,
+        levelCount: activeLevelCount,
+        profileSubject: targetSubject,
+        profileLevel: targetLevel,
+        profileGrade: targetGrade,
+        profilePhase: targetPhase,
+        syncedAt: nowIso,
+      });
+
+      StorageService.addNotification({
+        title: `CP "${resolvedDocTitle}" Tersimpan & Tersinkron Otomatis`,
+        message: `${totalUniqueSubjects} mata pelajaran lintas ${activeLevelCount} tingkat sekolah telah tersimpan paten dan tersinkron ke Profil Guru dan Parameter Kurikulum.`,
+        type: 'sync',
+        actionUrl: 'parameter_kurikulum',
+      });
     } catch (err) {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
       setErrorMsg(
@@ -981,8 +1187,8 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
     }
   };
 
-  // Sync analyzed CP automatically across Profil Guru Mata Pelajaran & Parameter Kurikulum
-  const handleSyncToApp = () => {
+  // Sync analyzed CP automatically across Profil Guru Mata Pelajaran & Parameter Kurikulum (PATEN)
+  const handleSyncToApp = async () => {
     if (!analysisDraft || analysisDraft.analyzedSubjects.length === 0) {
       setErrorMsg('Lakukan analisis file CP terlebih dahulu sebelum menyinkronkan ke aplikasi.');
       return;
@@ -1038,13 +1244,23 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
         materialsSem2: targetSem2,
       };
 
+      const resolvedPrimaryFile = recordedFileName || analysisDraft.fileName;
+      const resolvedPrimaryDocNum = docNumber.trim() || analysisDraft.docNumber || undefined;
+
       const syncedAnalyzedSubjects = mergeAnalyzedSubjects(
         [activeInspectionEntry],
         analysisDraft.analyzedSubjects
-      );
+      ).map((entry) => ({
+        ...entry,
+        slot: entry.slot || ('primary' as const),
+        sourceFileName: entry.sourceFileName || resolvedPrimaryFile,
+        docNumber: entry.docNumber || resolvedPrimaryDocNum,
+      }));
 
       const syncedMaster: ActiveMasterCPData = {
         id: analysisDraft.id,
+        slot: 'primary',
+        isPermanent: true,
         fileName: recordedFileName || analysisDraft.fileName,
         folderName: analysisDraft.folderName,
         docNumber: docNumber.trim() || analysisDraft.docNumber || undefined,
@@ -1076,7 +1292,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
         lastSyncedAt: new Date().toISOString(),
       };
 
-      // 1. Update Master CP, Parameter Kurikulum catalog, server catalog, distributions, refs, kaldik
+      // 1. Update Master CP, Parameter Kurikulum catalog, distributions, refs, kaldik (paten)
       StorageService.setActiveMasterCP(syncedMaster);
 
       // 2. Explicitly synchronize Profil Guru Mata Pelajaran
@@ -1092,9 +1308,19 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
         cpText: syncedMaster.cpText,
       });
 
+      // 3. Await patent server persistence for both catalog & uploaded list
+      const updatedActive = StorageService.getActiveMasterCP(DEFAULT_ADMIN.id) || syncedMaster;
+      const adminCatalog = StorageService.getMasterCPCatalog().filter(
+        (c) => c.uploadedByRole === 'admin' || currentUser.role === 'admin'
+      );
+      await Promise.all([
+        StorageService.syncAdminCPCatalogToServer(adminCatalog, updatedActive),
+        StorageService.syncAdminSettingsNow(),
+      ]);
+
       StorageService.addNotification({
-        title: `CP "${resolvedDocTitle}" Tersinkron ke Aplikasi`,
-        message: `${totalUniqueSubjects} mata pelajaran lintas ${activeLevelCount} tingkat sekolah telah disinkronkan ke Menu Profil Guru dan Parameter Kurikulum.`,
+        title: `CP "${resolvedDocTitle}" Tersinkron Paten ke Aplikasi`,
+        message: `${totalUniqueSubjects} mata pelajaran lintas ${activeLevelCount} tingkat sekolah telah tersimpan paten dan tersinkron ke Menu Profil Guru dan Parameter Kurikulum.`,
         type: 'sync',
         actionUrl: 'parameter_kurikulum',
       });
@@ -1107,6 +1333,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
               docName: resolvedDocTitle,
               docNumber: docNumber.trim(),
               fileName: recordedFileName,
+              analyzedSubjects: updatedActive.analyzedSubjects || prev.analyzedSubjects,
               syncedAt: nowIso,
               isSynced: true,
             }
@@ -1134,6 +1361,319 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
     }
   };
 
+  // Handler Upload CP ke-2 Khusus Pendidikan Agama & Budi Pekerti
+  const handleSelectAgamaFile = (file: File) => {
+    setAgamaFile(file);
+    setAgamaFileName(file.name);
+    setAgamaFileType(file.type || 'application/octet-stream');
+    setAgamaFileSize(file.size);
+    setAgamaErrorMsg('');
+    setAgamaDocName((prev) => prev.trim() || stripExtension(file.name));
+    const detected = detectMetadataFromFilename(file.name);
+    if (detected.docNumber) {
+      setAgamaDocNumber((prev) => prev.trim() || detected.docNumber);
+    }
+
+    setIsReadingAgamaFile(true);
+    UniversalFileParser.parseFile(file)
+      .then((parsed) => {
+        if (parsed.base64) setAgamaFileBase64(parsed.base64);
+        const extracted = (parsed.extractedText || '').trim();
+        const isPlaceholder =
+          extracted.startsWith('[Dokumen PDF terlampir:') ||
+          extracted.startsWith('[Lampiran Gambar Visual:') ||
+          extracted.startsWith('[Gambar Format Dokumen');
+        setAgamaRawText(extracted && !isPlaceholder ? extracted : '');
+      })
+      .catch(() => {
+        const reader = new FileReader();
+        reader.onload = (ev) => setAgamaFileBase64((ev.target?.result as string) || '');
+        reader.readAsDataURL(file);
+      })
+      .finally(() => {
+        setIsReadingAgamaFile(false);
+      });
+  };
+
+  const handleAnalyzeAndMergeAgamaCP = async () => {
+    if (!agamaFile && !agamaFileBase64 && !agamaRawText.trim() && !agamaFileName.trim()) {
+      setAgamaErrorMsg('Pilih file CP Pendidikan Agama & Budi Pekerti terlebih dahulu.');
+      return;
+    }
+
+    setIsAnalyzingAgama(true);
+    setAgamaErrorMsg('');
+    setAgamaProgress(10);
+    setAgamaStepText('Membaca berkas CP Pendidikan Agama & Budi Pekerti...');
+
+    try {
+      let currentBase64 = agamaFileBase64;
+      let currentRawText = agamaRawText;
+      if (agamaFile && !currentBase64 && !currentRawText.trim()) {
+        const parsed = await UniversalFileParser.parseFile(agamaFile);
+        currentBase64 = parsed.base64 || '';
+        const fresh = (parsed.extractedText || '').trim();
+        const isPlaceholder =
+          fresh.startsWith('[Dokumen PDF terlampir:') ||
+          fresh.startsWith('[Lampiran Gambar Visual:') ||
+          fresh.startsWith('[Gambar Format Dokumen');
+        currentRawText = isPlaceholder ? '' : fresh;
+        if (currentBase64) setAgamaFileBase64(currentBase64);
+        if (currentRawText) setAgamaRawText(currentRawText);
+      }
+
+      setAgamaProgress(35);
+      setAgamaStepText('Menganalisis CP Agama untuk jenjang SD (Fase A–C), SMP (Fase D), & SMA (Fase E–F)...');
+
+      const focusLabel =
+        agamaFocusSubject !== 'AUTO' ? agamaFocusSubject : 'Pendidikan Agama dan Budi Pekerti';
+      let apiSubjects: CPSubjectEntry[] = [];
+      let apiRawText = '';
+      let apiExecSummary = '';
+
+      try {
+        const res = await fetch('/api/ai/analyze-cp-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: agamaFileName || `${agamaDocName || 'CP_Agama'}.pdf`,
+            fileBase64: currentBase64,
+            fileType: agamaFileType,
+            fileContent: currentRawText,
+            subject: focusLabel,
+            level: 'SD',
+            grade: 4,
+            phase: 'Fase B',
+            customPrompt:
+              agamaFocusSubject !== 'AUTO'
+                ? `Ekstrak khusus mata pelajaran ${agamaFocusSubject} pada semua jenjang (SD Fase A/B/C, SMP Fase D, SMA Fase E/F) beserta elemen dan lingkup materi Semester 1 & 2.`
+                : 'Ekstrak seluruh mata pelajaran Pendidikan Agama dan Budi Pekerti (Islam, Kristen, Katolik, Hindu, Buddha, Khonghucu, dan Kepercayaan) pada jenjang SD (Fase A–C), SMP (Fase D), dan SMA (Fase E–F) beserta elemen dan lingkup materinya.',
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.success && json.data) {
+            apiRawText = (json.rawText || json.data.extractedCpText || '') as string;
+            apiExecSummary = String(json.data.executiveSummary || '');
+            if (Array.isArray(json.data.analyzedSubjects)) {
+              apiSubjects = json.data.analyzedSubjects.map((s: any, idx: number) => {
+                const subLvl = normalizeSchoolLevel(s.level, `${s.subject || ''} ${s.phase || ''}`);
+                const subGrd = Number(s.grade) || (subLvl === 'SD' ? 4 : subLvl === 'SMP' ? 7 : 10);
+                const subPhs = s.phase || resolvePhaseByLevelAndGrade(subLvl, subGrd);
+                return {
+                  id: s.id || `agama-api-${Date.now()}-${idx + 1}`,
+                  subject: String(s.subject || focusLabel).trim(),
+                  level: subLvl,
+                  subLevelLabel: s.subLevelLabel || getSchoolLevelDisplay(subLvl, subGrd).subLabel,
+                  grade: subGrd,
+                  phase: subPhs,
+                  categoryTag: 'Umum/Wajib',
+                  locationRef: s.locationRef,
+                  specialNotes: s.specialNotes,
+                  jpPerWeek: Number(s.jpPerWeek) || (subLvl === 'SD' ? 4 : 3),
+                  totalHoursPerYear: Number(s.totalHoursPerYear) || (subLvl === 'SD' ? 144 : 108),
+                  cpText: String(s.cpText || `Capaian Pembelajaran ${s.subject || focusLabel}`),
+                  elements: Array.isArray(s.elements) ? s.elements : [],
+                  materialsSem1: Array.isArray(s.materialsSem1) ? s.materialsSem1 : [],
+                  materialsSem2: Array.isArray(s.materialsSem2) ? s.materialsSem2 : [],
+                };
+              });
+            }
+          }
+        }
+      } catch {
+        // Fallback to heuristic below
+      }
+
+      setAgamaProgress(68);
+      setAgamaStepText('Memetakan mata pelajaran Pendidikan Agama & Budi Pekerti per Fase & Kelas...');
+
+      const effectiveText = (currentRawText || apiRawText || '').trim();
+      const strictDocMode = effectiveText.length >= 120;
+      const heuristic = analyzeCPTextHeuristic({
+        fileName: agamaFileName || agamaDocName || focusLabel,
+        rawText: effectiveText,
+        subjectHint: agamaFocusSubject !== 'AUTO' ? agamaFocusSubject : 'Pendidikan Agama Islam & Budi Pekerti',
+        levelHint: 'SD',
+        gradeHint: 4,
+        phaseHint: 'Fase B',
+        totalHoursHint: 144,
+        jpPerWeekHint: 4,
+        strictDocumentOnly: strictDocMode,
+        getFallbackPreset: strictDocMode
+          ? undefined
+          : (sub, lvl, grd, phs) => getSubjectPresetByGrade(sub, lvl, grd, phs),
+      });
+
+      const combined = mergeAnalyzedSubjects(apiSubjects, heuristic.analyzedSubjects);
+      const isAgamaEntry = (name: string) =>
+        /agama|budi\s*pekerti|al[-\s]?qur|akidah|akhlak|fikih|fiqih|kepercayaan/i.test(name);
+
+      let agamaEntries = combined.filter((e) => isAgamaEntry(e.subject));
+      if (agamaFocusSubject !== 'AUTO') {
+        const specific = agamaEntries.filter(
+          (e) =>
+            e.subject.toLowerCase().includes(agamaFocusSubject.toLowerCase().replace('pendidikan agama ', '').split('&')[0].trim())
+        );
+        if (specific.length > 0) agamaEntries = specific;
+      }
+
+      // If uploaded document didn't expose multi-level headings (e.g., short single-file scan), build cross-level Agama entries for selected focus
+      if (agamaEntries.length === 0) {
+        const chosenSub = agamaFocusSubject !== 'AUTO' ? agamaFocusSubject : 'Pendidikan Agama Islam & Budi Pekerti';
+        const phaseTargets: Array<{ level: SchoolLevel; grade: number; phase: string; jp: number; hrs: number }> = [
+          { level: 'SD', grade: 1, phase: 'Fase A', jp: 4, hrs: 144 },
+          { level: 'SD', grade: 4, phase: 'Fase B', jp: 4, hrs: 144 },
+          { level: 'SD', grade: 5, phase: 'Fase C', jp: 4, hrs: 144 },
+          { level: 'SMP', grade: 7, phase: 'Fase D', jp: 3, hrs: 108 },
+          { level: 'SMA', grade: 10, phase: 'Fase E', jp: 3, hrs: 108 },
+          { level: 'SMA', grade: 11, phase: 'Fase F', jp: 3, hrs: 108 },
+        ];
+        agamaEntries = phaseTargets.map((t, i) => {
+          const preset = getSubjectPresetByGrade(chosenSub, t.level, t.grade, t.phase);
+          return {
+            id: `agama-slot2-${Date.now()}-${i + 1}`,
+            subject: chosenSub,
+            level: t.level,
+            subLevelLabel: getSchoolLevelDisplay(t.level, t.grade).subLabel,
+            grade: t.grade,
+            phase: t.phase,
+            categoryTag: 'Umum/Wajib' as const,
+            jpPerWeek: t.jp,
+            totalHoursPerYear: t.hrs,
+            cpText: effectiveText || preset.cpSummary,
+            elements: preset.elements || [],
+            materialsSem1: (preset.materialsSem1 || []).map((m, mIdx) => ({
+              ...m,
+              id: `agama-slot2-sem1-${i + 1}-${mIdx + 1}`,
+            })),
+            materialsSem2: (preset.materialsSem2 || []).map((m, mIdx) => ({
+              ...m,
+              id: `agama-slot2-sem2-${i + 1}-${mIdx + 1}`,
+            })),
+          };
+        });
+      }
+
+      setAgamaProgress(88);
+      setAgamaStepText('Menyimpan paten & menggabungkan CP Agama ke Katalog Aplikasi...');
+
+      const firstAgama = agamaEntries[0];
+      const resolvedTitle =
+        agamaDocName.trim() || stripExtension(agamaFileName) || `CP ${firstAgama.subject}`;
+      const recordedAgamaFileName = agamaFileName || `${resolvedTitle}.pdf`;
+      const resolvedAgamaDocNum = agamaDocNumber.trim() || undefined;
+      const nowIso = new Date().toISOString();
+
+      const taggedAgamaEntries: CPSubjectEntry[] = agamaEntries.map((entry) => ({
+        ...entry,
+        slot: 'agama' as const,
+        sourceFileName: recordedAgamaFileName,
+        docNumber: resolvedAgamaDocNum,
+      }));
+
+      const agamaMaster: ActiveMasterCPData = {
+        id: `admin-cp-agama-${Date.now()}`,
+        slot: 'agama',
+        isPermanent: true,
+        docNumber: resolvedAgamaDocNum,
+        fileName: recordedAgamaFileName,
+        fileType: agamaFileType || 'application/pdf',
+        fileSize: agamaFileSize || effectiveText.length,
+        uploadedByRole: currentUser.role,
+        uploadedByName: currentUser.name,
+        uploadedAt: nowIso,
+        level: normalizeSchoolLevel(firstAgama.level, firstAgama.subject),
+        subLevelLabel: firstAgama.subLevelLabel,
+        grade: firstAgama.grade,
+        phase: firstAgama.phase,
+        subject: firstAgama.subject,
+        teacherName: StorageService.getSchoolProfile().teacherName || currentUser.name,
+        schoolName: StorageService.getSchoolProfile().schoolName || currentUser.school,
+        academicYear: StorageService.getSchoolProfile().academicYear || '2026/2027',
+        totalHoursPerYear: firstAgama.totalHoursPerYear,
+        jpPerWeek: firstAgama.jpPerWeek,
+        cpText: effectiveText || firstAgama.cpText || `Capaian Pembelajaran ${firstAgama.subject}`,
+        elements: firstAgama.elements || [],
+        materialsSem1: firstAgama.materialsSem1 || [],
+        materialsSem2: firstAgama.materialsSem2 || [],
+        analyzedSubjects: taggedAgamaEntries,
+        executiveSummary:
+          apiExecSummary ||
+          `CP ke-2 Khusus Pendidikan Agama & Budi Pekerti (${taggedAgamaEntries.length} entri lintas jenjang/fase) telah digabungkan paten.`,
+        syncStatus: 'synced',
+        lastSyncedAt: nowIso,
+      };
+
+      const mergeResult = await StorageService.mergeAgamaCPToMaster(agamaMaster, taggedAgamaEntries, {
+        updateSchoolProfileSubject: !analysisDraft,
+      });
+
+      const mergedSubjectsList = mergeResult.mergedActiveMaster.analyzedSubjects || agamaEntries;
+      const agamaLevels = new Set(agamaEntries.map((e) => getSchoolLevelGroup(e.level)));
+      const agamaUniqueNames = Array.from(new Set(agamaEntries.map((e) => e.subject)));
+
+      setAnalysisDraft((prev) => {
+        if (prev) {
+          return {
+            ...prev,
+            analyzedSubjects: mergeAnalyzedSubjects(prev.analyzedSubjects, agamaEntries),
+            syncedAt: nowIso,
+            isSynced: true,
+          };
+        }
+        return {
+          id: agamaMaster.id,
+          docName: resolvedTitle,
+          docNumber: agamaDocNumber.trim(),
+          fileName: recordedAgamaFileName,
+          fileType: agamaMaster.fileType,
+          fileSize: agamaMaster.fileSize,
+          rawText: agamaMaster.cpText,
+          executiveSummary: agamaMaster.executiveSummary || '',
+          analyzedSubjects: mergedSubjectsList,
+          primarySubject: firstAgama.subject,
+          primaryLevel: firstAgama.level,
+          primaryGrade: firstAgama.grade,
+          primaryPhase: firstAgama.phase,
+          analyzedAt: nowIso,
+          syncedAt: nowIso,
+          isSynced: true,
+        };
+      });
+
+      setSelectedLevelGroup(getSchoolLevelGroup(firstAgama.level));
+      setSelectedGrade(Number(firstAgama.grade) || 4);
+      setSelectedSubjectName(firstAgama.subject);
+      setAdminUploadedCPs(StorageService.getAdminUploadedCPs());
+      setAgamaSyncSuccess({
+        docName: resolvedTitle,
+        subjectCount: agamaUniqueNames.length,
+        levelCount: agamaLevels.size || 1,
+        subjectsPreview: agamaUniqueNames,
+        syncedAt: nowIso,
+      });
+
+      StorageService.addNotification({
+        title: `CP ke-2 Agama "${resolvedTitle}" Tersimpan Paten`,
+        message: `${agamaUniqueNames.length} mapel Pendidikan Agama & Budi Pekerti (${Array.from(agamaLevels).join(', ')}) digabungkan ke Katalog Aplikasi, Menu Profil Guru, dan Parameter Kurikulum.`,
+        type: 'sync',
+        actionUrl: 'parameter_kurikulum',
+      });
+
+      setAgamaProgress(100);
+      setAgamaStepText('Selesai! CP Pendidikan Agama & Budi Pekerti paten tersimpan & tersinkron.');
+    } catch (err) {
+      setAgamaErrorMsg(
+        err instanceof Error
+          ? `Gagal menganalisis CP Agama: ${err.message}`
+          : 'Terjadi kendala saat menganalisis CP Pendidikan Agama & Budi Pekerti.'
+      );
+    } finally {
+      setIsAnalyzingAgama(false);
+    }
+  };
+
   const handleDeleteUploadedRecord = (id: string) => {
     const remaining = StorageService.removeAdminUploadedCP(id);
     setAdminUploadedCPs(remaining);
@@ -1142,27 +1682,59 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
       StorageService.clearActiveMasterCP(currentUser.id);
       setAnalysisDraft(null);
       setSyncSuccessInfo(null);
+      setAgamaSyncSuccess(null);
+      setSelectedSubjectName('');
     }
   };
 
-  const handleResetWorkspace = () => {
-    adminUploadedCPs.forEach((item) => {
-      StorageService.removeAdminUploadedCP(item.id);
-    });
-    const remainingCatalog = StorageService.getMasterCPCatalog().filter(
-      (c) => c.uploadedByRole !== 'admin'
-    );
-    StorageService.saveMasterCPCatalog(remainingCatalog);
-    StorageService.saveAdminSettings({ adminUploadedCPs: [] });
-    StorageService.clearActiveMasterCP(DEFAULT_ADMIN.id);
-    StorageService.clearActiveMasterCP(currentUser.id);
-    StorageService.clearAdminCPCatalogOnServer();
+  const handleResetWorkspace = async () => {
+    setIsResettingCP(true);
+    setResetNotice('');
+    try {
+      await StorageService.resetAllUploadedCPs();
 
-    setAdminUploadedCPs([]);
-    setAnalysisDraft(null);
-    setSyncSuccessInfo(null);
-    handleClearPickedFile();
+      setAdminUploadedCPs([]);
+      setAnalysisDraft(null);
+      setSyncSuccessInfo(null);
+      setSelectedSubjectName('');
+      setSubjectSearch('');
+      setProgressPercent(0);
+      setAnalysisStepText('');
+      setErrorMsg('');
+      handleClearPickedFile();
+
+      // Bersihkan seluruh state Upload CP ke-2 (Pendidikan Agama & Budi Pekerti)
+      setAgamaFile(null);
+      setAgamaFileName('');
+      setAgamaFileType('');
+      setAgamaFileSize(0);
+      setAgamaFileBase64('');
+      setAgamaRawText('');
+      setAgamaDocName('');
+      setAgamaDocNumber('');
+      setAgamaFocusSubject('AUTO');
+      setAgamaProgress(0);
+      setAgamaStepText('');
+      setAgamaErrorMsg('');
+      setAgamaSyncSuccess(null);
+      if (agamaFileInputRef.current) agamaFileInputRef.current.value = '';
+
+      setResetNotice(
+        'Seluruh data Capaian Pembelajaran (CP Utama #1 & CP #2 Pendidikan Agama dan Budi Pekerti) berhasil dihapus dan direset ulang.'
+      );
+    } finally {
+      setIsResettingCP(false);
+    }
   };
+
+  const hasAnyUploadedCP = Boolean(
+    analysisDraft ||
+      adminUploadedCPs.length > 0 ||
+      agamaSyncSuccess ||
+      StorageService.getMasterCPCatalog().length > 0 ||
+      StorageService.getActiveMasterCP(currentUser.id) ||
+      StorageService.getAdminMasterCP()
+  );
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -1178,19 +1750,37 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
             otomatis ke Menu Profil Guru dan Menu Parameter Kurikulum.
           </p>
         </div>
-        {(analysisDraft || adminUploadedCPs.length > 0) && (
+        {hasAnyUploadedCP && (
           <div className="flex items-center gap-3 shrink-0">
             <button
               type="button"
               onClick={handleResetWorkspace}
-              className="h-10 px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors"
+              disabled={isResettingCP}
+              className="h-10 px-4 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-sm font-medium inline-flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors disabled:opacity-60"
             >
-              <RefreshCw className="w-4 h-4 text-slate-500" />
-              Kosongkan Data CP
+              <RefreshCw className={`w-4 h-4 text-rose-600 ${isResettingCP ? 'animate-spin' : ''}`} />
+              {isResettingCP ? 'Mereset CP...' : 'Hapus & Reset Seluruh CP'}
             </button>
           </div>
         )}
       </div>
+
+      {resetNotice && (
+        <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 text-sm flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+            <span className="font-medium">{resetNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setResetNotice('')}
+            aria-label="Tutup pemberitahuan reset"
+            className="p-1 rounded-md text-emerald-700 hover:bg-emerald-100 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Bagian 1: Upload File CP & Penamaan Dokumen */}
       <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-6">
@@ -1363,7 +1953,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
                 )}
               </button>
               <span className="text-xs text-slate-500">
-                Mengekstrak 4 tingkat sekolah, kelas/fase, mata pelajaran &amp; lingkup materi.
+                Mengekstrak 3 tingkat sekolah (SD, SMP, SMA), kelas/fase, mata pelajaran &amp; lingkup materi.
               </span>
             </div>
 
@@ -1391,12 +1981,207 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
           </div>
         </div>
 
+        {/* Bagian 1B: Upload CP ke-2 Khusus Mata Pelajaran Pendidikan Agama & Budi Pekerti */}
+        <div className="pt-6 border-t border-slate-200 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-semibold text-slate-900">
+                  1B. Upload CP ke-2: Khusus Pendidikan Agama &amp; Budi Pekerti
+                </h2>
+                <span className="px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 text-xs font-semibold">
+                  Gabung Non-Destruktif · Tersimpan Paten
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Unggah dokumen CP khusus Pendidikan Agama &amp; Budi Pekerti (Islam, Kristen, Katolik, Hindu, Buddha, Khonghucu) agar digabungkan langsung ke SD (Fase A–C), SMP (Fase D), &amp; SMA (Fase E–F) tanpa menghapus mapel umum CP #1.
+              </p>
+            </div>
+            {agamaFileName && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAgamaFile(null);
+                  setAgamaFileName('');
+                  setAgamaFileBase64('');
+                  setAgamaRawText('');
+                  setAgamaDocName('');
+                  setAgamaDocNumber('');
+                  setAgamaErrorMsg('');
+                  if (agamaFileInputRef.current) agamaFileInputRef.current.value = '';
+                }}
+                className="h-9 px-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 self-start sm:self-auto"
+              >
+                <X className="w-3.5 h-3.5" />
+                Hapus Berkas CP Agama
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start p-4 rounded-xl border border-teal-200 bg-teal-50/35">
+            <div className="lg:col-span-5 space-y-3">
+              <div className="rounded-xl border-2 border-dashed border-teal-300 bg-white p-5 text-center space-y-2.5">
+                <input
+                  ref={agamaFileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.json"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleSelectAgamaFile(f);
+                  }}
+                  className="hidden"
+                />
+                <div className="mx-auto w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                {agamaFile ? (
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-slate-900 break-all">{agamaFileName}</p>
+                    <p className="text-xs text-slate-500 tabular-nums">
+                      {formatFileSize(agamaFileSize)}
+                      {isReadingAgamaFile
+                        ? ' · Membaca berkas Agama...'
+                        : agamaRawText
+                        ? ` · ${agamaRawText.length.toLocaleString('id-ID')} karakter terbaca`
+                        : ' · Siap dianalisis'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium text-slate-800">
+                      Unggah File CP Agama &amp; Budi Pekerti (CP #2)
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      PDF, Word (DOCX/DOC), Excel, atau TXT
+                    </p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => agamaFileInputRef.current?.click()}
+                  className="h-9 px-4 rounded-lg bg-white border border-teal-300 hover:bg-teal-50 text-teal-900 text-xs font-semibold inline-flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors"
+                >
+                  <UploadCloud className="w-4 h-4 text-teal-700" />
+                  Pilih File CP Pendidikan Agama
+                </button>
+              </div>
+            </div>
+
+            <div className="lg:col-span-7 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                    Fokus Mapel Pendidikan Agama
+                  </label>
+                  <select
+                    value={agamaFocusSubject}
+                    onChange={(e) => setAgamaFocusSubject(e.target.value)}
+                    className="w-full h-10 px-3 rounded-lg border border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  >
+                    <option value="AUTO">Otomatis Semua Agama dari Dokumen</option>
+                    <option value="Pendidikan Agama Islam & Budi Pekerti">
+                      Pendidikan Agama Islam &amp; Budi Pekerti
+                    </option>
+                    <option value="Pendidikan Agama Kristen & Budi Pekerti">
+                      Pendidikan Agama Kristen &amp; Budi Pekerti
+                    </option>
+                    <option value="Pendidikan Agama Katolik & Budi Pekerti">
+                      Pendidikan Agama Katolik &amp; Budi Pekerti
+                    </option>
+                    <option value="Pendidikan Agama Hindu & Budi Pekerti">
+                      Pendidikan Agama Hindu &amp; Budi Pekerti
+                    </option>
+                    <option value="Pendidikan Agama Buddha & Budi Pekerti">
+                      Pendidikan Agama Buddha &amp; Budi Pekerti
+                    </option>
+                    <option value="Pendidikan Agama Khonghucu & Budi Pekerti">
+                      Pendidikan Agama Khonghucu &amp; Budi Pekerti
+                    </option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                    Nama Dokumen CP Agama
+                  </label>
+                  <input
+                    type="text"
+                    value={agamaDocName}
+                    onChange={(e) => setAgamaDocName(e.target.value)}
+                    placeholder="Contoh: CP Pendidikan Agama Islam & Budi Pekerti BSKAP"
+                    className="w-full h-10 px-3 rounded-lg border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={handleAnalyzeAndMergeAgamaCP}
+                  disabled={isAnalyzingAgama}
+                  className="h-10 px-5 rounded-lg bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold inline-flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors"
+                >
+                  {isAnalyzingAgama ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Memproses CP Agama ({agamaProgress}%)
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Analisis &amp; Gabungkan CP Agama ke Aplikasi (Paten)
+                    </>
+                  )}
+                </button>
+                <span className="text-xs text-slate-600">
+                  Otomatis memetakan ke SD (Fase A–C), SMP (Fase D), SMA (Fase E–F), Profil Guru &amp; Parameter Kurikulum.
+                </span>
+              </div>
+
+              {isAnalyzingAgama && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-slate-600">
+                    <span className="font-medium truncate pr-2">{agamaStepText}</span>
+                    <span className="font-semibold tabular-nums">{agamaProgress}%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-teal-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-teal-600 transition-all duration-200"
+                      style={{ width: `${agamaProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {agamaErrorMsg && (
+                <div className="p-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                  <span>{agamaErrorMsg}</span>
+                </div>
+              )}
+
+              {agamaSyncSuccess && (
+                <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-900 text-xs flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-700" />
+                  <div>
+                    <p className="font-semibold">
+                      CP ke-2 Pendidikan Agama &amp; Budi Pekerti Tersimpan Paten
+                    </p>
+                    <p className="text-emerald-800 mt-0.5">
+                      &ldquo;{agamaSyncSuccess.docName}&rdquo; ({agamaSyncSuccess.subjectsPreview.join(', ')}) telah digabungkan lintas {agamaSyncSuccess.levelCount} jenjang tanpa menimpa CP Utama #1.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Arsip Berkas CP Tersimpan (ditampilkan bila ada) */}
         {adminUploadedCPs.length > 0 && (
           <div className="pt-4 border-t border-slate-100 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-800">
-                Daftar File CP Tersimpan ({adminUploadedCPs.length})
+                Daftar File CP Tersimpan Paten ({adminUploadedCPs.length})
               </h3>
             </div>
             <div className="overflow-x-auto border border-slate-200 rounded-lg">
@@ -1404,6 +2189,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600">
                     <th className="py-2.5 px-3 w-12">No</th>
+                    <th className="py-2.5 px-3">Slot &amp; Status</th>
                     <th className="py-2.5 px-3">Nama File / Dokumen CP</th>
                     <th className="py-2.5 px-3">No. SK</th>
                     <th className="py-2.5 px-3">Cakupan Terdeteksi</th>
@@ -1415,6 +2201,22 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
                   {adminUploadedCPs.map((item, idx) => (
                     <tr key={item.id} className="hover:bg-slate-50/70">
                       <td className="py-2.5 px-3 text-slate-500 tabular-nums">{idx + 1}</td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                              item.slot === 'agama'
+                                ? 'bg-teal-50 text-teal-800 border border-teal-200'
+                                : 'bg-blue-50 text-blue-800 border border-blue-200'
+                            }`}
+                          >
+                            {item.slot === 'agama' ? 'CP #2: Agama & BP' : 'CP Utama #1'}
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-medium">
+                            Paten
+                          </span>
+                        </div>
+                      </td>
                       <td className="py-2.5 px-3 font-medium text-slate-900">{item.fileName}</td>
                       <td className="py-2.5 px-3 text-slate-600">{item.docNumber || '—'}</td>
                       <td className="py-2.5 px-3 text-slate-600">
@@ -1506,7 +2308,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  Ringkasan 4 Jenjang (SD–SMK)
+                  Ringkasan 3 Jenjang (SD–SMA)
                 </button>
               </div>
             </div>
@@ -1636,10 +2438,10 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
                   <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
                     <h3 className="text-sm font-bold text-slate-900">
-                      Bagian 2: Rekapitulasi Jumlah Mata Pelajaran per Jenjang (SD, SMP, SMA, SMK)
+                      Bagian 2: Rekapitulasi Jumlah Mata Pelajaran per Jenjang (SD, SMP, SMA)
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Pemisahan tegas antara Mata Pelajaran Umum/Wajib/Pilihan (Lampiran II) dan Kejuruan/Program/Konsentrasi Keahlian SMK/MAK (Lampiran III) beserta rujukan halaman dokumen.
+                      Pemetaan Mata Pelajaran Umum/Wajib dan Pilihan/Tingkat Lanjut pada jenjang SD/MI/Paket A, SMP/MTs/Paket B, serta SMA/MA/Paket C beserta rujukan halaman dokumen.
                     </p>
                   </div>
                   <div className="overflow-x-auto">
@@ -1649,7 +2451,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
                           <th className="py-2.5 px-3">Jenjang &amp; Rujukan</th>
                           <th className="py-2.5 px-3">Fase &amp; Pemetaan Kelas</th>
                           <th className="py-2.5 px-3 text-right tabular-nums">Umum/Wajib (Lamp. II)</th>
-                          <th className="py-2.5 px-3 text-right tabular-nums">Pilihan/Kejuruan (Lamp. II/III)</th>
+                          <th className="py-2.5 px-3 text-right tabular-nums">Pilihan / Tingkat Lanjut (Lamp. II)</th>
                           <th className="py-2.5 px-3 text-right tabular-nums">Total Rumusan CP</th>
                           <th className="py-2.5 px-3">Catatan Pengecualian</th>
                         </tr>
@@ -1661,9 +2463,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
                               ? 'Fase A (Kls I–II), B (III–IV), C (V–VI)'
                               : lvlDir.group === 'SMP'
                                 ? 'Fase D (Kls VII–IX)'
-                                : lvlDir.group === 'SMA'
-                                  ? 'Fase E (Kls X), F (Kls XI–XII)'
-                                  : 'Fase E (Kls X), F (Kls XI–XII / XIII 4 Thn)';
+                                : 'Fase E (Kls X), F (Kls XI–XII)';
                           return (
                             <tr key={`summary-${lvlDir.group}`} className="align-top">
                               <td className="py-2.5 px-3">
@@ -1859,10 +2659,6 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
                         <span className="font-semibold text-slate-900">4. Status Informatika di SD:</span>{' '}
                         {analysisDraft.documentInsights.countingMethodology.informatikaSDRule}
                       </p>
-                      <p>
-                        <span className="font-semibold text-slate-900">5. Pemisahan Kejuruan SMK (Lampiran III):</span>{' '}
-                        {analysisDraft.documentInsights.countingMethodology.smkLampiranIIIRule}
-                      </p>
                       {analysisDraft.documentInsights.countingMethodology.ambiguitiesOrLimitations.length > 0 && (
                         <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/70 text-amber-900 space-y-1">
                           <p className="font-semibold">Catatan Ambiguitas / Keterbatasan Data PDF:</p>
@@ -1884,7 +2680,7 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
               <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
                 <p className="text-xs font-medium text-slate-500">Tingkat Sekolah Terdeteksi</p>
                 <p className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-                  {activeLevelCount} / 4
+                  {activeLevelCount} / 3
                 </p>
               </div>
               <div className="p-4 rounded-lg border border-slate-200 bg-slate-50/50">
@@ -1911,13 +2707,13 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
               </div>
             </div>
 
-            {/* Prioritas 1: 4 Tingkat Sekolah */}
+            {/* Prioritas 1: 3 Tingkat Sekolah */}
             <div className="space-y-2.5">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <GraduationCap className="w-4 h-4 text-slate-400" />
                 Tingkat Sekolah
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {TIERED_SCHOOL_LEVEL_CARDS.map((card) => {
                   const count = subjectsByLevelMap[card.group].length;
                   const isActive = selectedLevelGroup === card.group;
@@ -2207,11 +3003,11 @@ export const UploadCPMasterView: React.FC<UploadCPMasterViewProps> = ({ onNaviga
                   <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
                   <div className="space-y-0.5 text-sm">
                     <p className="font-semibold text-emerald-950">
-                      Sinkronisasi Berhasil Disimpan
+                      Sinkronisasi Paten Berhasil Disimpan
                     </p>
                     <p className="text-xs text-emerald-800 tabular-nums">
                       Dokumen &ldquo;{syncSuccessInfo.docName}&rdquo; · {syncSuccessInfo.totalSubjects} mata
-                      pelajaran lintas {syncSuccessInfo.levelCount} tingkat sekolah tersinkron ke Parameter
+                      pelajaran lintas {syncSuccessInfo.levelCount} tingkat sekolah tersinkron paten ke Parameter
                       Kurikulum · Profil Guru diperbarui ke {syncSuccessInfo.profileSubject} (
                       {getSchoolLevelDisplay(syncSuccessInfo.profileLevel).shortLabel} · Kelas{' '}
                       {syncSuccessInfo.profileGrade} / {syncSuccessInfo.profilePhase}).

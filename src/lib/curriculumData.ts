@@ -38,10 +38,6 @@ export const LEVEL_PHASES = {
     { phase: 'Fase E', grades: 'Kelas 10' },
     { phase: 'Fase F', grades: 'Kelas 11 - 12' },
   ],
-  SMK: [
-    { phase: 'Fase E', grades: 'Kelas 10 (Kejuruan)' },
-    { phase: 'Fase F', grades: 'Kelas 11 - 12 (Kejuruan)' },
-  ],
 };
 
 export const INITIAL_CP_REFERENCES: CPReference[] = [

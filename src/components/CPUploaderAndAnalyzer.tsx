@@ -32,6 +32,7 @@ import {
   BrainCircuit,
   GraduationCap,
   ChevronRight,
+  ChevronDown,
   BookMarked,
   X,
   Printer,
@@ -65,6 +66,7 @@ import {
   normalizeSchoolLevel,
   resolvePhaseByLevelAndGrade,
   TIERED_SCHOOL_LEVEL_CARDS,
+  type SchoolLevelGroup,
 } from '../lib/curriculumLevels';
 import { getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
 
@@ -159,6 +161,11 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
   // Result state
   const [masterData, setMasterData] = useState<ActiveMasterCPData | null>(() => StorageService.getActiveMasterCP());
   const [syncedNotification, setSyncedNotification] = useState<string>('');
+  const [expandedAnalyzerLevels, setExpandedAnalyzerLevels] = useState<Record<SchoolLevelGroup, boolean>>({
+    SD: false,
+    SMP: false,
+    SMA: false,
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -197,11 +204,6 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
       setPhase('Fase D');
       setJpPerWeek(3);
       setTotalHoursPerYear(108);
-    } else if (lvl === 'SMK') {
-      setGrade(10);
-      setPhase('Fase E');
-      setJpPerWeek(4);
-      setTotalHoursPerYear(144);
     } else {
       setGrade(10);
       setPhase('Fase E');
@@ -819,7 +821,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
         analyzedSubjects = mergeAnalyzedSubjects(analyzedSubjects, textHeuristic.analyzedSubjects);
       }
 
-      // Batch-analyze any additional files inside an uploaded Folder CP so every subject file across SD/SMP/SMA/SMK enters analyzedSubjects & Catalog
+      // Batch-analyze any additional files inside an uploaded Folder CP so every subject file across SD/SMP/SMA enters analyzedSubjects & Catalog
       if (folderFiles.length > 1) {
         for (let fIdx = 1; fIdx < folderFiles.length; fIdx++) {
           const extraFile = folderFiles[fIdx];
@@ -2308,7 +2310,7 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                   </p>
                   {masterData.analyzedSubjects && masterData.analyzedSubjects.length > 0 && (
                     <div className="mt-2.5 space-y-2">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
                         {TIERED_SCHOOL_LEVEL_CARDS.map((card) => {
                           const subsInTier = Array.from(
                             new Map(
@@ -2317,29 +2319,105 @@ export const CPUploaderAndAnalyzer: React.FC<CPUploaderAndAnalyzerProps> = ({
                                 .map((s) => [s.subject.trim().toLowerCase(), s])
                             ).values()
                           );
+                          const isExpanded = expandedAnalyzerLevels[card.group];
                           return (
-                            <div
+                            <button
                               key={card.group}
-                              className="px-2.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700 flex items-center justify-between gap-1"
+                              type="button"
+                              aria-expanded={isExpanded}
+                              onClick={() =>
+                                setExpandedAnalyzerLevels((prev) => ({
+                                  ...prev,
+                                  [card.group]: !prev[card.group],
+                                }))
+                              }
+                              className={`px-2.5 py-1.5 rounded-xl border flex items-center justify-between gap-1 text-left transition-colors cursor-pointer ${
+                                isExpanded
+                                  ? 'bg-slate-800 border-emerald-500/60'
+                                  : 'bg-slate-800/90 border-slate-700 hover:border-slate-500'
+                              }`}
                             >
-                              <span className="text-[10px] font-bold text-slate-300 truncate">{card.aliases}</span>
-                              <span className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded ${subsInTier.length > 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-700 text-slate-400'}`}>
+                              <span className="flex items-center gap-1 min-w-0 text-[10px] font-bold text-slate-200 truncate">
+                                {isExpanded ? (
+                                  <ChevronDown className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                ) : (
+                                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                )}
+                                <span className="truncate">Mata Pelajaran ({card.aliases})</span>
+                              </span>
+                              <span className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded tabular-nums shrink-0 ${subsInTier.length > 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-700 text-slate-400'}`}>
                                 {subsInTier.length} Mapel
                               </span>
-                            </div>
+                            </button>
                           );
                         })}
                       </div>
-                      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
-                        {masterData.analyzedSubjects.map((subItem, idx) => (
-                          <span
-                            key={`${subItem.subject}-${subItem.level}-${idx}`}
-                            className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-200 font-semibold"
-                          >
-                            [{getSchoolLevelGroup(subItem.level)}] {subItem.subject} • Sem 1: {subItem.materialsSem1?.length || 0} Bab • Sem 2: {subItem.materialsSem2?.length || 0} Bab
-                          </span>
-                        ))}
-                      </div>
+                      {TIERED_SCHOOL_LEVEL_CARDS.some((card) => expandedAnalyzerLevels[card.group]) && (
+                        <div className="space-y-2 pt-1">
+                          {TIERED_SCHOOL_LEVEL_CARDS.map((card) => {
+                            if (!expandedAnalyzerLevels[card.group]) return null;
+                            const uniqueTierSubs = Array.from(
+                              new Map(
+                                (masterData.analyzedSubjects || [])
+                                  .filter((s) => getSchoolLevelGroup(s.level) === card.group)
+                                  .map((s) => [s.subject.trim().toLowerCase(), s])
+                              ).values()
+                            );
+                            return (
+                              <div key={`cpa-list-${card.group}`} className="p-2.5 rounded-xl bg-slate-800/70 border border-slate-700 space-y-1.5">
+                                <div className="text-[10px] font-bold text-slate-300">
+                                  Mata Pelajaran ({card.aliases}) · {uniqueTierSubs.length} Mapel
+                                </div>
+                                {uniqueTierSubs.length === 0 ? (
+                                  <p className="text-[10px] text-slate-400">Belum ada mata pelajaran pada jenjang ini.</p>
+                                ) : (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {uniqueTierSubs.map((subItem, idx) => {
+                                      const isCurrent =
+                                        getSchoolLevelGroup(masterData.level) === card.group &&
+                                        subItem.subject.trim().toLowerCase() === masterData.subject.trim().toLowerCase();
+                                      return (
+                                        <button
+                                          key={`${card.group}-${subItem.subject}-${idx}`}
+                                          type="button"
+                                          onClick={() => {
+                                            setSubject(subItem.subject);
+                                            setLevel(subItem.level);
+                                            setGrade(subItem.grade || (card.group === 'SD' ? 4 : card.group === 'SMP' ? 7 : 10));
+                                            setPhase(subItem.phase || resolvePhaseByLevelAndGrade(subItem.level, Number(subItem.grade) || 10));
+                                            setMasterData((prev) =>
+                                              prev
+                                                ? {
+                                                    ...prev,
+                                                    subject: subItem.subject,
+                                                    level: subItem.level,
+                                                    grade: subItem.grade,
+                                                    phase: subItem.phase,
+                                                    cpText: subItem.cpText || prev.cpText,
+                                                    elements: subItem.elements && subItem.elements.length > 0 ? subItem.elements : prev.elements,
+                                                    materialsSem1: subItem.materialsSem1 && subItem.materialsSem1.length > 0 ? subItem.materialsSem1 : prev.materialsSem1,
+                                                    materialsSem2: subItem.materialsSem2 && subItem.materialsSem2.length > 0 ? subItem.materialsSem2 : prev.materialsSem2,
+                                                  }
+                                                : prev
+                                            );
+                                          }}
+                                          className={`text-[10px] px-2 py-1 rounded-md border font-semibold transition cursor-pointer ${
+                                            isCurrent
+                                              ? 'bg-emerald-600 border-emerald-500 text-white'
+                                              : 'bg-slate-900 border-slate-700 text-slate-200 hover:border-emerald-500/60 hover:text-emerald-200'
+                                          }`}
+                                        >
+                                          {subItem.subject} · Sem 1: {subItem.materialsSem1?.length || 0} Bab · Sem 2: {subItem.materialsSem2?.length || 0} Bab
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

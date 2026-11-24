@@ -1169,7 +1169,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 1. IDENTITAS SEKOLAH & PROFIL GURU
 CREATE TABLE IF NOT EXISTS public.school_profile (
     id TEXT PRIMARY KEY DEFAULT 'primary_school',
-    school_name TEXT NOT NULL DEFAULT 'SMA / SMK Negeri Digital',
+    school_name TEXT NOT NULL DEFAULT 'SMA Negeri Digital',
     npsn TEXT DEFAULT '12345678',
     address TEXT DEFAULT 'Jl. Pendidikan Karakter No. 1',
     headmaster_name TEXT DEFAULT 'Nama Kepala Sekolah, M.Pd.',

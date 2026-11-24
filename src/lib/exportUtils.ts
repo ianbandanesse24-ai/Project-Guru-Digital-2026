@@ -1193,7 +1193,7 @@ export class ExportService {
         // Build rows with school header
         const rows: any[][] = [
           ['PEMERINTAH PROVINSI / KABUPATEN - DINAS PENDIDIKAN DAN KEBUDAYAAN'],
-          [titleHeader.schoolName?.toUpperCase() || 'SMA / SMK / SMP NEGERI'],
+          [titleHeader.schoolName?.toUpperCase() || 'SMA / SMP / SD NEGERI'],
           [(titleHeader.docTitle?.toUpperCase() || fileName.toUpperCase()).replace(/_/g, ' ')],
           [`Tahun Pelajaran: ${titleHeader.academicYear || '2025/2026'} | Guru Pengampu: ${titleHeader.teacherName || '-'}`],
           [], // Empty separator row
@@ -1374,7 +1374,7 @@ export class ExportService {
   ): void {
     try {
       const cleaned = ExportService.cleanDocumentMarkdown(markdownContent);
-      const schoolName = schoolProfileOrOptions.schoolName || 'SMA / SMK NEGERI';
+      const schoolName = schoolProfileOrOptions.schoolName || 'SMA NEGERI';
       const npsn = schoolProfileOrOptions.npsn || '-';
       const address = schoolProfileOrOptions.address || '-';
       const email = schoolProfileOrOptions.email || 'info@sekolah.sch.id';
@@ -1600,7 +1600,7 @@ export class ExportService {
       ? cleaned
       : ExportService.markdownToHtml(cleaned, { forWord: true });
 
-    const schoolName = schoolProfileOrOptions.schoolName || 'SMA / SMK NEGERI';
+    const schoolName = schoolProfileOrOptions.schoolName || 'SMA NEGERI';
     const npsn = schoolProfileOrOptions.npsn || '-';
     const address = schoolProfileOrOptions.address || '-';
     const email = schoolProfileOrOptions.email || 'info@sekolah.sch.id';
@@ -1966,7 +1966,7 @@ export class ExportService {
       ? cleaned
       : ExportService.markdownToHtml(cleaned);
 
-    const schoolName = schoolProfileOrOptions.schoolName || 'SMA / SMK NEGERI';
+    const schoolName = schoolProfileOrOptions.schoolName || 'SMA NEGERI';
     const npsn = schoolProfileOrOptions.npsn || '-';
     const address = schoolProfileOrOptions.address || '-';
     const email = schoolProfileOrOptions.email || 'info@sekolah.sch.id';

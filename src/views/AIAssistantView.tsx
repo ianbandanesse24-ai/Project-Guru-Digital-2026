@@ -48,13 +48,14 @@ import {
   Sliders,
   UserCheck,
   ChevronRight,
+  ChevronDown,
   FolderSync,
   Layers,
 } from 'lucide-react';
 import { AIDocument, EducationLevel, SemesterType, UserAccount, TokenQuotaStatus, ActiveMasterCPData, CPDistributionPlan, SchoolProfile } from '../types';
 import { StorageService, addStorageListener } from '../lib/storage';
 import { ExportService } from '../lib/exportUtils';
-import { CP_REFERENCES, parseTPList } from '../lib/curriculumData';
+import { parseTPList } from '../lib/curriculumData';
 import { generateExpertCurriculumDocument } from '../lib/curriculumEngine';
 import { DocumentPdfPreview } from '../components/DocumentPdfPreview';
 import { CustomFormatSelector, CustomFormatConfig } from '../components/CustomFormatSelector';
@@ -68,6 +69,9 @@ import {
 } from '../components/AgamaIslamCPUploadModal';
 import {
   getSchoolLevelDisplay,
+  TIERED_SCHOOL_LEVEL_CARDS,
+  getSchoolLevelGroup,
+  type SchoolLevelGroup,
 } from '../lib/curriculumLevels';
 
 export interface SyncedTPItem {
@@ -93,6 +97,15 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
   const [schoolProfile, setSchoolProfile] = useState<SchoolProfile>(() => StorageService.getSchoolProfile());
   const [allPlans, setAllPlans] = useState<CPDistributionPlan[]>(() => StorageService.getCPDistributions());
   const [catalogVersion, setCatalogVersion] = useState<number>(0);
+  const [expandedCPLevels, setExpandedCPLevels] = useState<Record<SchoolLevelGroup, boolean>>({
+    SD: false,
+    SMP: false,
+    SMA: false,
+  });
+  const bothCPsDir = useMemo(
+    () => StorageService.getAllSubjectsFromBothCPs(),
+    [activeMasterCP, catalogVersion]
+  );
 
   const initialProf = StorageService.getSchoolProfile();
   const initialMaster = StorageService.getActiveMasterCP();
@@ -681,8 +694,8 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
 
   const currentLevelShortLabel = useMemo(() => getSchoolLevelDisplay(level, grade).shortLabel, [level, grade]);
 
-  // Get matching CP from reference if available
-  const currentCP = CP_REFERENCES.find(
+  // Get matching CP from stored reference if available (Admin-uploaded / user references)
+  const currentCP = StorageService.getCPReferences().find(
     (c) => c.level === level && c.grade === grade && c.subject.toLowerCase() === subject.toLowerCase()
   );
 
@@ -1530,31 +1543,75 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                 </label>
               </div>
               <div className="space-y-1.5">
-                <select
-                  value={
-                    levelSubjectOptions.find((s) => s.toLowerCase() === subject.trim().toLowerCase()) ||
-                    (levelSubjectOptions.length === 0 && !subject.trim() ? '' : 'Lainnya')
-                  }
-                  onChange={(e) => {
-                    if (e.target.value && e.target.value !== 'Lainnya') {
-                      handleSubjectChange(e.target.value, true);
-                    }
-                  }}
-                  className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600 cursor-pointer"
-                >
-                  {levelSubjectOptions.length > 0 ? (
-                    levelSubjectOptions.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" disabled>
-                      -- Belum ada CP yang dianalisis untuk {currentLevelShortLabel} --
-                    </option>
-                  )}
-                  <option value="Lainnya">-- Tulis Manual --</option>
-                </select>
+                {(() => {
+                  const activeGrp = getSchoolLevelGroup(level);
+                  const activeEntries = bothCPsDir.byLevel[activeGrp] || [];
+                  const wajibEntries = activeEntries.filter(
+                    (e) => e.slot !== 'agama' && e.categoryTag !== 'Pilihan/Tingkat Lanjut'
+                  );
+                  const pilihanEntries = activeEntries.filter(
+                    (e) => e.slot !== 'agama' && e.categoryTag === 'Pilihan/Tingkat Lanjut'
+                  );
+                  const agamaEntries = activeEntries.filter((e) => e.slot === 'agama');
+
+                  return (
+                    <select
+                      value={
+                        levelSubjectOptions.find((s) => s.toLowerCase() === subject.trim().toLowerCase()) ||
+                        (levelSubjectOptions.length === 0 && !subject.trim() ? '' : 'Lainnya')
+                      }
+                      onChange={(e) => {
+                        if (e.target.value && e.target.value !== 'Lainnya') {
+                          handleSubjectChange(e.target.value, true);
+                        }
+                      }}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600 cursor-pointer"
+                    >
+                      {activeEntries.length > 0 ? (
+                        <>
+                          {wajibEntries.length > 0 && (
+                            <optgroup label={`CP #1 (046/2025) Umum / Wajib (${wajibEntries.length})`}>
+                              {wajibEntries.map((entry) => (
+                                <option key={`ai-w-${entry.subject}`} value={entry.subject}>
+                                  {entry.subject}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {pilihanEntries.length > 0 && (
+                            <optgroup label={`CP #1 (046/2025) Pilihan / Tingkat Lanjut (${pilihanEntries.length})`}>
+                              {pilihanEntries.map((entry) => (
+                                <option key={`ai-p-${entry.subject}`} value={entry.subject}>
+                                  {entry.subject}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {agamaEntries.length > 0 && (
+                            <optgroup label={`CP #2 (020/2026) Pendidikan Agama (${agamaEntries.length})`}>
+                              {agamaEntries.map((entry) => (
+                                <option key={`ai-a-${entry.subject}`} value={entry.subject}>
+                                  {entry.subject}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </>
+                      ) : levelSubjectOptions.length > 0 ? (
+                        levelSubjectOptions.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="" disabled>
+                          -- Belum ada CP yang dianalisis untuk {currentLevelShortLabel} --
+                        </option>
+                      )}
+                      <option value="Lainnya">-- Tulis Manual --</option>
+                    </select>
+                  );
+                })()}
                 <input
                   type="text"
                   value={subject}
@@ -1562,6 +1619,83 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                   placeholder="Contoh: Fisika, Matematika, Pendidikan Agama Islam..."
                   className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 font-semibold text-xs focus:outline-none focus:border-blue-600"
                 />
+                {bothCPsDir.all.length > 0 && (
+                  <div className="pt-1.5 space-y-1.5">
+                    {TIERED_SCHOOL_LEVEL_CARDS.map((card) => {
+                      const items = bothCPsDir.byLevel[card.group] || [];
+                      if (items.length === 0) return null;
+                      const isExpanded = expandedCPLevels[card.group];
+                      return (
+                        <div
+                          key={`ai-tier-${card.group}`}
+                          className="rounded-lg border border-slate-200 bg-slate-50/70 overflow-hidden"
+                        >
+                          <button
+                            type="button"
+                            aria-expanded={isExpanded}
+                            onClick={() =>
+                              setExpandedCPLevels((prev) => ({
+                                ...prev,
+                                [card.group]: !prev[card.group],
+                              }))
+                            }
+                            className="w-full px-2.5 py-1.5 flex items-center justify-between gap-2 text-left hover:bg-slate-100/70 transition-colors cursor-pointer"
+                          >
+                            <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">
+                              {isExpanded ? (
+                                <ChevronDown className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                              ) : (
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              )}
+                              <span>CP 046/2025 &amp; 020/2026 ({card.aliases})</span>
+                            </span>
+                            <span className="text-[10px] font-semibold text-emerald-700 tabular-nums shrink-0">
+                              {items.length} Mapel
+                            </span>
+                          </button>
+                          {isExpanded && (
+                            <div className="px-2.5 pb-2 pt-1.5 border-t border-slate-200/70 bg-white flex flex-wrap gap-1">
+                              {items.map((entry, idx) => {
+                                const isSelected =
+                                  getSchoolLevelGroup(level) === card.group &&
+                                  entry.subject.trim().toLowerCase() === subject.trim().toLowerCase();
+                                const isPilihan = entry.categoryTag === 'Pilihan/Tingkat Lanjut';
+                                return (
+                                  <button
+                                    key={`ai-cp-sub-${card.group}-${entry.subject}-${idx}`}
+                                    type="button"
+                                    onClick={() => {
+                                      if (getSchoolLevelGroup(level) !== card.group) {
+                                        const targetGrade = Number(entry.grade) || entry.gradesList?.[0] || (card.group === 'SD' ? 4 : card.group === 'SMP' ? 7 : 10);
+                                        setLevel(entry.level as EducationLevel);
+                                        setGrade(targetGrade);
+                                      }
+                                      handleSubjectChange(entry.subject, true);
+                                    }}
+                                    className={`px-2 py-0.5 rounded-md border text-[10px] font-semibold transition cursor-pointer inline-flex items-center gap-1 ${
+                                      isSelected
+                                        ? 'bg-blue-600 text-white border-blue-600'
+                                        : isPilihan
+                                        ? 'bg-amber-50/70 text-amber-900 border-amber-200 hover:border-amber-400'
+                                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-blue-400 hover:text-blue-700'
+                                    }`}
+                                  >
+                                    <span>{entry.subject}</span>
+                                    {isPilihan && (
+                                      <span className={`text-[8px] px-1 rounded ${isSelected ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                                        Pilihan
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
               {isAgamaIslamSubject(subject) && (
                 <div className="mt-2">
@@ -2382,7 +2516,7 @@ export const AIAssistantView: React.FC<AIAssistantViewProps> = ({ initialDocType
                         onChange={(e) => setMinutesPerJP(Number(e.target.value))}
                         className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 text-slate-800 font-semibold focus:outline-none text-xs"
                       >
-                        <option value={45}>45 Menit / JP (SMA / SMK)</option>
+                        <option value={45}>45 Menit / JP (SMA)</option>
                         <option value={40}>40 Menit / JP (SMP)</option>
                         <option value={35}>35 Menit / JP (SD)</option>
                       </select>

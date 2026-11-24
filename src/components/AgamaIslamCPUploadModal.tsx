@@ -392,6 +392,10 @@ export const AgamaIslamCPUploadModal: React.FC<AgamaIslamCPUploadModalProps> = (
 
     const masterData: ActiveMasterCPData = {
       id: `master-agama-${Date.now()}`,
+      slot: 'agama',
+      isPermanent: true,
+      uploadedByRole: currentUser.role,
+      uploadedByName: currentUser.name,
       fileName: resolvedFileName,
       fileType: fileType || 'application/pdf',
       fileSize: fileSize || resolvedCpText.length,
@@ -416,7 +420,7 @@ export const AgamaIslamCPUploadModal: React.FC<AgamaIslamCPUploadModalProps> = (
       materialsSem2: sem2Items,
       executiveSummary:
         apiResultData?.executiveSummary ||
-        `CP Khusus ${subjectName} (${level} Kelas ${grade} / ${phase}) dari dokumen "${resolvedFileName}" telah disinkronkan ke seluruh 9 perangkat ajar.`,
+        `CP ke-2 Khusus ${subjectName} (${level} Kelas ${grade} / ${phase}) dari dokumen "${resolvedFileName}" telah digabungkan secara paten & disinkronkan ke seluruh 9 perangkat ajar.`,
       kktpSummary:
         apiResultData?.kktpSummary ||
         'Interval Ketuntasan: 0-40% (Perlu Bimbingan), 41-65% (Cukup/Remedial), 66-85% (Baik/Tuntas), 86-100% (Sangat Baik/Pengayaan).',
@@ -426,82 +430,44 @@ export const AgamaIslamCPUploadModal: React.FC<AgamaIslamCPUploadModalProps> = (
       updatedAt: new Date().toISOString(),
     };
 
-    // 1. Save Active Master CP
-    StorageService.setActiveMasterCP(masterData);
+    // Extract any additional analyzed subjects from AI response if the Agama CP spans multiple phases/grades
+    const extraAgamaEntries: any[] = Array.isArray(apiResultData?.analyzedSubjects) && apiResultData.analyzedSubjects.length > 0
+      ? apiResultData.analyzedSubjects.map((s: any, idx: number) => ({
+          ...s,
+          id: s.id || `agama-entry-${Date.now()}-${idx + 1}`,
+          subject: s.subject || subjectName,
+          elements: Array.isArray(s.elements) && s.elements.length > 0 ? s.elements : elements,
+          materialsSem1: Array.isArray(s.materialsSem1) && s.materialsSem1.length > 0 ? s.materialsSem1 : sem1Items,
+          materialsSem2: Array.isArray(s.materialsSem2) && s.materialsSem2.length > 0 ? s.materialsSem2 : sem2Items,
+        }))
+      : [
+          {
+            id: masterData.id,
+            subject: subjectName,
+            level,
+            grade,
+            phase,
+            jpPerWeek,
+            totalHoursPerYear,
+            cpText: resolvedCpText,
+            elements,
+            materialsSem1: sem1Items,
+            materialsSem2: sem2Items,
+          },
+        ];
 
-    // 2. Sync School Profile
-    StorageService.saveSchoolProfile({
-      ...schoolProfile,
-      subject: subjectName,
-      level,
-      grade,
-      phase,
-      jpPerWeek,
-      totalHoursPerYear,
-      cpText: resolvedCpText,
+    // 1. Non-destructive Patent Merge to Active Master CP, Catalog, Distributions, Refs & Server
+    await StorageService.mergeAgamaCPToMaster(masterData, extraAgamaEntries, {
+      updateSchoolProfileSubject: true,
     });
 
-    // 3. Save CP Distribution Plan
-    const distPlan: CPDistributionPlan = {
-      id: `plan-agama-${level.toLowerCase()}-${grade}-${subjectName.toLowerCase().replace(/\s+/g, '-')}`,
-      teacherName: schoolProfile.teacherName || currentUser.name,
-      teacherNip: schoolProfile.teacherNip,
-      subject: subjectName,
-      schoolName: schoolProfile.schoolName,
-      level,
-      grade,
-      phase,
-      academicYear: schoolProfile.academicYear || '2025/2026',
-      semesterOption: 'all',
-      totalHoursPerYear,
-      totalTPCount: sem1Items.length + sem2Items.length,
-      jpPerWeek,
-      timeAllocationPerWeek: masterData.timeAllocationPerWeek,
-      cpText: resolvedCpText,
-      elements: elements.map((e: any) => ({ name: e.name, description: e.description })),
-      materialsSem1: sem1Items,
-      materialsSem2: sem2Items,
-      totalHoursSem1: sem1Items.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0),
-      totalHoursSem2: sem2Items.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    StorageService.saveCPDistribution(distPlan);
-
-    // 4. Save CP Reference
-    const cpRef: CPReference = {
-      id: `ref-agama-${level.toLowerCase()}-${grade}-${subjectName.toLowerCase().replace(/\s+/g, '-')}`,
-      title: `[CP Khusus Agama] ${subjectName} (${level} - ${phase} Kelas ${grade})`,
-      level,
-      phase,
-      grade,
-      subject: subjectName,
-      curriculumVersion: 'Kurikulum Berbasis Deep Learning & Moderasi Beragama',
-      uploadedAt: new Date().toISOString().substring(0, 16),
-      uploadedBy: schoolProfile.teacherName || currentUser.name,
-      fileName: resolvedFileName,
-      cpText: resolvedCpText,
-      elements,
-      rawText: resolvedCpText,
-      aiAnalysisSummary: masterData.executiveSummary,
-    };
-    StorageService.saveCPReference(cpRef);
-
-    // 5. Notification
+    // 2. Notification
     StorageService.addNotification({
-      title: `CP Khusus ${subjectName} Disinkronkan`,
-      message: `Berkas "${resolvedFileName}" (${level} Kelas ${grade} - ${phase}) berhasil disinkronkan ke seluruh 9 perangkat ajar.`,
+      title: `CP ke-2: ${subjectName} Digabungkan (Paten)`,
+      message: `Berkas "${resolvedFileName}" (${level} Kelas ${grade} - ${phase}) berhasil digabungkan secara paten ke katalog aplikasi tanpa menghapus mapel umum.`,
       type: 'sync',
-      metadata: { subject: subjectName, level, grade, phase, fileName: resolvedFileName },
+      metadata: { subject: subjectName, level, grade, phase, fileName: resolvedFileName, slot: 'agama' },
     });
-
-    // 6. Broadcast events
-    try {
-      window.dispatchEvent(new CustomEvent('master-cp-updated', { detail: masterData }));
-      window.dispatchEvent(new Event('curriculum-parameters-synced'));
-      window.dispatchEvent(new Event('school-profile-updated'));
-      window.dispatchEvent(new Event('storage'));
-    } catch {}
 
     setSyncedMaster(masterData);
     setIsSyncing(false);
@@ -648,7 +614,6 @@ export const AgamaIslamCPUploadModal: React.FC<AgamaIslamCPUploadModalProps> = (
                     <option value="SD">SD</option>
                     <option value="SMP">SMP</option>
                     <option value="SMA">SMA</option>
-                    <option value="SMK">SMK</option>
                   </select>
                 </div>
 

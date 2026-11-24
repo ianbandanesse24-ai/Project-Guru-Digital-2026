@@ -1,6 +1,6 @@
 import { CPMaterialItem, ActiveMasterCPData, CPDistributionPlan, CPReference, SchoolLevel } from '../types';
 import { StorageService } from './storage';
-import { resolvePhaseByLevelAndGrade } from './curriculumLevels';
+import { resolvePhaseByLevelAndGrade, isSameSubjectName } from './curriculumLevels';
 import { type SubjectPreset, SMA_PRESETS } from './presets/smaPresets';
 import { SMA_SOCIAL_PRESETS } from './presets/smaSocialPresets';
 import { SMA_ARTS_SPORTS_PRESETS } from './presets/smaArtsSportsPresets';
@@ -17,7 +17,7 @@ export { generateDynamicGradePreset };
 
 /**
  * Master catalog of grade-differentiated subject presets according to
- * Keputusan Kepala BSKAP No. 046/H/KR/2025.
+ * Keputusan Kepala BSKAP No. 046/H/KR/2025 dan No. 020/H/KR/2026.
  * Every level (SD, SMP, SMA) and every grade has completely distinct,
  * authentic learning materials and chapter allocations with zero recycling.
  */
@@ -35,7 +35,7 @@ export const SUBJECT_MATERIAL_PRESETS: SubjectPreset[] = [
 
 /**
  * Intelligent helper to find or generate the best matching CP Preset for any subject, level, and grade.
- * GUARANTEE: Never recycles or duplicates topics from a different grade!
+ * GUARANTEE: Never recycles or duplicates topics from a different grade or collides distinct subjects (e.g. Matematika vs Matematika Tingkat Lanjut)!
  */
 export function getSubjectPresetByGrade(
   subject: string,
@@ -57,12 +57,12 @@ export function getSubjectPresetByGrade(
   );
   if (exact) return exact;
 
-  // 2. Fuzzy match: subject name contains/is contained + SAME level + SAME exact grade
+  // 2. Canonical safe match (prevents Matematika vs Matematika Tingkat Lanjut, IPA vs IPAS, Prakarya aspects colliding)
   const sameLevelGrade = SUBJECT_MATERIAL_PRESETS.find(
     (p) =>
       p.level === normLvl &&
       Number(p.grade) === numGrade &&
-      (normSub.includes(p.subject.toLowerCase()) || p.subject.toLowerCase().includes(normSub))
+      isSameSubjectName(p.subject, subject)
   );
   if (sameLevelGrade) return sameLevelGrade;
 

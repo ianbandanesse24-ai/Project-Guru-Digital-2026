@@ -204,7 +204,6 @@ export const SchoolProfileModal: React.FC<SchoolProfileModalProps> = ({
                   <option value="SD">SD (Sekolah Dasar)</option>
                   <option value="SMP">SMP (Menengah Pertama)</option>
                   <option value="SMA">SMA (Menengah Atas)</option>
-                  <option value="SMK">SMK (Kejuruan)</option>
                 </select>
               </div>
             </div>

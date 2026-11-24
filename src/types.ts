@@ -100,6 +100,7 @@ export interface AdminSystemSettings {
   nextCurriculumResetTimestamp?: string;
   totalCurriculumResetCount?: number;
   adminUploadedCPs?: AdminUploadedCPItem[];
+  cpResetTimestamp?: string;
   lastUpdated: string;
   updatedBy: string;
 }
@@ -107,6 +108,8 @@ export interface AdminSystemSettings {
 export interface AdminUploadedCPItem {
   id: string;
   no: number;
+  slot?: 'primary' | 'agama';
+  isPermanent?: boolean;
   docNumber?: string;
   fileName: string;
   folderName?: string;
@@ -116,6 +119,7 @@ export interface AdminUploadedCPItem {
   phase?: string;
   uploadedAt: string;
   uploadedBy?: string;
+  uploadedByRole?: UserRole;
 }
 
 export interface CurriculumResetStats {
@@ -661,12 +665,15 @@ export interface CPDistributionPlan {
 
 export interface CPSubjectEntry {
   id?: string;
+  slot?: 'primary' | 'agama';
+  sourceFileName?: string;
+  docNumber?: string;
   subject: string;
   level: SchoolLevel;
   subLevelLabel?: string;
   grade: number | string;
   phase: string;
-  categoryTag?: 'Umum/Wajib' | 'Pilihan/Tingkat Lanjut' | 'Kejuruan/Konsentrasi';
+  categoryTag?: 'Umum/Wajib' | 'Pilihan/Tingkat Lanjut';
   locationRef?: string;
   specialNotes?: string;
   jpPerWeek?: number;
@@ -732,7 +739,6 @@ export interface CPDocumentInsights {
     advancedPhaseFRule: string;
     scienceSocialSplitRule: string;
     informatikaSDRule: string;
-    smkLampiranIIIRule: string;
     ambiguitiesOrLimitations: string[];
   };
 }
@@ -782,6 +788,11 @@ export interface ActiveMasterCPData {
   fullMarkdownReport?: string;
   kktpSummary?: string;
   deepLearningNotes?: string;
+  categoryTag?: 'Umum/Wajib' | 'Pilihan/Tingkat Lanjut';
+  locationRef?: string;
+  specialNotes?: string;
+  slot?: 'primary' | 'agama';
+  isPermanent?: boolean;
   syncStatus?: 'synced' | 'draft';
   lastSyncedAt?: string;
   updatedAt?: string;
