@@ -204,24 +204,26 @@ export function buildOfficialIdentitas(options: {
       .map(
         (r) => `
       <tr>
-        <td style="width: 28%; background-color: #f0f9ff; color: #0369a1; font-weight: bold; padding: 6px 10px; border: 1px solid #cbd5e1; text-align: left; vertical-align: top;">${r.label}</td>
-        <td style="width: 72%; background-color: #ffffff; color: #0f172a; padding: 6px 10px; border: 1px solid #cbd5e1; text-align: left; vertical-align: top;">${r.boldValue ? `<strong>${r.value}</strong>` : r.value}</td>
+        <td style="width: 28%; background-color: #f0f9ff; color: #0369a1; font-weight: bold; padding: 4px 4px; border: 1px solid #cbd5e1; text-align: left; vertical-align: top; line-height: 1.36;">${r.label}</td>
+        <td style="width: 72%; background-color: #ffffff; color: #0f172a; padding: 4px 4px; border: 1px solid #cbd5e1; text-align: left; vertical-align: top; line-height: 1.36;">${r.boldValue ? `<strong>${r.value}</strong>` : r.value}</td>
       </tr>`
       )
       .join('');
 
     return `<div style="margin-bottom: 18px;">
   <h3 style="font-size: 11.5pt; font-weight: bold; color: #0369a1; border-left: 4px solid #0284c7; padding: 4px 10px; margin: 12px 0 8px 0; background-color: #f0f9ff; border-radius: 0 4px 4px 0;">${cleanHeadingText}</h3>
-  <table class="identitas-table" style="width: 100%; border-collapse: collapse; font-size: 9.5pt; border: 1.5px solid #0288d1; margin: 0;">
-    <thead>
-      <tr style="background-color: #0288d1; color: #ffffff;">
-        <th style="width: 28%; padding: 6px 10px; border: 1px solid #0288d1; text-align: left; font-weight: bold;">Komponen Identitas</th>
-        <th style="width: 72%; padding: 6px 10px; border: 1px solid #0288d1; text-align: left; font-weight: bold;">Keterangan</th>
-      </tr>
-    </thead>
-    <tbody>${rowsHtml}
-    </tbody>
-  </table>
+  <div class="table-responsive curriculum-table-container" style="overflow-x: auto; margin: 0;">
+    <table class="identitas-table" style="width: 100%; table-layout: fixed; border-collapse: collapse; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: clamp(7.5px, 0.92cqi, 10.5px); border: 1.5px solid #0288d1; margin: 0;">
+      <thead>
+        <tr style="background-color: #0288d1; color: #ffffff;">
+          <th style="width: 28%; padding: 4px 4px; border: 1px solid #0288d1; text-align: left; font-weight: bold; line-height: 1.25;">Komponen Identitas</th>
+          <th style="width: 72%; padding: 4px 4px; border: 1px solid #0288d1; text-align: left; font-weight: bold; line-height: 1.25;">Keterangan</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}
+      </tbody>
+    </table>
+  </div>
 </div>`;
   }
 
@@ -1298,7 +1300,7 @@ ${buildOfficialLembarPengesahan({
           const tp2 = `Peserta didik (**A**) mampu **menerapkan formulasi ilmiah, mengolah data empiris, dan memecahkan permasalahan** (**B**) kontekstual nyata terkait **${babTitle}** melalui inkuiri terbimbing (**C**) dengan akurat, teliti, dan kolaboratif (**D**).`;
           const tp3 = `Peserta didik (**A**) mampu **merancang karya/solusi inovatif, menyajikan laporan pameran karya (*gallery walk*), serta merefleksikan proses belajar** (**B**) materi **${babTitle}** (**C**) secara estetis, komunikatif, dan penuh antusiasme (**D**).`;
 
-          protaRows.push(`| **Bab ${babNum} : ${babTitle}**<br/><span style="font-size: 8pt; color: #0284c7; font-weight: bold;">(Total: ${totalBabJp} JP • ${babMeetings} Pertemuan)</span> | ${tp1} | ${sub1Title} | ${jp1} JP |`);
+          protaRows.push(`| **Bab ${babNum} : ${babTitle}**<br/><span style="font-size: 0.92em; color: #0284c7; font-weight: bold;">(Total: ${totalBabJp} JP • ${babMeetings} Pertemuan)</span> | ${tp1} | ${sub1Title} | ${jp1} JP |`);
           protaRows.push(`| | ${tp2} | ${sub2Title} | ${jp2} JP |`);
           protaRows.push(`| | ${tp3} | ${sub3Title} | ${jp3} JP |`);
         }
@@ -1581,12 +1583,12 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
 
       // HTML Month Headers with Calendar Colors
       const monthThsHtml = monthsHeader.map(m =>
-        `<th colspan="${m.weeks}" style="border: 1px solid #334155; background-color: ${m.bg}; color: ${m.color}; padding: 5px 2px; font-weight: bold; font-size: 8.5pt; text-align: center;">${m.name}</th>`
+        `<th colspan="${m.weeks}" style="border: 1px solid #334155; background-color: ${m.bg}; color: ${m.color}; padding: 4px 2px; font-weight: bold; font-size: 7.5pt; line-height: 1.25; text-align: center;">${m.name}</th>`
       ).join('');
 
       // HTML Week Number Headers (1 2 3 4 5 under each month)
       const weekThsHtml = monthsHeader.flatMap(m =>
-        Array.from({ length: m.weeks }, (_, i) => `<th style="border: 1px solid #334155; background-color: ${m.bg}; color: ${m.color}; padding: 2px 1px; font-size: 7.5pt; font-weight: bold; width: 17px; text-align: center;">${i + 1}</th>`)
+        Array.from({ length: m.weeks }, (_, i) => `<th style="border: 1px solid #334155; background-color: ${m.bg}; color: ${m.color}; padding: 2px 1px; font-size: 7pt; line-height: 1.25; font-weight: bold; width: 17px; text-align: center;">${i + 1}</th>`)
       ).join('');
 
       // HTML Table Body Rows (Bab Banner Rows + TP Rows)
@@ -1599,9 +1601,9 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
         let tpContentFormatted = '';
         if (m.tpName && m.tpName.trim().length > 0) {
           const lines = m.tpName.split('\n').filter(Boolean);
-          tpContentFormatted = lines.map(line => `<div style="margin-bottom: 4px; line-height: 1.4;">${line}</div>`).join('');
+          tpContentFormatted = lines.map(line => `<div style="margin-bottom: 3px; line-height: 1.36;">${line}</div>`).join('');
         } else {
-          tpContentFormatted = `<div style="margin-bottom: 4px; line-height: 1.4;">${babNum}.1 Peserta didik mampu menganalisis secara kritis dan komprehensif materi ${babTitle} secara mendalam.</div>`;
+          tpContentFormatted = `<div style="margin-bottom: 3px; line-height: 1.36;">${babNum}.1 Peserta didik mampu menganalisis secara kritis dan komprehensif materi ${babTitle} secara mendalam.</div>`;
         }
 
         // Week cells for this Bab
@@ -1610,25 +1612,25 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
           if (!slot.isEffective) {
             return `<td style="border: 1px solid #cbd5e1; background-color: ${slot.bg}; color: ${slot.color}; font-size: 6.8pt; font-weight: bold; text-align: center; padding: 2px 0;">${slot.tag}</td>`;
           }
-          return `<td style="border: 1px solid #cbd5e1; text-align: center; font-weight: ${val ? 'bold' : 'normal'}; padding: 4px 1px; font-size: 8pt; ${val ? 'background-color: #e0f2fe; color: #0284c7;' : ''}">${val || ''}</td>`;
+          return `<td style="border: 1px solid #cbd5e1; text-align: center; font-weight: ${val ? 'bold' : 'normal'}; padding: 4px 1px; font-size: 7.5pt; line-height: 1.36; ${val ? 'background-color: #e0f2fe; color: #0284c7;' : ''}">${val || ''}</td>`;
         }).join('');
 
         return `<!-- BAB ${babNum} HEADER ROW -->
         <tr style="background-color: #f1f5f9; font-weight: bold;">
-          <td colspan="33" style="border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; font-size: 9pt; color: #0f172a; text-transform: uppercase;">
+          <td colspan="33" style="border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; font-size: 7.5pt; line-height: 1.36; color: #0f172a; text-transform: uppercase;">
             BAB ${babNum} : ${babTitle}
           </td>
         </tr>
         <!-- BAB ${babNum} TP ROW -->
         <tr style="background-color: #ffffff;">
-          <td style="border: 1px solid #cbd5e1; padding: 6px 4px; text-align: center; vertical-align: top; font-weight: bold; font-size: 8.5pt;">
+          <td style="border: 1px solid #cbd5e1; padding: 4px 3px; text-align: center; vertical-align: top; font-weight: bold; font-size: 7.5pt; line-height: 1.36;">
             ${babNum}
           </td>
-          <td style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; vertical-align: top; font-size: 8.5pt; line-height: 1.42;">
+          <td style="border: 1px solid #cbd5e1; padding: 4px 4px; text-align: left; vertical-align: top; font-size: 7.5pt; line-height: 1.36;">
             ${tpContentFormatted}
           </td>
-          <td style="border: 1px solid #cbd5e1; padding: 6px 4px; font-weight: bold; text-align: center; vertical-align: middle; background-color: #f8fafc; font-size: 8.5pt;">
-            ${m.jp} JP<br/><span style="font-size: 7.5pt; font-weight: bold; color: #0284c7;">(${m.meetingCount} Pertemuan)</span>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 3px; font-weight: bold; text-align: center; vertical-align: middle; background-color: #f8fafc; font-size: 7.5pt; line-height: 1.36;">
+            ${m.jp} JP<br/><span style="font-size: 0.92em; font-weight: bold; color: #0284c7;">(${m.meetingCount} Pertemuan)</span>
           </td>
           ${cellsHtml}
         </tr>`;
@@ -1640,7 +1642,7 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
           return `<td style="border: 1px solid #cbd5e1; background-color: ${slot.bg}; color: ${slot.color}; font-weight: bold; font-size: 6.8pt; text-align: center;">${slot.tag}</td>`;
         }
         const tot = weeklyTotals[slot.index];
-        return `<td style="border: 1px solid #cbd5e1; font-weight: bold; padding: 4px 1px; text-align: center; font-size: 8pt;">${tot || ''}</td>`;
+        return `<td style="border: 1px solid #cbd5e1; font-weight: bold; padding: 4px 1px; text-align: center; font-size: 7.5pt; line-height: 1.36;">${tot || ''}</td>`;
       }).join('');
 
       const totalSemesterJP = materialAllocations.reduce((s, m) => s + m.jp, 0);
@@ -1678,12 +1680,12 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
   <div style="font-size: 9.5pt; text-align: left; line-height: 1.5; margin-bottom: 10px; color: #0f172a;">
     ${cpText}
   </div>
-  <div class="table-responsive" style="overflow-x: auto; margin: 10px 0;">
-    <table style="width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 9pt; border: 1.5px solid #0f766e;">
+  <div class="table-responsive curriculum-table-container" style="overflow-x: auto; margin: 10px 0;">
+    <table style="width: 100%; table-layout: fixed; border-collapse: collapse; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: clamp(7.5px, 0.92cqi, 10.5px); border: 1.5px solid #0f766e;">
       <thead>
         <tr style="background-color: #0f766e; color: #ffffff; font-weight: bold; text-align: center;">
-          <th style="border: 1px solid #0f766e; padding: 7px 10px; width: 22%; text-align: left; color: #ffffff; background-color: #0f766e;">Elemen</th>
-          <th style="border: 1px solid #0f766e; padding: 7px 10px; width: 78%; text-align: left; color: #ffffff; background-color: #0f766e;">Capaian Pembelajaran</th>
+          <th style="border: 1px solid #0f766e; padding: 4px 3px; width: 22%; text-align: left; color: #ffffff; background-color: #0f766e; line-height: 1.25;">Elemen</th>
+          <th style="border: 1px solid #0f766e; padding: 4px 3px; width: 78%; text-align: left; color: #ffffff; background-color: #0f766e; line-height: 1.25;">Capaian Pembelajaran</th>
         </tr>
       </thead>
       <tbody>
@@ -1694,15 +1696,15 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
 </div>
 
 <div class="table-responsive prosem-matrix-container" style="overflow-x: auto; margin: 14px 0;">
-  <table style="width: 100%; border-collapse: collapse; font-size: 8pt; border: 1.5px solid #0f766e; text-align: center;">
+  <table style="width: 100%; border-collapse: collapse; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: clamp(7.5px, 0.92cqi, 10.5px); border: 1.5px solid #0f766e; text-align: center;">
     <thead>
       <tr style="background-color: #0f766e; color: #ffffff; font-weight: bold;">
-        <th rowspan="2" style="border: 1px solid #0f766e; padding: 6px 4px; width: 30px; text-align: center; vertical-align: middle; background-color: #0f766e; color: #ffffff;">No</th>
-        <th rowspan="2" style="border: 1px solid #0f766e; padding: 6px 8px; width: 220px; text-align: center; vertical-align: middle; background-color: #0f766e; color: #ffffff;">TUJUAN PEMBELAJARAN</th>
-        <th rowspan="2" style="border: 1px solid #0f766e; padding: 6px 4px; width: 58px; text-align: center; vertical-align: middle; background-color: #0f766e; color: #ffffff;">Alokasi Waktu</th>
+        <th rowspan="2" style="border: 1px solid #0f766e; padding: 4px 3px; width: 30px; text-align: center; vertical-align: middle; background-color: #0f766e; color: #ffffff; line-height: 1.25;">No</th>
+        <th rowspan="2" style="border: 1px solid #0f766e; padding: 4px 3px; width: 220px; text-align: center; vertical-align: middle; background-color: #0f766e; color: #ffffff; line-height: 1.25;">TUJUAN PEMBELAJARAN</th>
+        <th rowspan="2" style="border: 1px solid #0f766e; padding: 4px 3px; width: 58px; text-align: center; vertical-align: middle; background-color: #0f766e; color: #ffffff; line-height: 1.25;">Alokasi Waktu</th>
         ${monthThsHtml}
       </tr>
-      <tr style="color: #000000; font-weight: bold; font-size: 7.5pt;">
+      <tr style="color: #000000; font-weight: bold; font-size: 7pt;">
         ${weekThsHtml}
       </tr>
     </thead>
@@ -1710,8 +1712,8 @@ Secara spesifik keterampilan proses belajar Sejarah mencakup keterampilan berpik
       ${tableRowsHtml}
       <!-- BARIS JUMLAH JAM PELAJARAN -->
       <tr style="background-color: #e2e8f0; font-weight: bold;">
-        <td style="border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-weight: bold; color: #0f172a;" colspan="2">TOTAL ALOKASI WAKTU SEMESTER</td>
-        <td style="border: 1px solid #cbd5e1; padding: 6px 4px; font-weight: bold; text-align: center; background-color: #cbd5e1; color: #0f172a;">${totalSemesterJP} JP<br/><span style="font-size: 7.5pt; font-weight: bold; color: #0f172a;">(${totalSemesterMeetings} Pertemuan)</span></td>
+        <td style="border: 1px solid #cbd5e1; padding: 4px 4px; text-align: left; font-weight: bold; color: #0f172a; line-height: 1.36;" colspan="2">TOTAL ALOKASI WAKTU SEMESTER</td>
+        <td style="border: 1px solid #cbd5e1; padding: 4px 3px; font-weight: bold; text-align: center; background-color: #cbd5e1; color: #0f172a; line-height: 1.36;">${totalSemesterJP} JP<br/><span style="font-size: 0.92em; font-weight: bold; color: #0f172a;">(${totalSemesterMeetings} Pertemuan)</span></td>
         ${weeklyTotalCellsHtml}
       </tr>
     </tbody>

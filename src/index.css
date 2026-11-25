@@ -486,7 +486,7 @@ body {
   margin-bottom: 0.75rem !important;
 }
 
-/* Unified Curriculum Tables (Rata Kiri Rapi & Responsif) */
+/* Unified Curriculum Tables (Mengikuti Standar Font, Ukuran, Padding, dan Line-Height Tabel Alur ATP) */
 .table-responsive {
   width: 100%;
   overflow-x: auto;
@@ -496,31 +496,27 @@ body {
   border: 1px solid #cbd5e1;
   background-color: #ffffff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  container-type: inline-size;
 }
 
 .table-responsive table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11.5px;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(7.5px, 0.92cqi, 10.5px);
   table-layout: auto;
-}
-
-@media (min-width: 640px) {
-  .table-responsive table {
-    font-size: 12px;
-  }
 }
 
 .table-responsive table th {
   text-align: center;
   font-weight: 700;
   vertical-align: middle;
-  padding: 7px 9px;
+  font-size: clamp(7.2px, 0.88cqi, 10px);
+  padding: 4px 3px;
   background-color: #0f766e;
   color: #ffffff;
   border: 1px solid #0f766e;
-  letter-spacing: 0.1px;
-  line-height: 1.28;
+  line-height: 1.25;
   white-space: normal;
   word-break: normal;
   overflow-wrap: break-word;
@@ -529,10 +525,11 @@ body {
 
 .table-responsive table td {
   text-align: left;
+  font-size: clamp(7.5px, 0.92cqi, 10.5px);
   hyphens: none;
-  line-height: 1.45;
+  line-height: 1.36;
   vertical-align: top;
-  padding: 6px 9px;
+  padding: 4px 4px;
   border: 1px solid #cbd5e1;
   color: #1e293b;
   word-break: normal;
@@ -557,20 +554,55 @@ body {
   text-align: right !important;
 }
 
-/* Standard 2-5 Column Curriculum Table Container */
+/* Standard 2-5 Column Curriculum Table Container (Identik Tabel Alur ATP) */
 .curriculum-table-container {
   width: 100%;
   max-width: 100%;
   border-radius: 6px;
+  container-type: inline-size;
 }
 
 .curriculum-table-container table {
   width: 100% !important;
   table-layout: fixed !important;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
   margin: 0 !important;
 }
 
-/* Wide 6-9 Column Curriculum Table Optimization (TP, Analisis CP, Alokasi Waktu, KKTP, RPM 6-Col, Rubrik) */
+.curriculum-table-container th {
+  font-size: clamp(7.2px, 0.88cqi, 10px) !important;
+  padding: 4px 3px !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+  vertical-align: middle !important;
+}
+
+.curriculum-table-container td {
+  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
+  padding: 4px 4px !important;
+  line-height: 1.36 !important;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
+}
+
+@media (max-width: 767px) {
+  .curriculum-table-container table {
+    font-size: 9.5px !important;
+  }
+  .curriculum-table-container th {
+    font-size: 9px !important;
+  }
+  .curriculum-table-container td {
+    font-size: 9.5px !important;
+  }
+}
+
+/* Wide 6-9 Column Curriculum Table Optimization (Identik Tabel Alur ATP) */
 .wide-curriculum-table-container {
   width: 100%;
   max-width: 100%;
@@ -582,20 +614,21 @@ body {
 .wide-curriculum-table-container table {
   width: 100% !important;
   table-layout: fixed !important;
-  font-size: clamp(9px, 1.44cqi, 11.5px) !important;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
   margin: 0 !important;
 }
 
 @media (max-width: 767px) {
   .wide-curriculum-table-container table {
     min-width: 640px;
-    font-size: 10.5px !important;
+    font-size: 9.5px !important;
   }
   .wide-curriculum-table-container th {
-    font-size: 10px !important;
+    font-size: 9px !important;
   }
   .wide-curriculum-table-container td {
-    font-size: 10.5px !important;
+    font-size: 9.5px !important;
   }
 }
 
@@ -609,9 +642,9 @@ body {
 }
 
 .wide-curriculum-table-container th {
-  font-size: clamp(9px, 1.42cqi, 11.5px) !important;
-  padding: 6px 5px !important;
-  line-height: 1.28 !important;
+  font-size: clamp(7.2px, 0.88cqi, 10px) !important;
+  padding: 4px 3px !important;
+  line-height: 1.25 !important;
   white-space: normal !important;
   word-break: normal !important;
   overflow-wrap: break-word !important;
@@ -621,26 +654,39 @@ body {
 }
 
 .wide-curriculum-table-container td {
-  font-size: clamp(9px, 1.44cqi, 11.5px) !important;
-  padding: 5px 6px !important;
-  line-height: 1.42 !important;
+  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
+  padding: 4px 4px !important;
+  line-height: 1.36 !important;
   word-break: normal !important;
   overflow-wrap: break-word !important;
   hyphens: none !important;
 }
 
-/* PROSEM 33-Column Matrix Optimization */
+/* PROSEM 33-Column Matrix Optimization (Mengikuti Font Tabel Alur ATP) */
 .prosem-matrix-container {
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
   border-radius: 6px;
+  container-type: inline-size;
 }
 
 .prosem-matrix-container table {
   width: 100%;
   min-width: 680px;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
   margin: 0 !important;
+}
+
+.prosem-matrix-container th {
+  font-size: clamp(7.2px, 0.88cqi, 10px) !important;
+  line-height: 1.25 !important;
+}
+
+.prosem-matrix-container td {
+  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
+  line-height: 1.36 !important;
 }
 
 @media (min-width: 768px) {
@@ -661,6 +707,7 @@ body {
 .atp-10-col-container table {
   width: 100% !important;
   table-layout: fixed !important;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
   margin: 0 !important;
 }

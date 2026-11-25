@@ -442,8 +442,9 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
                 .pdf-document-sheet table {
                   width: 100%;
                   border-collapse: collapse;
-                  margin: 12px 0;
-                  font-size: 8.5pt;
+                  margin: 10px 0;
+                  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                  font-size: 7.5pt;
                   border: 1px solid #0f766e;
                 }
                 .pdf-document-sheet tr {
@@ -451,15 +452,20 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
                 }
                 .pdf-document-sheet th, .pdf-document-sheet td {
                   border: 1px solid #cbd5e1;
-                  padding: 5px 7px;
+                  padding: 4px 4px;
                   vertical-align: top;
+                  line-height: 1.36;
                   word-break: normal;
                   overflow-wrap: break-word;
+                  hyphens: none;
                 }
                 .pdf-document-sheet th {
                   background-color: #0f766e;
                   color: #ffffff;
                   font-weight: bold;
+                  font-size: 7.5pt;
+                  padding: 4px 3px;
+                  line-height: 1.25;
                   text-align: center;
                   vertical-align: middle;
                   border: 1px solid #0f766e;
@@ -469,10 +475,8 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
                 .pdf-document-sheet .curriculum-table-container,
                 .pdf-document-sheet .wide-curriculum-table-container {
                   width: 100% !important;
-                  margin: 12px 0 !important;
+                  margin: 10px 0 !important;
                   border-radius: 6px !important;
-                }
-                .pdf-document-sheet .wide-curriculum-table-container {
                   container-type: inline-size;
                 }
                 .pdf-document-sheet .curriculum-table-container table,
@@ -480,33 +484,48 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
                   width: 100% !important;
                   table-layout: fixed !important;
                   margin: 0 !important;
+                  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
                 }
+                .pdf-document-sheet .curriculum-table-container th,
                 .pdf-document-sheet .wide-curriculum-table-container th {
-                  font-size: clamp(9px, 1.42cqi, 11.5px) !important;
-                  padding: 6px 5px !important;
-                  line-height: 1.28 !important;
+                  font-size: clamp(7.2px, 0.88cqi, 10px) !important;
+                  padding: 4px 3px !important;
+                  line-height: 1.25 !important;
                   white-space: normal !important;
                   word-break: normal !important;
                   overflow-wrap: break-word !important;
                   hyphens: none !important;
+                  vertical-align: middle !important;
                 }
+                .pdf-document-sheet .curriculum-table-container td,
                 .pdf-document-sheet .wide-curriculum-table-container td {
-                  font-size: clamp(9px, 1.44cqi, 11.5px) !important;
-                  padding: 5px 6px !important;
-                  line-height: 1.42 !important;
+                  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
+                  padding: 4px 4px !important;
+                  line-height: 1.36 !important;
                   word-break: normal !important;
                   overflow-wrap: break-word !important;
                   hyphens: none !important;
                 }
                 .pdf-document-sheet .prosem-matrix-container {
                   width: 100% !important;
-                  margin: 12px 0 !important;
+                  margin: 10px 0 !important;
                   border-radius: 6px !important;
+                  container-type: inline-size;
                 }
                 .pdf-document-sheet .prosem-matrix-container table {
                   width: 100% !important;
                   margin: 0 !important;
-                  font-size: 7.5pt !important;
+                  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
+                }
+                .pdf-document-sheet .prosem-matrix-container th {
+                  font-size: clamp(7.2px, 0.88cqi, 10px) !important;
+                  line-height: 1.25 !important;
+                }
+                .pdf-document-sheet .prosem-matrix-container td {
+                  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
+                  line-height: 1.36 !important;
                 }
                 .pdf-document-sheet .atp-10-col-container {
                   width: 100% !important;
@@ -518,6 +537,7 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
                   width: 100% !important;
                   table-layout: fixed !important;
                   margin: 0 !important;
+                  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                   font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
                 }
                 .pdf-document-sheet .atp-10-col-container th {
@@ -553,17 +573,22 @@ export const DocumentPdfPreview: React.FC<DocumentPdfPreviewProps> = ({
                 }
                 .pdf-document-sheet table.identitas-table {
                   border: 1.5px solid #0288d1 !important;
+                  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
                 }
                 .pdf-document-sheet table.identitas-table th {
                   background-color: #0288d1 !important;
                   color: #ffffff !important;
                   text-align: left !important;
                   border: 1px solid #0288d1 !important;
-                  padding: 7px 10px !important;
+                  font-size: clamp(7.2px, 0.88cqi, 10px) !important;
+                  padding: 4px 4px !important;
+                  line-height: 1.25 !important;
                 }
                 .pdf-document-sheet table.identitas-table td {
                   border: 1px solid #cbd5e1 !important;
-                  padding: 6px 10px !important;
+                  font-size: clamp(7.5px, 0.92cqi, 10.5px) !important;
+                  padding: 4px 4px !important;
+                  line-height: 1.36 !important;
                   text-align: left !important;
                   vertical-align: top !important;
                 }

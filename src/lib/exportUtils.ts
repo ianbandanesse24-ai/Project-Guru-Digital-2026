@@ -556,20 +556,20 @@ export class ExportService {
 
         let tableHtml = '';
         if (isForWord) {
-          const fontSize = isAtp10Col ? '7.5pt' : isWideTable ? '8.5pt' : '9.5pt';
-          const cellPad = isAtp10Col ? '3' : isWideTable ? '4' : '5';
+          const fontSize = '7.5pt';
+          const cellPad = '3';
           const fixedLayout = hasFixedColumnWidths ? 'table-layout:fixed;' : '';
-          tableHtml = `<table border="1" cellspacing="0" cellpadding="${cellPad}" style="width:100%; ${fixedLayout} border-collapse:collapse; font-size:${fontSize}; mso-table-lspace:0pt; mso-table-rspace:0pt; border:1pt solid ${tableBorderColor}; margin:10pt 0 14pt 0;">`;
+          tableHtml = `<table border="1" cellspacing="0" cellpadding="${cellPad}" style="width:100%; ${fixedLayout} border-collapse:collapse; font-family:'Segoe UI', 'Calibri', Arial, sans-serif; font-size:${fontSize}; mso-table-lspace:0pt; mso-table-rspace:0pt; border:1pt solid ${tableBorderColor}; margin:10pt 0 14pt 0;">`;
         } else {
-          const fontSize = isAtp10Col ? '7.5pt' : isWideTable ? '8.5pt' : '9pt';
-          const padding = isAtp10Col ? '4' : isWideTable ? '5' : '6';
+          const fontSize = '7.5pt';
+          const padding = '4';
           const fixedLayout = hasFixedColumnWidths ? 'table-layout:fixed;' : '';
           const containerClass = isAtp10Col
             ? 'table-responsive atp-10-col-container'
             : isWideTable
             ? 'table-responsive wide-curriculum-table-container'
             : 'table-responsive curriculum-table-container';
-          tableHtml = `<div class="${containerClass}" style="overflow-x:auto; margin:12px 0; page-break-inside:auto; break-inside:auto;"><table border="1" cellspacing="0" cellpadding="${padding}" class="${isIdentitasTable ? 'identitas-table' : ''}" style="width:100%; ${fixedLayout} border-collapse:collapse; font-size:${fontSize}; border:1.5px solid ${tableBorderColor}; page-break-inside:auto; break-inside:auto;">`;
+          tableHtml = `<div class="${containerClass}" style="overflow-x:auto; margin:12px 0; page-break-inside:auto; break-inside:auto;"><table border="1" cellspacing="0" cellpadding="${padding}" class="${isIdentitasTable ? 'identitas-table' : ''}" style="width:100%; ${fixedLayout} border-collapse:collapse; font-family:ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size:${fontSize}; border:1.5px solid ${tableBorderColor}; page-break-inside:auto; break-inside:auto;">`;
         }
 
         if (tableHeaders.length > 0) {
@@ -620,17 +620,13 @@ export class ExportService {
             const colWidth = getColumnWidth(cIdx, tableHeaders.length);
             const thAlign = isIdentitasTable ? 'text-align:left;' : 'text-align:center;';
             if (isForWord) {
-              const thPadding = isAtp10Col ? '4pt 3pt' : isWideTable ? '4.5pt 4pt' : '5.5pt 7pt';
-              const thFontSize = isAtp10Col ? '7.5pt' : isWideTable ? '8pt' : '9pt';
+              const thPadding = '4pt 3pt';
+              const thFontSize = '7.5pt';
               tableHtml += `<th style="border:1pt solid ${headerBorder}; mso-border-alt:solid ${headerBorder} .75pt; padding:${thPadding}; font-weight:bold; ${thAlign} color:${headerColor}; background-color:${headerBg}; font-size:${thFontSize}; line-height:1.25; word-wrap:break-word; ${colWidth}">${th}</th>`;
             } else {
-              const thPadding = isAtp10Col ? '4px 3px' : isWideTable ? '6px 5px' : '7px 9px';
-              const thFontSize = isAtp10Col
-                ? 'clamp(7.2px, 0.88cqi, 10px)'
-                : isWideTable
-                ? 'clamp(9px, 1.42cqi, 11.5px)'
-                : '9pt';
-              tableHtml += `<th style="border:1px solid ${headerBorder}; padding:${thPadding}; font-weight:bold; ${thAlign} color:${headerColor}; background-color:${headerBg}; font-size:${thFontSize}; line-height:1.28; white-space:normal; word-break:normal; overflow-wrap:break-word; hyphens:none; vertical-align:middle; ${colWidth}">${th}</th>`;
+              const thPadding = '4px 3px';
+              const thFontSize = 'clamp(7.2px, 0.88cqi, 10px)';
+              tableHtml += `<th style="border:1px solid ${headerBorder}; padding:${thPadding}; font-weight:bold; ${thAlign} color:${headerColor}; background-color:${headerBg}; font-size:${thFontSize}; line-height:1.25; white-space:normal; word-break:normal; overflow-wrap:break-word; hyphens:none; vertical-align:middle; ${colWidth}">${th}</th>`;
             }
           });
           tableHtml += '</tr></thead>';
@@ -664,9 +660,12 @@ export class ExportService {
             }
 
             const vAlign = 'top';
-            const identBorderColor = isIdentitasTable ? '#cbd5e1' : '#cbd5e1';
-            const tdPaddingWord = isAtp10Col ? '3.5pt 4pt' : isWideTable ? '4pt 5pt' : '5pt 7pt';
-            const tdPaddingHtml = isAtp10Col ? '4px 5px' : isWideTable ? '5px 6px' : '6px 9px';
+            const identBorderColor = '#cbd5e1';
+            const tdPaddingWord = '3.5pt 4pt';
+            const tdPaddingHtml = '4px 4px';
+            const tdFontRule = isForWord
+              ? 'font-size:7.5pt;'
+              : 'font-size:clamp(7.5px, 0.92cqi, 10.5px);';
             let cellStyle = isForWord
               ? `border:1pt solid ${identBorderColor}; mso-border-alt:solid ${identBorderColor} .5pt; padding:${tdPaddingWord}; vertical-align:${vAlign};`
               : `border:1px solid ${identBorderColor}; padding:${tdPaddingHtml}; vertical-align:${vAlign};`;
@@ -674,32 +673,29 @@ export class ExportService {
             const plainCell = cell.replace(/<[^>]+>/g, '').trim();
             const isDotsPlaceholder = /^\.{10,}$/.test(plainCell) || /^·{10,}$/.test(plainCell);
 
-            // Uniform left-alignment across all curriculum tables (matching Tujuan Pembelajaran), centering only short IDs, counts, and badge/score cells
-            let align = 'text-align:left; line-height:1.45; word-break:normal; overflow-wrap:break-word;';
-            if (!isForWord && isWideTable) {
-              align += ' font-size:clamp(9px, 1.44cqi, 11.5px);';
-            }
+            // Uniform ATP-matched typography across all perangkat ajar tables
+            let align = `text-align:left; line-height:1.36; word-break:normal; overflow-wrap:break-word; ${tdFontRule}`;
 
             if (isIdentitasTable) {
-              align = 'text-align:left; line-height:1.45;';
+              align = `text-align:left; line-height:1.36; ${tdFontRule}`;
             } else if (isAtp10Col) {
               if (cIdx === 7 || (cIdx === 0 && plainCell.length <= 4)) {
-                align = `text-align:center; font-weight:bold; white-space:nowrap;${!isForWord ? ' font-size:clamp(7.5px, 0.92cqi, 10.5px);' : ''}`;
+                align = `text-align:center; font-weight:bold; white-space:nowrap; line-height:1.36; ${tdFontRule}`;
               } else {
-                align = `text-align:left; line-height:1.36; word-break:normal; overflow-wrap:break-word;${!isForWord ? ' font-size:clamp(7.5px, 0.92cqi, 10.5px);' : ''}`;
+                align = `text-align:left; line-height:1.36; word-break:normal; overflow-wrap:break-word; ${tdFontRule}`;
               }
             } else if (isAtpTable) {
               if ((cIdx === 0 && plainCell.length <= 16) || cIdx === 7) {
-                align = `text-align:center; font-weight:bold; line-height:1.4;${!isForWord && isWideTable ? ' font-size:clamp(9px, 1.44cqi, 11.5px);' : ''}`;
+                align = `text-align:center; font-weight:bold; line-height:1.36; ${tdFontRule}`;
               }
             } else if (isDotsPlaceholder) {
-              align = 'text-align:left; vertical-align:middle;';
+              align = `text-align:left; vertical-align:middle; line-height:1.36; ${tdFontRule}`;
             } else if (
               (cIdx === 0 && plainCell.length <= 6) ||
               (/^\d+(\s*(JP|Pekan|Pertemuan|Menit|%))?$/i.test(plainCell) && plainCell.length <= 14) ||
               (plainCell.length <= 8 && !cell.includes('<br') && cIdx > 0 && isRbeRekapTable)
             ) {
-              align = `text-align:center; line-height:1.4;${!isForWord && isWideTable ? ' font-size:clamp(9px, 1.44cqi, 11.5px);' : ''}`;
+              align = `text-align:center; line-height:1.36; ${tdFontRule}`;
             }
 
             cellStyle += ` ${align}`;
@@ -740,44 +736,44 @@ export class ExportService {
             if (activeType === 'libur') {
               cellStyle += ' background-color:#fee2e2 !important; border:1px solid #fca5a5 !important; color:#991b1b !important; font-weight:bold; text-align:center;';
               if (cell === '-' || cell === '---' || cell === '') {
-                cellContent = '<span style="color:#b91c1c; font-size:8pt; font-weight:bold; display:inline-block; padding:1px 4px; background:#fee2e2; border-radius:4px;">🔴 LIBUR</span>';
+                cellContent = '<span style="color:#b91c1c; font-size:7.5pt; font-weight:bold; display:inline-block; padding:1px 4px; background:#fee2e2; border-radius:4px;">🔴 LIBUR</span>';
               }
             } else if (activeType === 'kbm') {
               cellStyle += ' background-color:#dcfce7 !important; border:1px solid #86efac !important; color:#15803d !important; font-weight:bold; text-align:center;';
             } else if (activeType === 'mpls') {
               cellStyle += ' background-color:#ffedd5 !important; border:1px solid #fdba74 !important; color:#c2410c !important; font-weight:bold; text-align:center;';
               if (cell === '-' || cell === '---' || cell === '') {
-                cellContent = '<span style="color:#c2410c; font-size:8pt; font-weight:bold;">🟠 MPLS</span>';
+                cellContent = '<span style="color:#c2410c; font-size:7.5pt; font-weight:bold;">🟠 MPLS</span>';
               }
             } else if (activeType === 'asts') {
               cellStyle += ' background-color:#fef9c3 !important; border:1px solid #fde047 !important; color:#854d0e !important; font-weight:bold; text-align:center;';
               if (cell === '-' || cell === '---' || cell === '') {
-                cellContent = '<span style="color:#854d0e; font-size:8pt; font-weight:bold;">🟡 ASTS</span>';
+                cellContent = '<span style="color:#854d0e; font-size:7.5pt; font-weight:bold;">🟡 ASTS</span>';
               }
             } else if (activeType === 'asas') {
               cellStyle += ' background-color:#f3e8ff !important; border:1px solid #d8b4fe !important; color:#6b21a8 !important; font-weight:bold; text-align:center;';
               if (cell === '-' || cell === '---' || cell === '') {
-                cellContent = '<span style="color:#6b21a8; font-size:8pt; font-weight:bold;">🟣 ASAS</span>';
+                cellContent = '<span style="color:#6b21a8; font-size:7.5pt; font-weight:bold;">🟣 ASAS</span>';
               }
             } else if (activeType === 'p5') {
               cellStyle += ' background-color:#e0f2fe !important; border:1px solid #7dd3fc !important; color:#0369a1 !important; font-weight:bold; text-align:center;';
               if (cell === '-' || cell === '---' || cell === '') {
-                cellContent = '<span style="color:#0369a1; font-size:8pt; font-weight:bold;">🔵 P5</span>';
+                cellContent = '<span style="color:#0369a1; font-size:7.5pt; font-weight:bold;">🔵 P5</span>';
               }
             } else if (activeType === 'rapor') {
               cellStyle += ' background-color:#f1f5f9 !important; border:1px solid #cbd5e1 !important; color:#334155 !important; font-weight:bold; text-align:center;';
               if (cell === '-' || cell === '---' || cell === '') {
-                cellContent = '<span style="color:#334155; font-size:8pt; font-weight:bold;">⚪ RAPOR</span>';
+                cellContent = '<span style="color:#334155; font-size:7.5pt; font-weight:bold;">⚪ RAPOR</span>';
               }
             } else if (activeType === 'anbk') {
               cellStyle += ' background-color:#ccfbf1 !important; border:1px solid #5eead4 !important; color:#0f766e !important; font-weight:bold; text-align:center;';
               if (cell === '-' || cell === '---' || cell === '') {
-                cellContent = '<span style="color:#0f766e; font-size:8pt; font-weight:bold;">🟤 ANBK</span>';
+                cellContent = '<span style="color:#0f766e; font-size:7.5pt; font-weight:bold;">🟤 ANBK</span>';
               }
             } else if (activeType === 'remedial') {
               cellStyle += ' background-color:#ffe4e6 !important; border:1px solid #fda4af !important; color:#9f1239 !important; font-weight:bold; text-align:center;';
               if (cell === '-' || cell === '---' || cell === '') {
-                cellContent = '<span style="color:#9f1239; font-size:8pt; font-weight:bold;">🌸 CAD</span>';
+                cellContent = '<span style="color:#9f1239; font-size:7.5pt; font-weight:bold;">🌸 CAD</span>';
               }
             } else if (!isIdentitasTable && isTotalRow) {
               cellStyle += ' font-weight:bold; color:#0f172a;';
@@ -1782,7 +1778,8 @@ export class ExportService {
             width: 100%;
             border-collapse: collapse;
             margin: 10pt 0 14pt 0;
-            font-size: 9pt;
+            font-family: 'Segoe UI', 'Calibri', Arial, sans-serif;
+            font-size: 7.5pt;
             mso-table-lspace: 0pt;
             mso-table-rspace: 0pt;
             border: 1pt solid #0f766e;
@@ -1790,7 +1787,9 @@ export class ExportService {
           th, td {
             border: 1pt solid #cbd5e1;
             mso-border-alt: solid #cbd5e1 .5pt;
-            padding: 5pt 6pt;
+            padding: 3.5pt 4pt;
+            font-size: 7.5pt;
+            line-height: 1.36;
             text-align: left;
             vertical-align: top;
           }
@@ -1798,6 +1797,9 @@ export class ExportService {
             background-color: #0f766e;
             color: #ffffff;
             font-weight: bold;
+            font-size: 7.5pt;
+            padding: 4pt 3pt;
+            line-height: 1.25;
             text-align: center;
             mso-yfti-tblheader: yes;
           }
@@ -1816,17 +1818,22 @@ export class ExportService {
           }
           table.identitas-table {
             border: 1.5pt solid #0288d1 !important;
+            font-size: 7.5pt !important;
           }
           table.identitas-table th {
             background-color: #0288d1 !important;
             color: #ffffff !important;
             text-align: left !important;
             border: 1pt solid #0288d1 !important;
-            padding: 5pt 8pt !important;
+            padding: 4pt 4pt !important;
+            font-size: 7.5pt !important;
+            line-height: 1.25 !important;
           }
           table.identitas-table td {
             border: 1pt solid #cbd5e1 !important;
-            padding: 5pt 8pt !important;
+            padding: 3.5pt 4pt !important;
+            font-size: 7.5pt !important;
+            line-height: 1.36 !important;
             text-align: left !important;
             vertical-align: top !important;
           }
@@ -2104,8 +2111,9 @@ export class ExportService {
           table {
             width: 100%;
             border-collapse: collapse;
-            margin: 12px 0;
-            font-size: 8.5pt;
+            margin: 10px 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 7.5pt;
             page-break-inside: auto;
             border: 1px solid #0f766e;
           }
@@ -2115,15 +2123,21 @@ export class ExportService {
           }
           th, td {
             border: 1px solid #cbd5e1;
-            padding: 5px 7px;
+            padding: 4px 4px;
+            font-size: 7.5pt;
+            line-height: 1.36;
             vertical-align: top;
             word-break: normal;
             overflow-wrap: break-word;
+            hyphens: none;
           }
           th {
             background-color: #0f766e;
             color: #ffffff;
             font-weight: bold;
+            font-size: 7.5pt;
+            padding: 4px 3px;
+            line-height: 1.25;
             text-align: center;
             vertical-align: middle;
             border: 1px solid #0f766e;
@@ -2137,21 +2151,15 @@ export class ExportService {
             overflow-x: visible !important;
           }
           .curriculum-table-container table,
-          .wide-curriculum-table-container table {
-            width: 100% !important;
-            table-layout: fixed !important;
-          }
-          .wide-curriculum-table-container th,
-          .wide-curriculum-table-container td {
-            font-size: 8pt !important;
-            padding: 4px 5px !important;
-            line-height: 1.38 !important;
-          }
+          .wide-curriculum-table-container table,
           .atp-10-col-container table {
             width: 100% !important;
             table-layout: fixed !important;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
             font-size: 7.5pt !important;
           }
+          .curriculum-table-container th,
+          .wide-curriculum-table-container th,
           .atp-10-col-container th {
             font-size: 7.5pt !important;
             padding: 4px 3px !important;
@@ -2160,12 +2168,19 @@ export class ExportService {
             word-break: normal !important;
             overflow-wrap: break-word !important;
           }
+          .curriculum-table-container td,
+          .wide-curriculum-table-container td,
           .atp-10-col-container td {
             font-size: 7.5pt !important;
             padding: 4px 4px !important;
-            line-height: 1.35 !important;
+            line-height: 1.36 !important;
             word-break: normal !important;
             overflow-wrap: break-word !important;
+          }
+          .prosem-matrix-container table {
+            width: 100% !important;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            font-size: 7.5pt !important;
           }
           .katex {
             font-size: 1.05em;
@@ -2183,17 +2198,22 @@ export class ExportService {
           }
           table.identitas-table {
             border: 1.5px solid #0288d1 !important;
+            font-size: 7.5pt !important;
           }
           table.identitas-table th {
             background-color: #0288d1 !important;
             color: #ffffff !important;
             text-align: left !important;
             border: 1px solid #0288d1 !important;
-            padding: 7px 10px !important;
+            font-size: 7.5pt !important;
+            padding: 4px 4px !important;
+            line-height: 1.25 !important;
           }
           table.identitas-table td {
             border: 1px solid #cbd5e1 !important;
-            padding: 6px 10px !important;
+            font-size: 7.5pt !important;
+            padding: 4px 4px !important;
+            line-height: 1.36 !important;
             text-align: left !important;
             vertical-align: top !important;
           }
