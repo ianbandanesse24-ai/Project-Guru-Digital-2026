@@ -115,13 +115,25 @@ export const AnalisisAlokasiWaktuView: React.FC<AnalisisAlokasiWaktuViewProps> =
 
   // Materials / Chapters for reference in Distribusi JP table
   const [materialsSem1, setMaterialsSem1] = useState<CPMaterialItem[]>(() => {
-    if (masterCP?.materialsSem1 && masterCP.materialsSem1.length > 0) return masterCP.materialsSem1;
+    if (
+      masterCP?.materialsSem1 &&
+      masterCP.materialsSem1.length > 0 &&
+      Number(masterCP.grade) === Number(grade)
+    ) {
+      return masterCP.materialsSem1;
+    }
     const preset = getSubjectPresetByGrade(subject, level, grade);
     return (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
   });
 
   const [materialsSem2, setMaterialsSem2] = useState<CPMaterialItem[]>(() => {
-    if (masterCP?.materialsSem2 && masterCP.materialsSem2.length > 0) return masterCP.materialsSem2;
+    if (
+      masterCP?.materialsSem2 &&
+      masterCP.materialsSem2.length > 0 &&
+      Number(masterCP.grade) === Number(grade)
+    ) {
+      return masterCP.materialsSem2;
+    }
     const preset = getSubjectPresetByGrade(subject, level, grade);
     return (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
   });

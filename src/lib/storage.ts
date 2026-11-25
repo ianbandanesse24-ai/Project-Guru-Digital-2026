@@ -3003,6 +3003,57 @@ export class StorageService {
     };
   }
 
+  static resolveGradeCalibratedEntry(
+    entry: CPSubjectEntry,
+    subject: string,
+    level: SchoolLevel | string,
+    grade: number,
+    phase?: string
+  ): CPSubjectEntry {
+    const numGrade = Number(grade) || Number(entry.grade) || 10;
+    const resolvedPhase = phase || resolvePhaseByLevelAndGrade(level, numGrade);
+    const hasExactMaterials =
+      Number(entry.grade) === numGrade &&
+      ((entry.materialsSem1?.length || 0) > 0 || (entry.materialsSem2?.length || 0) > 0);
+    if (hasExactMaterials) {
+      return entry;
+    }
+
+    const gradePreset = getSubjectPresetByGrade(
+      entry.subject || subject,
+      level,
+      numGrade,
+      resolvedPhase
+    );
+    const slug = (entry.subject || subject || 'mapel').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const normLevel = normalizeSchoolLevel(level, entry.subject || subject);
+
+    return {
+      ...entry,
+      level: normLevel,
+      subLevelLabel: getSchoolLevelDisplay(normLevel, numGrade).subLabel,
+      grade: numGrade,
+      phase: resolvedPhase,
+      jpPerWeek: entry.jpPerWeek || gradePreset.jpPerWeek || 3,
+      totalHoursPerYear: gradePreset.totalHoursPerYear || entry.totalHoursPerYear,
+      cpText: entry.cpText || gradePreset.cpSummary,
+      elements:
+        entry.elements && entry.elements.length > 0
+          ? entry.elements
+          : gradePreset.elements,
+      materialsSem1: (gradePreset.materialsSem1 || []).map((m, idx) => ({
+        ...m,
+        id: `cal-${slug}-${numGrade}-s1-${idx + 1}`,
+        tpCode: m.tpCode || `TP.${numGrade}.1.${idx + 1}`,
+      })),
+      materialsSem2: (gradePreset.materialsSem2 || []).map((m, idx) => ({
+        ...m,
+        id: `cal-${slug}-${numGrade}-s2-${idx + 1}`,
+        tpCode: m.tpCode || `TP.${numGrade}.2.${idx + 1}`,
+      })),
+    };
+  }
+
   static findMasterCPEntry(
     subject: string,
     level: SchoolLevel | string,
@@ -3069,6 +3120,7 @@ export class StorageService {
 
     if (grade !== undefined && grade !== null && grade !== '') {
       const gNum = Number(grade);
+      const exactPhaseStr = phase || resolvePhaseByLevelAndGrade(level, gNum);
       const exactWithMaterials = allCandidates.find(
         (e) =>
           Number(e.grade) === gNum &&
@@ -3082,17 +3134,27 @@ export class StorageService {
             (e.phase || '').trim().toLowerCase() === targetPhase &&
             ((e.materialsSem1?.length || 0) > 0 || (e.materialsSem2?.length || 0) > 0)
         );
-        if (phaseWithMaterials) return phaseWithMaterials;
+        if (phaseWithMaterials) {
+          return this.resolveGradeCalibratedEntry(phaseWithMaterials, subject, level, gNum, exactPhaseStr);
+        }
       }
 
       const exactNoMaterials = allCandidates.find((e) => Number(e.grade) === gNum);
-      if (exactNoMaterials) return exactNoMaterials;
+      if (exactNoMaterials) {
+        return this.resolveGradeCalibratedEntry(exactNoMaterials, subject, level, gNum, exactPhaseStr);
+      }
 
       if (targetPhase) {
         const phaseNoMaterials = allCandidates.find(
           (e) => (e.phase || '').trim().toLowerCase() === targetPhase
         );
-        if (phaseNoMaterials) return phaseNoMaterials;
+        if (phaseNoMaterials) {
+          return this.resolveGradeCalibratedEntry(phaseNoMaterials, subject, level, gNum, exactPhaseStr);
+        }
+      }
+
+      if (allCandidates.length > 0) {
+        return this.resolveGradeCalibratedEntry(allCandidates[0], subject, level, gNum, exactPhaseStr);
       }
       return null;
     }
@@ -4083,25 +4145,40 @@ export class StorageService {
       effectiveMaster = activeMaster || (allPlans.length > 0 ? allPlans[0] : null);
     }
 
-    // Ambil materi Semester 1 & Semester 2 langsung dari Master CP / Katalog CP 046 & 020
-    let sem1Materials = (effectiveMaster?.materialsSem1 && effectiveMaster.materialsSem1.length > 0) ? effectiveMaster.materialsSem1 : [];
-    let sem2Materials = (effectiveMaster?.materialsSem2 && effectiveMaster.materialsSem2.length > 0) ? effectiveMaster.materialsSem2 : [];
+    const resolvedPhase = resolvePhaseByLevelAndGrade(targetLvl, targetGrade);
+
+    // Ambil materi Semester 1 & Semester 2 khusus untuk tingkatan kelas targetGrade
+    const hasExactGradeMaterials = Boolean(
+      effectiveMaster &&
+      isSameSubjectName(effectiveMaster.subject, targetSub) &&
+      Number(effectiveMaster.grade) === targetGrade &&
+      ((effectiveMaster.materialsSem1?.length || 0) > 0 || (effectiveMaster.materialsSem2?.length || 0) > 0)
+    );
+
+    let sem1Materials = hasExactGradeMaterials && effectiveMaster?.materialsSem1 ? effectiveMaster.materialsSem1 : [];
+    let sem2Materials = hasExactGradeMaterials && effectiveMaster?.materialsSem2 ? effectiveMaster.materialsSem2 : [];
 
     let cpSummary = effectiveMaster?.cpText || activeMaster?.cpText || schoolProfile?.cpText || '';
 
     if (sem1Materials.length === 0 && sem2Materials.length === 0) {
-      const gradePreset = getSubjectPresetByGrade(targetSub, targetLvl, targetGrade);
+      const gradePreset = getSubjectPresetByGrade(targetSub, targetLvl, targetGrade, resolvedPhase);
       sem1Materials = gradePreset.materialsSem1.map((m, idx) => ({ ...m, id: `sem1-mat-${idx + 1}` }));
       sem2Materials = gradePreset.materialsSem2.map((m, idx) => ({ ...m, id: `sem2-mat-${idx + 1}` }));
       cpSummary = cpSummary || gradePreset.cpSummary;
     }
 
-    const totalHoursSem1 = (effectiveMaster as any)?.totalHoursSem1 || sem1Materials.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0);
-    const totalHoursSem2 = (effectiveMaster as any)?.totalHoursSem2 || sem2Materials.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0);
-    const totalHoursPerYear = effectiveMaster?.totalHoursPerYear || schoolProfile?.totalHoursPerYear || (totalHoursSem1 + totalHoursSem2) || 108;
+    const totalHoursSem1 = hasExactGradeMaterials
+      ? ((effectiveMaster as any)?.totalHoursSem1 || sem1Materials.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0))
+      : sem1Materials.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0);
+    const totalHoursSem2 = hasExactGradeMaterials
+      ? ((effectiveMaster as any)?.totalHoursSem2 || sem2Materials.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0))
+      : sem2Materials.reduce((s, m) => s + (Number(m.allocatedHours) || 0), 0);
+    const totalHoursPerYear =
+      (hasExactGradeMaterials ? effectiveMaster?.totalHoursPerYear : 0) ||
+      (totalHoursSem1 + totalHoursSem2) ||
+      schoolProfile?.totalHoursPerYear ||
+      108;
     const jpPerWeek = effectiveMaster?.jpPerWeek || schoolProfile?.jpPerWeek || kaldik.semester1?.jpPerWeek || 3;
-
-    const resolvedPhase = schoolProfile?.phase || resolvePhaseByLevelAndGrade(targetLvl, targetGrade);
 
     return {
       schoolProfile,

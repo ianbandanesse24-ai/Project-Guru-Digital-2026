@@ -127,30 +127,34 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     'Deep Learning (Mindful, Meaningful, Joyful)'
   );
 
-  // Materials state (Semester 1 & Semester 2)
+  // Materials state (Semester 1 & Semester 2) — selalu disesuaikan dengan tingkatan kelas aktif
   const [materialsSem1, setMaterialsSem1] = useState<CPMaterialItem[]>(() => {
-    if (masterCP?.materialsSem1 && masterCP.materialsSem1.length > 0) {
+    const initGrade = Number(masterCP?.grade) || Number(schoolProfile?.grade) || 10;
+    if (
+      masterCP?.materialsSem1 &&
+      masterCP.materialsSem1.length > 0 &&
+      Number(masterCP.grade) === initGrade &&
+      isSameSubjectName(masterCP.subject, initialSubject)
+    ) {
       return masterCP.materialsSem1;
     }
     if (!initialSubject) return [];
-    const preset = getSubjectPresetByGrade(
-      initialSubject,
-      initialLevel as EducationLevel,
-      Number(masterCP?.grade) || Number(schoolProfile?.grade) || 10
-    );
+    const preset = getSubjectPresetByGrade(initialSubject, initialLevel as EducationLevel, initGrade);
     return (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
   });
 
   const [materialsSem2, setMaterialsSem2] = useState<CPMaterialItem[]>(() => {
-    if (masterCP?.materialsSem2 && masterCP.materialsSem2.length > 0) {
+    const initGrade = Number(masterCP?.grade) || Number(schoolProfile?.grade) || 10;
+    if (
+      masterCP?.materialsSem2 &&
+      masterCP.materialsSem2.length > 0 &&
+      Number(masterCP.grade) === initGrade &&
+      isSameSubjectName(masterCP.subject, initialSubject)
+    ) {
       return masterCP.materialsSem2;
     }
     if (!initialSubject) return [];
-    const preset = getSubjectPresetByGrade(
-      initialSubject,
-      initialLevel as EducationLevel,
-      Number(masterCP?.grade) || Number(schoolProfile?.grade) || 10
-    );
+    const preset = getSubjectPresetByGrade(initialSubject, initialLevel as EducationLevel, initGrade);
     return (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
   });
 
@@ -353,21 +357,31 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
     let sem2: CPMaterialItem[] = [];
     if (
       masterEntry &&
-      (Number(masterEntry.grade) === Number(newGrade) || (masterEntry.phase || '').toLowerCase() === newPhase.toLowerCase()) &&
+      Number(masterEntry.grade) === Number(newGrade) &&
       ((masterEntry.materialsSem1?.length || 0) > 0 || (masterEntry.materialsSem2?.length || 0) > 0)
     ) {
       sem1 = (masterEntry.materialsSem1 || []).map((m, idx) => ({
         ...m,
-        id: m.id || `mat-1-${idx + 1}`,
+        id: m.id || `mat-1-${newGrade}-${idx + 1}`,
+        tpCode: m.tpCode || `TP.${newGrade}.1.${idx + 1}`,
       }));
       sem2 = (masterEntry.materialsSem2 || []).map((m, idx) => ({
         ...m,
-        id: m.id || `mat-2-${idx + 1}`,
+        id: m.id || `mat-2-${newGrade}-${idx + 1}`,
+        tpCode: m.tpCode || `TP.${newGrade}.2.${idx + 1}`,
       }));
     } else {
-      const preset = getSubjectPresetByGrade(subject, level as EducationLevel, newGrade);
-      sem1 = (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
-      sem2 = (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
+      const preset = getSubjectPresetByGrade(subject, level as EducationLevel, newGrade, newPhase);
+      sem1 = (preset.materialsSem1 || []).map((m, idx) => ({
+        ...m,
+        id: `mat-1-${newGrade}-${idx + 1}`,
+        tpCode: m.tpCode || `TP.${newGrade}.1.${idx + 1}`,
+      }));
+      sem2 = (preset.materialsSem2 || []).map((m, idx) => ({
+        ...m,
+        id: `mat-2-${newGrade}-${idx + 1}`,
+        tpCode: m.tpCode || `TP.${newGrade}.2.${idx + 1}`,
+      }));
     }
 
     setMaterialsSem1(sem1);
@@ -419,22 +433,33 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
 
     if (
       masterEntry &&
+      Number(masterEntry.grade) === Number(nextGrade) &&
       ((masterEntry.materialsSem1?.length || 0) > 0 || (masterEntry.materialsSem2?.length || 0) > 0)
     ) {
       sem1 = (masterEntry.materialsSem1 || []).map((m, idx) => ({
         ...m,
-        id: m.id || `mat-1-${idx + 1}`,
+        id: m.id || `mat-1-${nextGrade}-${idx + 1}`,
+        tpCode: m.tpCode || `TP.${nextGrade}.1.${idx + 1}`,
       }));
       sem2 = (masterEntry.materialsSem2 || []).map((m, idx) => ({
         ...m,
-        id: m.id || `mat-2-${idx + 1}`,
+        id: m.id || `mat-2-${nextGrade}-${idx + 1}`,
+        tpCode: m.tpCode || `TP.${nextGrade}.2.${idx + 1}`,
       }));
       targetJp = masterEntry.jpPerWeek || targetJp;
       sourceLabel = masterEntry.slot === 'agama' ? 'CP #2 Pendidikan Agama & Budi Pekerti' : 'CP #1 Umum/Pilihan';
     } else {
-      const preset = getSubjectPresetByGrade(cleanSub, targetLevel as EducationLevel, nextGrade);
-      sem1 = (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `mat-1-${idx + 1}` }));
-      sem2 = (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `mat-2-${idx + 1}` }));
+      const preset = getSubjectPresetByGrade(cleanSub, targetLevel as EducationLevel, nextGrade, resolvedPhase);
+      sem1 = (preset.materialsSem1 || []).map((m, idx) => ({
+        ...m,
+        id: `mat-1-${nextGrade}-${idx + 1}`,
+        tpCode: m.tpCode || `TP.${nextGrade}.1.${idx + 1}`,
+      }));
+      sem2 = (preset.materialsSem2 || []).map((m, idx) => ({
+        ...m,
+        id: `mat-2-${nextGrade}-${idx + 1}`,
+        tpCode: m.tpCode || `TP.${nextGrade}.2.${idx + 1}`,
+      }));
       targetJp = preset.jpPerWeek || targetJp;
     }
 
@@ -1711,7 +1736,8 @@ export const ParameterKurikulumView: React.FC<ParameterKurikulumViewProps> = ({
                   <span>Bab Materi Pokok & Rumusan TP (Semester 1 & 2)</span>
                 </h2>
                 <p className="text-[11px] text-slate-500">
-                  Kelola bab materi, rumusan TP, alokasi JP, dan hitung jumlah pertemuan secara otomatis.
+                  Bab &amp; lingkup materi pokok otomatis disesuaikan untuk{' '}
+                  <strong className="text-blue-700">Kelas {grade} ({phase})</strong> &bull; {subject}.
                 </p>
               </div>
 

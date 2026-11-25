@@ -349,8 +349,9 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     const masterMatch = StorageService.findMasterCPEntry(cleanSub, targetLvl, targetGrade, undefined, targetPhase);
     const hasMasterMaterials =
       masterMatch &&
+      Number(masterMatch.grade) === Number(targetGrade) &&
       ((masterMatch.materialsSem1?.length || 0) > 0 || (masterMatch.materialsSem2?.length || 0) > 0);
-    const preset = getSubjectPresetByGrade(cleanSub, targetLvl, targetGrade);
+    const preset = getSubjectPresetByGrade(cleanSub, targetLvl, targetGrade, targetPhase);
 
     const resolvedPhase = overridePhase || (masterMatch?.phase || targetPhase);
     const resolvedCp = masterMatch?.cpText?.trim() ? masterMatch.cpText : preset.cpSummary;
@@ -411,9 +412,9 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
     const masterMatch = StorageService.findMasterCPEntry(subject || 'Fisika', targetLvl, newGrade, undefined, newPhase);
     const hasMasterMaterials =
       masterMatch &&
-      (Number(masterMatch.grade) === newGrade || (masterMatch.phase || '').toLowerCase() === newPhase.toLowerCase()) &&
+      Number(masterMatch.grade) === Number(newGrade) &&
       ((masterMatch.materialsSem1?.length || 0) > 0 || (masterMatch.materialsSem2?.length || 0) > 0);
-    const preset = getSubjectPresetByGrade(subject || 'Fisika', targetLvl, newGrade);
+    const preset = getSubjectPresetByGrade(subject || 'Fisika', targetLvl, newGrade, newPhase);
 
     const resolvedPhase = hasMasterMaterials ? masterMatch!.phase || newPhase : newPhase;
     const resolvedCp = hasMasterMaterials ? masterMatch!.cpText || preset.cpSummary : preset.cpSummary;
@@ -473,6 +474,7 @@ export const ProfilGuruMapelView: React.FC<ProfilGuruMapelViewProps> = ({
 
     if (
       matchedMaster &&
+      Number(matchedMaster.grade) === Number(defaultGrade) &&
       ((matchedMaster.materialsSem1?.length || 0) > 0 || (matchedMaster.materialsSem2?.length || 0) > 0)
     ) {
       const mPhase = matchedMaster.phase || (newLvl === 'SD' ? 'Fase B' : newLvl === 'SMP' ? 'Fase D' : 'Fase E');

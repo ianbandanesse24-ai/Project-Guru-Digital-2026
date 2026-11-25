@@ -158,13 +158,25 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
 
   // Materials for Semester 1 & 2
   const [materialsSem1, setMaterialsSem1] = useState<CPMaterialItem[]>(() => {
-    if (activeMasterCP?.materialsSem1 && activeMasterCP.materialsSem1.length > 0) return activeMasterCP.materialsSem1;
+    if (
+      activeMasterCP?.materialsSem1 &&
+      activeMasterCP.materialsSem1.length > 0 &&
+      Number(activeMasterCP.grade) === Number(grade)
+    ) {
+      return activeMasterCP.materialsSem1;
+    }
     const preset = getSubjectPresetByGrade(subject, level, grade);
     return (preset.materialsSem1 || []).map((m, idx) => ({ ...m, id: `cp-m1-${idx + 1}` }));
   });
 
   const [materialsSem2, setMaterialsSem2] = useState<CPMaterialItem[]>(() => {
-    if (activeMasterCP?.materialsSem2 && activeMasterCP.materialsSem2.length > 0) return activeMasterCP.materialsSem2;
+    if (
+      activeMasterCP?.materialsSem2 &&
+      activeMasterCP.materialsSem2.length > 0 &&
+      Number(activeMasterCP.grade) === Number(grade)
+    ) {
+      return activeMasterCP.materialsSem2;
+    }
     const preset = getSubjectPresetByGrade(subject, level, grade);
     return (preset.materialsSem2 || []).map((m, idx) => ({ ...m, id: `cp-m2-${idx + 1}` }));
   });
@@ -537,8 +549,15 @@ export const AnalisisCPView: React.FC<AnalisisCPViewProps> = ({
         ? entry.elements
         : fallback.elements || []
     );
-    const sem1 = entry.materialsSem1 && entry.materialsSem1.length > 0 ? entry.materialsSem1 : fallback.materialsSem1 || [];
-    const sem2 = entry.materialsSem2 && entry.materialsSem2.length > 0 ? entry.materialsSem2 : fallback.materialsSem2 || [];
+    const hasExactEntryGrade = Number(entry.grade) === Number(targetGrade);
+    const sem1 =
+      hasExactEntryGrade && entry.materialsSem1 && entry.materialsSem1.length > 0
+        ? entry.materialsSem1
+        : fallback.materialsSem1 || [];
+    const sem2 =
+      hasExactEntryGrade && entry.materialsSem2 && entry.materialsSem2.length > 0
+        ? entry.materialsSem2
+        : fallback.materialsSem2 || [];
     setMaterialsSem1(sem1.map((m, idx) => ({ ...m, id: (m as Partial<CPMaterialItem>).id || `cp-m1-${idx + 1}` })));
     setMaterialsSem2(sem2.map((m, idx) => ({ ...m, id: (m as Partial<CPMaterialItem>).id || `cp-m2-${idx + 1}` })));
 

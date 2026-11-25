@@ -47,7 +47,7 @@ import {
 import { StorageService, INITIAL_CP_DISTRIBUTIONS } from '../lib/storage';
 import { ExportService } from '../lib/exportUtils';
 import { getSubjectPresetByGrade } from '../lib/subjectMaterialPresets';
-import { getSchoolLevelGroup, isSameSubjectName } from '../lib/curriculumLevels';
+import { getSchoolLevelGroup, isSameSubjectName, resolvePhaseByLevelAndGrade } from '../lib/curriculumLevels';
 import { CustomFormatSelector, CustomFormatConfig } from '../components/CustomFormatSelector';
 import { CPUploaderAndAnalyzer } from '../components/CPUploaderAndAnalyzer';
 import { generateExpertCurriculumDocument } from '../lib/curriculumEngine';
@@ -275,8 +275,29 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
     }
     setPhase(newPhase);
 
-    // If materials are empty, or user just selected a new grade, auto sync grade materials
-    if (materialsSem1.length === 0 && materialsSem2.length === 0) {
+    // Selalu sesuaikan Bab / Lingkup Materi Pokok dengan tingkatan kelas yang baru dipilih
+    const cpEntry = StorageService.findMasterCPEntry(subject || 'Fisika', level, newGrade, undefined, newPhase);
+    if (
+      cpEntry &&
+      Number(cpEntry.grade) === Number(newGrade) &&
+      ((cpEntry.materialsSem1?.length || 0) > 0 || (cpEntry.materialsSem2?.length || 0) > 0)
+    ) {
+      setCpText(cpEntry.cpText || cpText);
+      setTotalHoursPerYear(cpEntry.totalHoursPerYear || totalHoursPerYear);
+      setMaterialsSem1(
+        (cpEntry.materialsSem1 || []).map((m, idx) => ({
+          ...m,
+          id: (m as Partial<CPMaterialItem>).id || `mat-1-${newGrade}-${idx + 1}`,
+        }))
+      );
+      setMaterialsSem2(
+        (cpEntry.materialsSem2 || []).map((m, idx) => ({
+          ...m,
+          id: (m as Partial<CPMaterialItem>).id || `mat-2-${newGrade}-${idx + 1}`,
+        }))
+      );
+      showNotif(`Bab & Lingkup Materi otomatis disesuaikan untuk Kelas ${newGrade} (${newPhase})!`);
+    } else {
       handleSyncGradeMaterials(newGrade, level);
     }
   };
@@ -890,13 +911,18 @@ export const AnalisisCPDistributionView: React.FC<AnalisisCPDistributionViewProp
     if (targetLevelOverride) setLevel(targetLevelOverride);
 
     const cpEntry = StorageService.findMasterCPEntry(newSubject, tgtLevel, tgtGrade);
-    const preset = getSubjectPresetByGrade(newSubject, tgtLevel as 'SD' | 'SMP' | 'SMA', tgtGrade, cpEntry?.phase || phase);
+    const resolvedPhase = cpEntry?.phase || resolvePhaseByLevelAndGrade(tgtLevel, tgtGrade);
+    const preset = getSubjectPresetByGrade(newSubject, tgtLevel as 'SD' | 'SMP' | 'SMA', tgtGrade, resolvedPhase);
 
-    const resolvedPhase = cpEntry?.phase || preset.phase;
+    const hasExactGradeCP = Boolean(
+      cpEntry &&
+      Number(cpEntry.grade) === tgtGrade &&
+      ((cpEntry.materialsSem1?.length || 0) > 0 || (cpEntry.materialsSem2?.length || 0) > 0)
+    );
     const resolvedJp = cpEntry?.jpPerWeek || preset.jpPerWeek || jpPerWeek || 3;
-    const resolvedHours = cpEntry?.totalHoursPerYear || preset.totalHoursPerYear || resolvedJp * 36;
-    const sem1Source = cpEntry?.materialsSem1 && cpEntry.materialsSem1.length > 0 ? cpEntry.materialsSem1 : preset.materialsSem1;
-    const sem2Source = cpEntry?.materialsSem2 && cpEntry.materialsSem2.length > 0 ? cpEntry.materialsSem2 : preset.materialsSem2;
+    const resolvedHours = hasExactGradeCP ? (cpEntry!.totalHoursPerYear || preset.totalHoursPerYear) : (preset.totalHoursPerYear || resolvedJp * 36);
+    const sem1Source = hasExactGradeCP && cpEntry!.materialsSem1.length > 0 ? cpEntry!.materialsSem1 : preset.materialsSem1;
+    const sem2Source = hasExactGradeCP && cpEntry!.materialsSem2.length > 0 ? cpEntry!.materialsSem2 : preset.materialsSem2;
 
     setPhase(resolvedPhase);
     setJpPerWeek(resolvedJp);
